@@ -22,6 +22,70 @@
 ;; -  When doing a BYE back to DEMON, flush and turn off the caches so that a
 ;;    new image can be loaded safely.
 ;; -  add memory map and io equates from Carey's cogent port.
+;; 
+;; Fix the following errors in the high-level source that were found during
+;; the metacompiler work (all have been reported to Wonyong so I could just
+;; wait to get the updates back from him.. it will diff against my code more
+;; cleanly then:
+;; 
+;;2DROP 2DUP had no high-level definition
+;;=mask in head, should be [ =MASK ] LITERAL
+;;=imed in IMMEDIATE should be [ =IMED ] LITERAL
+;;=comp in COMPILE-ONLY should be =COMP
+;;MaxNegative in doDO should be [ MaxNegative ] LITERAL
+;;.. or maybe they should all change to MASKK IMMED COMPO to match the
+;;assembler constants
+;;UNLOOP hi-level defn. needs COMPILE-ONLY
+;;the label NOrder0 in UZERO table is not needed.
+;;high-level definition of BEGIN and ELSE have IMMEDIATE typo'd (IMMDEDIATE)
+;;high-level definition for ( should be IMMEDIATE
+;;CHARS and ALIGNED and use char-size and cell-size whereas assembler
+;;  source uses CHARR and CELLL
+;;call-code in FORTH, CALLL in assembler
+;;size-of-PAD in FORTH, PADSize in assembler
+;;max-char in FORTH MaxChar in assembler
+;;carriage-return-char, linefeed-char  in FORTH, CRR, LFF in assembler
+;;max-negative in FORTH, MaxNegative in assembler
+;;.ok asm def not the same as high-level def. Equivalent hi-level def
+;; is S" ok" TYPE
+;;>IN should be labelled \ CORE
+;;optiCOMPILE, has one THEN too many
+;;doubleAlso, both LITERALs should be POSTPONE LITERAL
+;;PADSize in #> and <# and REFILL should be [ PADSize ] LITERAL 
+;;MaxChar in ACCEPT, EKEY should be [ MaxChar ] LITERAL
+;;cr# in ACCEPT should be [ CRR ] LITERAL
+;;tab# in ACCEPT should be [ TABB ] LITERAL
+;;bsp# in ACCEPT should be [ BKSPP ] LITERAL (3 occurrences)
+;;del# in ACCEPT should be [ DEL ] LITERAL
+;;THEN THEN REPEAT in ACCEPT shuld be THEN REPEAT
+;;IF >R DROP 1+ R> THEN in UM/MOD should be IF >R DROP 1+ R>
+;;definition of CR should be:
+;; : CR [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
+;;CELLL should be [ CELLL ] LITERAL in ALIGNED (2 occurrences), CELLS CELL+
+;;      , DEPTH
+;;CHARR should be [ CHARR ] LITERAL in CHARS
+;;change cell- definition to:
+;; : cell- [ 0 CELLL - ] LITERAL + ;
+;;XORR in = should be XOR
+;;char-size in CHAR+ should be [ CHARR ] LITERAL
+;;cell-size-in-bits in UM* and UM/MOD and RSHIFT should be [ CELLL 8 * ] LITERAL
+;;char-size in C, should be [ CHARR ] LITERAL
+;;LITERAL in singleOnly, should be POSTPONE LITERAL
+;;REPEAT should be POSTPONE AGAIN POSTPONE THEN
+;;defn of RESET-SYSTEM requires definition of a new constant sysVar00, set
+;; to a value of UZERO0 (like sysVar0).
+;;defn of TRUE should be marked CORE EXT and therefore use _FLINK
+;;defn of REPEAT should be "POSTPONE AGAIN POSTPONE THEN"
+;;in defn of SLITERAL, "DUP LITERAL" should be "DUP POSTPONE LITERAL"
+;;in defn of ABORT", >>S"<< should be >>POSTPONE S"<<
+;;more tidy to move defn of THROWMsgTbl beyond the defn of variables that are
+;; initialised from the table at reset
+;;pack" fill-to-end part may attempt a ! to an unaligned address. Fix is
+;; to be able to round-down the address.
+;;-------------- bugs discovered after reporting the first set
+;;in ACCEPT " IF DROP DUP IF 1-" should be "IF DUP IF 1-"
+;;in linklast, "do nothing" comment is wrong -- it *always* links in
+;;in ; "is not created by ':'" should read "is created by ':'"
 ;;
 ;; Issues
 ;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
@@ -88,6 +152,9 @@
 ;; build time.
 
 ;; $Log$
+;; Revision 1.19  1998/10/03 15:23:01  crook
+;; Merged in bugfixes found in my code during meta-compiler development.
+;;
 ;; Revision 1.18  1998/10/03 15:08:22  crook
 ;; Updates from Wonyong's version of 05-Jan-1998
 ;;
@@ -928,6 +995,12 @@ ULAST
 ;;;
 ;;;_NAME   SETA _NAME - NumTHROWMsgs*CELLL
 
+;;; TODO: when I was doing the metacompiler I had to add a fixup of -3
+;;; to that equation to get the ASM binary to match the meta binary
+;;; .. look at the assembler listing and see if you can see these three
+;;; 0 bytes - if so, work out what's causing them; some kind of round-up
+;;; alignment or other, maybe in the AWK script.
+
 	$THROWTABLE AddrTHROWMsgTbl,NumTHROWMsgs
 
 	$STR        CPUStr,'StrongARM'
@@ -1021,7 +1094,6 @@ ULAST
 		cmp	r2,#1
 		ldreq	r4,=COM1Port
 		ldrne	r4,=COM2Port
-		ands    r2,r1,#&ff
 		cmp     r2,#&ff
 		beq     STOdone         ;DEMON SWI in use so don't touch the
 					;UART
@@ -2350,7 +2422,7 @@ QCALL1		DW	Zero,EXIT
 
 		$CONST	10,'sysVar0End',SysVar0End,ULAST,_SLINK
 
-;   THROWMsgTbl ( -- a-addr )			\ CORE
+;   THROWMsgTbl ( -- a-addr )
 ;		Return the address of the THROW message table.
 
 		$CONST	11,'THROWMsgTbl',THROWMsgTbl,AddrTHROWMsgTbl,_SLINK
@@ -3037,7 +3109,6 @@ DOUBC1		DW	LITERAL,EXIT
 
 ;   linkLast    ( -- )
 ;		Link the word being defined to the current wordlist.
-;		Do nothing if the last definition is made by :NONAME .
 ;
 ;   : linkLast	lastName GET-CURRENT ! ;
 
@@ -3538,7 +3609,8 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 ;		DW	DROP,DROP,EXIT
 
 		$CODE  5,'2DROP',TwoDROP,_FLINK
-		popD    tos     ;TODO could do this in 1 op..
+; faster than the obvious "popD tos popD tos" -- it saves one data access
+		add	dsp, dsp, #CELLL
 		popD    tos
 		$NEXT
 
@@ -3549,8 +3621,7 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 ;		DW	OVER,OVER,EXIT
 
 		$CODE	4,'2DUP',TwoDUP,_FLINK
-		popD    r0      ;TODO could save 1 op here..
-		pushD   r0
+		ldr	r0, [dsp] ; copy x1 without popping stack
 		pushD   tos
 		pushD   r0
 		$NEXT
@@ -3602,7 +3673,7 @@ NONAME1 	DW	DoLIT,DoLIST,xtComma,DUPP,DoLIT,-1
 ;
 ;   : ; 	bal 1- IF -22 THROW THEN	\ control structure mismatch
 ;		NIP 1+ IF -22 THROW THEN	\ colon-sys type is -1
-;		notNONAME? IF	\ if the last definition is not created by ':'
+;		notNONAME? IF	\ if the last definition is created by ':'
 ;		  linkLast  0 TO notNONAME?	\ link the word to wordlist
 ;		THEN  POSTPONE EXIT	\ add EXIT at the end of the definition
 ;		0 TO bal  POSTPONE [ ; COMPILE-ONLY IMMEDIATE
@@ -3727,12 +3798,10 @@ TONUM3		DW	EXIT
 ;		DW	MinusOne,THROW
 
 		$CODE	5,'ABORT',ABORT,_FLINK
-		pushD   tos			;gonna trash the stack so no need..
-		mov     tos,#-1
+		mov     tos,#-1	; overwrite top stack item - going to reset
+				; the data stack, so who cares..
 		b       THROW
 
-;NAC mods for handshaking: FLOW-ON at start, FLOW-OFF at end and use EMITE for
-;all output in between.
 ;   ACCEPT	( c-addr +n1 -- +n2 )		\ CORE
 ;		Accept a string of up to +n1 chars. Return with actual count.
 ;		Implementation-defined editing. Stops at EOL# .
@@ -4187,7 +4256,7 @@ PARSE4		DW	RFrom,DROP,EXIT
 ;		  DUP -2 = IF SPACE abort"msg 2@ TYPE    ELSE   \ ABORT"
 ;		  SPACE errWord 2@ TYPE
 ;		  SPACE [CHAR] ? EMIT SPACE
-;		  DUP -1 -58 WITHIN IF ." Exception # " . ELSE \ undefined exception
+;		  DUP -1 [ 0 NumTHROWMsgs - ] WITHIN IF ." Exception # " . ELSE \ undefined exception
 ;		  CELLS THROWMsgTbl + @ COUNT TYPE	 THEN THEN THEN
 ;		  sp0 sp!
 ;		AGAIN ;
@@ -4205,7 +4274,7 @@ QUIT3		DW	DUPP,MinusOne,XORR,ZBranch,QUIT5
 		DW	SPACE,AbortQMsg,TwoFetch,TYPEE,Branch,QUIT5
 QUIT4		DW	SPACE,ErrWord,TwoFetch,TYPEE
 		DW	SPACE,DoLIT,'?',EMIT,SPACE
-		DW	DUPP,MinusOne,DoLIT,-58,WITHIN,ZBranch,QUIT7
+		DW	DUPP,MinusOne,DoLIT,(0 - NumTHROWMsgs),WITHIN,ZBranch,QUIT7
 		$INSTR	' Exception # '
 		DW	TYPEE,Dot,Branch,QUIT5
 QUIT7		DW	CELLS,THROWMsgTbl,Plus,Fetch,COUNT,TYPEE
@@ -4440,8 +4509,7 @@ UMM4		DW	DoLIT,-11,THROW
 		;The code version doesn't save fpc on return stack so
 		;it doesn't have to do the same save/restore as the
 		;colon version
-		popR    r0
-		popR    r0      ;TODO can just bump it up
+		add	rsp, rsp, #(CELLL * 2); 2DROP from return stack
 		$NEXT
 
 ;   WITHIN	( n1|u1 n2|n2 n3|u3 -- flag )	\ CORE EXT
