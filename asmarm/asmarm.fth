@@ -1,9 +1,20 @@
-\ ARM assembler
-\ some parts and lots of ideas are thanks to hForth asm8086
-\ 16-jan-1998 resume after a long break
-
 \ $Id$
+\
+\ ARM assembler. (c) Neal Andrew Crook 1998. nac@forth.org
+\ Some parts and lots of ideas are thanks to hForth asm8086.
+\ This assembler can be used in 2 major ways:
+\ - from any ANS Forth compiler, it can be used as a way of generating
+\   binary op-codes from ARM assembler source
+\ - from hForth running on an ARM system, it can be used to generate new
+\   definitions using CODE END-CODE
+\
+\ Refer to asmarm.txt for documentation
+\
+\
 \ $Log$
+\ Revision 1.3  1998/09/05 12:07:57  crook
+\ fix bug with first entry in a literal pool
+\
 \ Revision 1.2  1998/09/02 20:40:24  crook
 \ fix labels for cross-assembly
 \
@@ -17,7 +28,6 @@
 \ coprocessor register transfers
 \ coprocessor load and store
 
-\ TODO: macros for access to internal (?forth) structure
 \ TODO: synonyms for NOP etc.
 \ TODO: has an environmental dependency on 32-bit word, should check for this.
 \ TODO: support for Thumb mode
@@ -28,6 +38,8 @@
 \ TODO: pseudo-ops to emit words, bytes, strings 
 \ TODO: user documentation
 \ TODO: error-handling stance that allows stop or continue on error.
+\ TODO: should all IF xx huh ELSE really be THEN to neaten everything
+\       given that huh does a quit...
 
 \ TODO: can use this assembler in 2 ways: as an assembler within an hForth
 \ environment, or as a cross-assembler within a meta-compiling environment.
@@ -37,6 +49,7 @@
 \ ******************* Environment
 MARKER *ASMARM*
 BASE @ HEX
+DEPTH
 
 \ Vector to a routine to emit the 32-bit value at tos at the current PC
 VARIABLE 'ASM,32	: ASM,32 'ASM,32 @ EXECUTE ;
@@ -65,7 +78,8 @@ VARIABLE 'ASM@
 \ default action is to do a 32-bit fetch in host space
 ' @ 'ASM@ !		: ASM@ 'ASM@ @ EXECUTE ;
 
-\ TODO word for determining the host system.
+\ TODO word for determining the host system -- this should use environment
+\ string and be done in the CALLING system, not here.
 : hForth 0 ;
 
 \ TODO ram/rom@ if appropriate model
@@ -150,7 +164,7 @@ msg" -Rn encountered multiple times or at illegal place."
 msg" Offset too large: >24 bits." \ 4
 msg" Too many immediates."
 msg" Multiple shifters." \ 6
-msg" Immediate too large: >5 bits."
+msg" Immediate out of range for this shifter."
 msg" Shifter with immediate and reg or >1 reg." \ 8
 msg" Multiple shifters or unexpected arguments for RRX."
 msg" 32-bit operand can't be expressed." \ 0A
@@ -192,10 +206,11 @@ ALIGN
 	CR SOURCE TYPE CR 0 .AsmMsg$ .AsmMsg$ newop ABORT ;
 
 \ ******************* words for creating and handling registers
-\ The act of quoting a register r0 - r15 is twofold. Firstly, it pushes the
-\ number of the quoted register into a FIFO. Secondly, it sets an associated
-\ bit in a bit-map at this-op. The bit-map is used for LDM/STM instructions
-\ (where register ordering is irrelevant) the FIFO is used for everything else.
+\ The act of quoting a register r0 - r15 is twofold:
+\ - it pushes the number of the quoted register into a FIFO
+\ - it sets an associated bit in a bit-map at this-op.
+\ The bit-map is used for LDM/STM instructions (where register ordering is
+\ irrelevant) the FIFO is used for everything else.
 \
 \ Since no instruction requires more than 4 registers, the FIFO is implemented
 \ by shifting nibbles into a CELL (assumed to be a 32-bit value) at
@@ -390,42 +405,37 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ it must be set down-stream (we don't know the op-code yet..).
 \ For LDR/STR, I is calculated and merged in ldrstr. For DP, I is calculated
 \ and merged in build-shft.
-\
-\ TODO Some things that downstream processing needs to check:
-\ - some shifters allow 0-31, others allow 1-32 (coding for 0 means 32), need
-\   to verify that the instructions are legal
-\ - similarly, some shift values are illegal for ?? because it is used for
-\   the RRX function
-\ - any other checks?
 
 : sh11-4
-	CREATE , DOES> @ \ bits 6:5 of opcode
+	CREATE , , , DOES> DUP >R @
 	\ expect no shifter currently defined, and *either* an immediate
 	\ available *or* exactly one register available. 
-	this-op @ DUP 10000000 AND IF 6 huh ELSE
-		\ set the shifter-defined bit in case all turns out ok
-		10000000 OR this-op !
-		\ stack just holds shift op-code bits
-		this-op @ 800F0000 AND \ look at immediate bit and reg count
-		DUP 90000 = IF
-			\ register shifter, exactly one register
-			DROP
-			\ set b4=> register shifter, get the register and
-			\ merge in the op-code bits for LSL or whatever
-			10 OR 8 oldreg OR oip @ OR oip !
-		ELSE
-			80080000 = IF
-				\ immediate, no registers .. stack has
-				\ <immediate> <shifter code>
-				SWAP DUP FFFFFFE0 AND IF 7 huh ELSE
-					7 LSHIFT OR oip @ OR oip !
-				THEN
-			ELSE 8 huh THEN
+	this-op @ DUP 10000000 AND IF 6 huh THEN
+	\ set the shifter-defined bit in case all turns out ok
+	10000000 OR this-op !
+	\ stack just holds shift op-code bits
+	this-op @ 800F0000 AND \ look at immediate bit and reg count
+	DUP 90000 = IF
+		\ register shifter, exactly one register
+		R> 2DROP
+		\ set b4=> register shifter, get the register and
+		\ merge in the op-code bits for LSL or whatever
+		10 OR 8 oldreg OR oip @ OR oip !
+	ELSE
+		80080000 = IF
+			\ immediate, no registers .. stack has
+			\ <immediate> <shifter code>
+			SWAP DUP R> CELL+ 2@
+			WITHIN INVERT IF 7 huh THEN
+			\ <shifter code> <immediate>
+			1F AND \ shift of 32 (if legal) is represented as a value of 0
+			7 LSHIFT OR oip @ OR oip !
+		ELSE 8 huh THEN
 \ TODO or the error might be 	S" Shifter but neither immediate nor register" huh
-		THEN
 	THEN ;
 
-00 sh11-4 LSL	20 sh11-4 LSR	40 sh11-4 ASR	60 sh11-4 ROR
+00 20 00 sh11-4 LSL	01 21 20 sh11-4 LSR
+01 21 40 sh11-4 ASR	01 20 60 sh11-4 ROR
 
 \ Build bits 11-4 for RRX shift.
 : RRX ( -- )
@@ -795,14 +805,16 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 
 \ ******************* Labels
 \ Labels are stored in a symbol table, created by MK-SYM-TABLE. There are
-\ two types of labels; locals and globals. Locals have the scope of a single
-\ definition and globals have a scope that is user-defined.
-\ The symbol table has three areas. One is a lookup table to get a local
-\ label's value given its number. The second does the same job for global
-\ labels. The third area is used to resolve forward references. When there
-\ is (for example) a forward branch, the target is a label that has not been
-\ defined. A reference to such a label is stored in the forward references
-\ table. When the label is ultimately resolved, the structure of the table
+\ two types of labels:
+\ locals - have the scope of a single definition
+\ globals - have a scope that is user-defined.
+\ The symbol table has three areas:
+\ - a lookup table to get a local label's value given its number
+\ - a lookup table to get a global label's value given its number
+\ - a table of (unresolved) forward references.
+\ When there is (for example) a forward branch, the target is a label that has
+\ not yet been defined. A reference to such a label is stored in the forward
+\ references table. When the label is ultimately resolved, data in the table
 \ allows the code to be back-patched to resolve the reference. As soon as
 \ a label has been resolved, associated entries in the forward references
 \ table are deleted (the space is available for reuse). Within the forward
@@ -1156,7 +1168,7 @@ VARIABLE SYM-TABLE
 		CR ." Generated " U. ." but expected " U.
 		." . Final stack depth=" DEPTH .
 		-1 ABORT" Failed"
-	THEN DROP ;
+	THEN 2DROP ;
 
 \ print last op-code generated
 : wot ( -- )
@@ -1235,6 +1247,7 @@ FORTH-WORDLIST SET-CURRENT	\ add the following word in FORTH-WORDLIST
 
 SET-ORDER  SET-CURRENT
 \ TODO ram/rom! if appropriate model
+CR DEPTH 1- - [IF] .( asmarm.fth affected DEPTH) ABORT [ELSE] CR .( ..asmarm loaded successfully)
 BASE !
 
 \ TODO: need to revisit and revise the usage of xhere and HERE. All data
@@ -1242,3 +1255,7 @@ BASE !
 \ at xhere because it is accessed by code. That means that we need a
 \ mechanism for accessing all spaces.. OK for the ARM, but hard for
 \ a segmented machine like the 8086.
+
+
+
+
