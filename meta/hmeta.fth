@@ -1,5 +1,14 @@
 \ $Id$
 \ $Log$
+\ Revision 1.6  1998/08/23 23:10:33  crook
+\ change way that values are generates for InitIOBYTES
+\
+\ Revision 1.5  1998/08/22 17:23:05  crook
+\ minor tidy-ups
+\
+\ Revision 1.4  1998/08/20 22:33:43  crook
+\ minor tweaks
+\
 \ Revision 1.3  1998/08/18 00:00:02  crook
 \ much closer to finishing
 \
@@ -28,19 +37,6 @@
 \              image and saving the new image.
 \ ?? - target-specific files to be included?
 \
-\ Tasks:
-\ 1. build a regression facility in which the prebuilt image can be loaded
-\    into a 64K block of memory and compared against the meta-compiled
-\    version - DONE.
-\ 2. write the meta-compiler
-\ 3. attempt to meta-compile an image that will be identical to the prebuild
-\    image
-\ 4. verify the meta-compiled image
-\ 5. restructure to allow multiple targets
-\ 6. re-verify
-\ 7. port to new platform
-\ 8. debug 
-\ 9. attempt to meta-compile from within hForth.
 \
 \  
 \	ANS Forth Standard divide Forth dictionary into code, name, and
@@ -82,19 +78,29 @@ CR ." ..hforth" CR ;
 LOAD-ASM
 
 : hCONSTANT CONSTANT ;
-
+: hVALUE VALUE ;
 
 \ TODO the pieces below determine the target machine, mem-map, comm port
 \ and baud rate. This all needs to be rationalised somewhat.
 TRUE  hCONSTANT TAR_EBSA110 \ Targets
 FALSE hCONSTANT TAR_EBSA285
 FALSE hCONSTANT TAR_COGENT
-TRUE  hCONSTANT IO_COMDSWI \ DEFIO
-FALSE hCONSTANT IO_COM0
-FALSE hCONSTANT IO_COM1
-FALSE hCONSTANT IO_COM2
-4     hCONSTANT DEFBAUD 
-TRUE  hCONSTANT MM_DEMON \ MEMMAP 
+
+\ IO_DEFIO can take these values:
+\ FF .. DEMON SWI
+\ 00 .. COM0 (21285 internal UART)
+\ 01 .. COM1 (16550)
+\ 02 .. COM2 (16550)
+FF  hCONSTANT IO_DEFIO
+
+\ IO_DEFBAUD can take these values:
+\ 4    - 9600 baud
+\ 5    - 19K2
+\ 6    - 38K4
+\ 7    - 56K
+4     hCONSTANT IO_DEFBAUD 
+
+TRUE hCONSTANT MM_DEMON \ MEMMAP 
 FALSE hCONSTANT MM_BOOT
 FALSE hCONSTANT MM_PBLOADED
 
@@ -188,17 +194,17 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 \ Access locations within the target space. The address that is supplied
 \ is an absolute address within target space. It is expected to map to
 \ an address within the host's image of the target memory. 
-: t@ ( n -- n ) t2h @ ;
+: ?ALIGNED ( -- )
+  DUP 3 AND IF .S ABORT" Unaligned address for 32-bit access!" THEN ;
+
+: t@ ( n -- n ) ?ALIGNED t2h @ ;
 : tC@ ( n -- n ) t2h C@ ;
-: t! ( n n -- ) t2h ! ;
+: t! ( n n -- ) ?ALIGNED t2h ! ;
 : tC! ( n n -- ) t2h C! ;
 : tMOVE ( addr1 taddr2 u -- ) \ move to taddr2 in target address space
   SWAP t2h SWAP MOVE ;
-
-\ TODO - don't think I need this.. it is defined ultimately in target space.
-\ TARGET-IMAGE VALUE			cpVar
-\ TARGET-IMAGE ROMEnd ROM0 - + VALUE	npVar 
-\ RAM0 VALUE				hereVar
+: tCMOVE ( addr1 taddr2 u -- ) \ move to taddr2 in target address space
+  SWAP t2h SWAP CMOVE ;
 
 
 
@@ -234,6 +240,7 @@ PREVIOUS
    .( Code pointer is 0x) _CODE U.
 CR .( Name pointer is 0x) _NAME U.
 CR .( Space is 0x) _NAME _CODE - U.
-ALSO its-words TUNRESOLVED @ PREVIOUS
-CR .( Unresolved high-level forward references 0x) U.
+ALSO its-words FUNRESOLVED @ TUNRESOLVED @ PREVIOUS
+CR .( High-level forward references not found in target image dictionary 0x) U.
+CR .( High-level forward references resolved by FORTDEF 0x) U.
 
