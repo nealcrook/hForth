@@ -9,6 +9,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.1  1997/01/13 09:41:28  crook
+# Initial revision
+#
 
 
 BEGIN {
@@ -16,10 +19,9 @@ BEGIN {
   accum = "accum.txt"
   entry_count = 0
 
-  # find out how many entries in the file; 4 lines per entry
+  # find out how many entries in the file; 3 lines per entry
   while (getline > 0) {
     entry_count += 1
-    getline
     getline
     getline
   }
@@ -30,13 +32,11 @@ BEGIN {
   while (entry_count > 0) {
 
     # go to the first line in the entry
-    for (i=1; i<(((entry_count - 1) * 4) + 2); i++) {
+    for (i=1; i<(((entry_count - 1) * 3) + 2); i++) {
       getline < infile
     }
 
     # append it to the output file
-    print ($0) > accum
-    getline < infile
     print ($0) > accum
     getline < infile
     print ($0) > accum
