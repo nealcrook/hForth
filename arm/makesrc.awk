@@ -1,8 +1,12 @@
 # makesrc.awk
-# usage: gawk -v dict_pc=1234 -f makesrc.awk eforth.mac_sntx
-
+# usage: gawk -v dict_pc=1234 dos=1 udebug=1 -f makesrc.awk hfsarom.asms
+#
+# If dos=1, use MSDOS syntax for system calls. Default is to use Unix.
+# If udebug=1, trap Forth words through udebug routine. Default is
+# to thread words directly (which is faster)
+#
 # bugs:
-# d$ didn't get expanded in 2 instances, where there was a label at thr start of
+# d$ didn't get expanded in 2 instances, where there was a label at the start of
 # the line, but modsntx didn't fix it.
 # BECAUSE makesrc doesn't split macros onto new lines so a macro could be $2
 # instead of $1. Easiest fix is to mod the source
@@ -12,6 +16,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.4  1997/01/24 19:48:20  crook
+# mods for V1 source -- change D$ to INSTR$
+#
 # Revision 1.3  1997/01/18 16:31:18  crook
 # change name space file to 3 lines/entry to speed dat2tad
 #
@@ -25,9 +32,9 @@
 BEGIN {
   quot = "\""
   doubquot = "\"\""
-  codefile = ARGV[1] "_code"
-  datafile = ARGV[1] "_data"
-  throwfile = ARGV[1] "_throw"
+  codefile = ARGV[1] "c"
+  datafile = ARGV[1] "d"
+  throwfile = ARGV[1] "t"
   source = ARGV[1] "w"
   nameoffset = "- (UNKNOWN)"
   #print("data file is " datafile ", code file is " codefile)
@@ -202,13 +209,17 @@ function do_envir_header() {
   else
   if ($1 == "$NEXT") {
     #print ("Compile an end-of-definition")
-#    print ("\t\tldr\tpc, [fpc], #CELLL\t;goto FPC, incr FPC to nxt word") > codefile
-    print ("\t\tb\tudebug\t;micro-debug routine") > codefile
+    if (udebug=0) {
+      print ("\t\tldr\tpc, [fpc], #CELLL\t;goto FPC, incr FPC to nxt word") > codefile
+    }
+    else {
+      print ("\t\tb\tudebug\t;micro-debug routine") > codefile
+    }
   }
   else
-  if ($1 == "$THROWSTR") {
-    #print ("expansion of $THROWSTR")
-    # format of line is: $THROWSTR   label,' some text'  ; comment
+  if ($1 == "$THROWMSG") {
+    #print ("expansion of $THROWMSG")
+    # format of line is: $THROWMSG   label,' some text'  ; comment
     # $2 is of the form label,' - strip off comma and everything after
     param[1] = substr($2,1,index($2,",") - 1)
     # find a substring delimited by single quotes
@@ -226,7 +237,7 @@ function do_envir_header() {
     printf (";--- org 0x%x\n",init_dict_pc - throwoffset) > throwfile
     printf ("\t\tDCD\t%s\n\n",param[1]) > throwfile
     throwoffset += celll
-    print (";Expansion of $THROWSTR for " param[1]) > codefile
+    print (";Expansion of $THROWMSG for " param[1]) > codefile
   }
   else
   if ($1 == "$STR") {
@@ -319,9 +330,15 @@ function do_envir_header() {
 END {
    close(datafile)
    close(throwfile)
-   system("cat " throwfile " " datafile "> mucca.txt")
-   system("gawk -f dat2tad.awk mucca.txt")
-   # that makes the file accum.txt
+   # make the file accum.txt
+   if (dos==0) {
+     system("cat " throwfile " " datafile "> mucca.txt")
+     system("gawk -f dat2tad.awk mucca.txt")
+   }
+   else {
+     system("copy " throwfile " + " datafile " mucca.txt > NUL:") 
+     system("awk -f dat2tad.awk mucca.txt")
+   }
    print (";---------------------------------") > codefile
    print (";Dictionary") > codefile
    print (";---------------------------------") > codefile
@@ -336,11 +353,20 @@ END {
    printf ("LASTFORTH\t\EQU\t 0x%x %s\n", flink, nameoffset) > codefile
    printf ("NTOP\t\tEQU\t 0x%x %s\n\n", dict_pc, nameoffset) > codefile
    close(codefile)
-   system("cat " codefile " accum.txt > " source)
-   system("rm -f accum.txt")
-   print ("\t\tEND") >> source
+   if (dos==0) {
+     system("cat " codefile " accum.txt > " source)
+     system("rm -f accum.txt")
+     print ("\t\tEND") >> source
+     close(source)
+   }
+   else {
+     close(source)
+     system("copy " codefile "+accum.txt " source " > NUL:")
+     system("del accum.txt")
+     system("del mucca.txt")
+     system("echo \t\tEND >>" source)
+   }
    print("Created unified expanded source, " source)
-   close(source)
 }
 
 
