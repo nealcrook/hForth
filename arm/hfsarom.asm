@@ -5,6 +5,9 @@
 ;; $Id$
 ;;
 ;; $Log$
+;; Revision 1.4  1997/01/15 23:25:53  crook
+;; bugfix to MOVE. Made CHARS correct for 32bit ARM
+;;
 ;; Revision 1.3  1997/01/14 11:05:40  crook
 ;; get as far as REFILL in QUIT
 ;;
@@ -1380,9 +1383,9 @@ PSRCH6:         DW      DoLIT,-16,THROW
 ;   : ?call     DUP @ 0ff000000h AND call-code =
 ;		\ that call-detection is crude - not an exact check..
 ;		IF DUP DUP @ 00ffffffh AND    \ it's a branch.. get offset
-;		007fffffh > IF
-;			      00ff000000h AND
-;			    ENDIF	      \ sign extend
+;		DUP 007fffffh > IF
+;			      00ff000000h AND \ sign extend the offset
+;			    ENDIF
 ;		2 LSHIFT 		      \ convert to byte offset
 ;		+ CELL+ CELL+		      \ destination address
 ;               SWAP CELL+ SWAP EXIT THEN
@@ -1390,9 +1393,10 @@ PSRCH6:         DW      DoLIT,-16,THROW
 
                 $COLON  5,'?call',QCall,_SLINK
                 DW      DUPP,Fetch,DoLIT,0ff000000h,ANDD,DoLIT,CALLL,Equals
-		DW	ZBranch,QCALL1,DUPP,DUPP,Fetch,0ffffffh,ANDD
-		DW	07fffffh,GreaterThan,ZBranch,QCALL2
-		DW	0ff000000h,ANDD
+		DW	ZBranch,QCALL1
+		DW	DUPP,DUPP,Fetch,DoLIT,0ffffffh,ANDD,DUPP
+		DW	DoLIT,07fffffh,GreaterThan,ZBranch,QCALL2
+		DW	DoLIT,0ff000000h,ANDD
 QCALL2:		DW	DoLIT,2,LSHIFT,Plus,CELLPlus,CELLPlus
 		DW	SWAP,CELLPlus,SWAP,EXIT
 QCALL1:         DW      Zero,EXIT
@@ -1527,6 +1531,7 @@ QCALL1:         DW      Zero,EXIT
 		ldr	fpc, [fpc]		;get branch dest. to loop again
 		$NEXT
 01		add	fpc, fpc, #CELLL	;ignore branch offset
+		popR	r0			;;NAC what's this dropping??
 		$NEXT
 
 ;;NAC in above could delete the branch and run the other instructions
@@ -1544,6 +1549,7 @@ QCALL1:         DW      Zero,EXIT
 		ldr	fpc, [fpc]		;loop again
 		$NEXT
 01		add	fpc, fpc, #CELLL	;ignore branch offset
+		popR	r0			;;NAC what's this dropping?
 		$NEXT
 
 ;   0branch     ( flag -- )
@@ -1793,10 +1799,10 @@ QCALL1:         DW      Zero,EXIT
 		$NEXT
 01		add	r0, r0, tos	;point past the last bytes
 		add	r1, r1,	tos
-		ldrb	r2, [r1, #-1]!	;load with predecrement
+03		ldrb	r2, [r1, #-1]!	;load with predecrement
 		strb	r2, [r0, #-1]!
 		subs	tos, tos, #1
-		bne	%b01
+		bne	%b03
 		popD	tos
 		$NEXT
 
