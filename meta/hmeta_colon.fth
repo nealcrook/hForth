@@ -1,5 +1,9 @@
 \ $Id$
 \ $Log$
+\ Revision 1.5  1998/08/18 22:14:18  crook
+\ many small fixes. POSTPONE is still a mess
+\ 0x42 unresolved forward references.
+\
 \ Revision 1.4  1998/08/17 23:59:47  crook
 \ much closer to finishing
 \
@@ -17,11 +21,6 @@
 \ colon compiler and immediate words for hForth
 MARKER *hmc*
 HEX
-
-
-: COMPILE-ONLY ; \ TODO this needs to set the bits in the TARGET. Need
-\ a similar word for IMMEDIATE but must define them in the right place
-\ so that they do not affect any of the host defns.
 
 \ Host postpone. TODO may not need this
 : hPOSTPONE POSTPONE POSTPONE ; IMMEDIATE
@@ -110,14 +109,16 @@ HEX
 \ forward references remain. This will be a useful metric when re-arranging
 \ the order of definitions.
 \
-\ TODO: Might be useful to mimic the behavior of the COMPILE-ONLY flag
-\ by storing it in the host definition... worry about that later
+\ TODO: is the : defn on the host smart enough to generate an error
+\ when a COMPILE-ONLY target word is used interactively? that probably
+\ shows up all the deficiencies in the target compiler..
 \
-\ TODO: An additional problem is words that are used interactively (ie
-\ outside of definitions). Any of these that have compile-time behaviour
-\ must also be defined in it-words. The only ones I can think of are
-\ IMMEDIATE and COMPILE-ONLY.
-
+\ Words that are used interactively (ie outside of definitions) must be
+\ recognised by the interpreter and therefore must be defined in the
+\ search order that is current at the prompt (FORTH, if possible). The
+\ list is given in the section that describes immediate words for the target
+\ system.
+\
 \ TODO: make target : search wordlist and only add *new* definitions
 \ (no redefines) -- or have a flag that switches this behaviour. Then
 \ can load all defn that must be low-level then load all optionally
@@ -183,7 +184,7 @@ CREATE order-! 5 CELLS ALLOT
 \ also used for support words for t:
 \ These go into a private wordlist that is ONLY available when the it-words
 \ (and the real target : ???) are compiled
-\ are compiled. That avoids name clash with the host system
+\ That avoids name clash with the host system
 \ (t-words is required so that POSTPONE will work)
 
 40000A04 hCONSTANT xtdoVALUE \ TODO shouldn't need these now..
@@ -224,6 +225,9 @@ CREATE errWord 2 CELLS ALLOT	\ last found word. Used for error reporting
 : [']-doVALUE xtdoVALUE ;
 : [']-doCREATE xtdoCREATE ;
 
+\ IMMEDIATE and COMPILE-ONLY words defined here are immediate/compile-only
+\ on the *host* and therefore use the host's definitions of them.
+: COMPILE-ONLY ; \ COMPILE-ONLY doesn't exist on pfe so make a no-op
 
 \   code,       ( x -- )
 \               Reserve one cell in code space and store x in it.
@@ -240,9 +244,6 @@ CREATE errWord 2 CELLS ALLOT	\ last found word. Used for error reporting
 : CHARS     CHARR * ;   \ slow, very portable
 : ALIGNED   DUP 0 CELLL UM/MOD DROP DUP
             IF CELLL SWAP - THEN + ;    \ slow, very portable
-
-\ TODO - need to make this have effect on the target entry
-: COMPILE-ONLY ; \ doesn't mean anything to pfe
 
 
 \   ?call	( xt1 -- xt1 0 | a-addr xt2 )
@@ -273,20 +274,14 @@ THEN 0 ;
 \ Simple wordlist stuff.
 \ TODO Could re-express $FCODE etc. as FORTH-DEFN $CODE
 \ then the FORTH-DEFN could be outside the META-HI conditional.. sounds good.
-\ if I get $IMMED and $COMPO sorted out I could do the same for them -
-\ only have a single version that affects either the : or the code
-\ definition.
 \ TODO want to express the code definitions using the same mechanism as
 \ hForth ultimately does, linking in the name at the *end* of the defn.
 \ so that the $FCODE (etc) get far simpler
 : mFORTH-WORDLIST _FLINK ;
 : NONSTANDARD-WORDLIST _SLINK ;
 : ENVIRONMENT-WORDLIST _ENVLINK ;
-: F-DEF mFORTH-WORDLIST current ! ;
-: S-DEF NONSTANDARD-WORDLIST current ! ;
-: ENV-DEF ENVIRONMENT-WORDLIST current ! ;
 : mGET-CURRENT current @ ;
-F-DEF
+
 
 DECIMAL
 
@@ -300,7 +295,7 @@ DECIMAL
                    R> SWAP !           \ change DOES> code of CREATEd word
                    EXIT
                THEN THEN
-               -32 THROW       \ invalid name argument, no-CREATEd last name
+               -32 THROW      \ invalid name argument, no-CREATEd last name
                ; COMPILE-ONLY
 
 \   xt,		( xt1 -- xt2 )
@@ -421,7 +416,7 @@ BASE !
 : pack"	2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
 	1 CHARS - 0 SWAP t!             \ fill 0 at the end of string
 	2DUP tC! CHAR+ SWAP             \ c-addr a-addr+1 u
-	CHARS tMOVE R> ; \ COMPILE-ONLY
+	CHARS tMOVE R> ; COMPILE-ONLY
 
 
 \   head,       ( xt "<spaces>name" -- )
@@ -445,7 +440,9 @@ BASE !
 \
 BASE @ HEX
 : (')	PARSE-WORD search-word ?DUP IF NIP EXIT THEN
-\ not found so assumed to be a forward reference; leave dummy xt
+\ not found, so assumed to be a forward reference; leave dummy xt
+\ TODO - should be verified as a declared forward reference by
+\ checking in t-words.
 	2DROP 1 TUNRESOLVED +! DEADBEEF -1 ;
 BASE !
 \	errWord 2!      \ if not found error
@@ -473,7 +470,7 @@ BASE !
 \   : [']       ' tPOSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
 \ simplification because we *know* than LITERAL is immediate
 \ LITERAL needs to be from the *target* dictionary
-
+\
 \ TODO check what this is used for and whether it is spitting out code
 \ in the right place
 : ['] ' [ xtLITERAL ] LITERAL tCOMPILE, ; COMPILE-ONLY IMMEDIATE
@@ -482,76 +479,65 @@ BASE !
 \ Description of POSTPONE:
 \ " force the compilation of a word that would normally be executed"
 \ " postpone the compile action of the word"
-
-\ explanation of POSTPONE:
-\ : fred ." hello" ; IMMEDIATE
-\ : jim ." hello" ;
-\ : bill POSTPONE fred ;	SEE bill	doList fred EXIT
-\ : dave POSTPONE jim ;		SEE dave	doList doLit jim code, EXIT
-\ : bert jim ;			SEE bert        doList jim EXIT
 \
-\ POSTPONE appends the compilation semantics of the subsequent word to the
-\ current definition. The compilation semantics of fred are to execute
-\ (because it is immediate) therefore, in the definition of bill, POSTPONE
-\ emits the xt of fred so that the run-time behaviour of bill is to execute
-\ fred (and print the text hello). In the definition of dave, the compilation
-\ semantics of jim is to  is itself immediate; what it does
-\ is parse the subsequent word and determine its xt. It then compiles code
-\ (in the definition of bill) to make the run-time action of bill be to
-\ execute the xt of fred. During the definition of dave it compiles code to
-\ make the run-time action of dave be to 
-\ compile code in the definition (in this example, of bob) whose run-time
-\ action is to execute FRED. Therefore, bob will have the same run-time
-\ behaviour as FRED.
+\ Consider these example definitions:
+\ : 0branch ..... ;
+\ : IF POSTPONE 0branch .... ; IMMEDIATE
+\ : FRED IF ." true" THEN ;
+\ : JANET POSTPONE IF ;
 \
-\ : POSTPONE  (') 0< IF POSTPONE LITERAL
-\	POSTPONE COMPILE, EXIT THEN   \ non-IMMEDIATE
-\	COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
+\ During the compilation of FRED, IF executes (since it is an immediate
+\ word (immediacy as a term is frowned upon by ANS forth.. it is more
+\ strictly accurate to say that its compilation semantics are its execution
+\ semantics)). If the 0branch has not been POSTPONEd in the definition of IF,
+\ the execution of IF would cause the execution of 0branch -- so that 0branch
+\ was executed during the definition of FRED -- which is not what we want
+\ to happen.
+\
+\ POSTPONEing 0branch stops it from executing when IF executes; instead,
+\ it makes it *compile*. The result is that the code for IF might look
+\ something like this:
+\ XT-0branch XT-dotquote ...
+\
+\ That example is of a POSTPONEd non-immediate word. For a POSTPONEd
+\ immediate word, consider the definition of JANET, above. If the IF
+\ had not been POSTPONEd, it would have executed during the definition of
+\ JANET, just as it did in the definition of FRED. By postponing it, we
+\ make JANET behave in the same way as IF behaves; the code produced by
+\ quoting IF in the definition of JANET is simple the XT of IF. The XT gets
+\ compiled into the definition of JANET (as though it was a non-immediate
+\ word).
+\
+\ The Standard specifies that POSTPONE is aparsing word; it parses at
+\ compile time and must search the wordlists in effect at that time.
+\
+\ The current environment is really a cross-meta-compiler: it's running
+\ on one system to generate an executable for another system. In this
+\ environment, POSTPONEd immediate words run on the host and POSTPONEd
+\ non-immediate words run on the host but emit a target XT on the target.
+\ That means that we really only need a single POSTPONE in this system
+\ but it has to be pretty clever; for an immediate word it must search
+\ the host wordlist and for a non-immediate word it must search the
+\ target wordlist.. but of course, we don't know whether the word is
+\ immediate or non-immediate until we have located it in the wordlist..
 
-\ tPOSTPONE fred
-\ When executed, parse a word in the input stream (eg, fred) and look for
-\ its header information (xt and immediacy) in the t-words wordlist.
-\ Generate, in the host dictionary, (by appending the the current definition)
-\ a code sequence that has the run-time effect of emitting a code sequence
-\ in target space. The code sequence in the host depends upon whether fred is
-\ immediate or non-immediate. For an immediate word, the code sequence is:
-\ dolit fred code,
-\ so that the sequence generated on the target is:
-\ fred
-\ For a non-immediate word, the code sequence is:
-\ dolit dolit code, dolit fred code, dolit code, code,
-\ so that the sequence generated on the target is:
-\ dolit fred code,
-\ xtLITERAL and xtCOMPILE, are *target* xts; LITERAL and COMPILE,
-\ run on the *host*
+: tPOSTPONE
+  ALSO t-words (') PREVIOUS 0< IF
+    \ non-immediate word. Generate this code on the host:
+    \ [ XTword ] LITERAL tCOMPILE, to spit out this code on the target:
+    \ XTword.
+    hPOSTPONE LITERAL hPOSTPONE tCOMPILE,
+  ELSE
+    \ immediate word. Generate this code on the host:
+    \ XTword - this must be the *host* XT .. so it's exactly the same
+    \ as a normal postpone on the host. In this code, we should never
+    \ reach this path, as we have two separate versions of POSTPONE
+    \ (which defeats the object of having POSTPONE). Really, we need to
+    \ search both the host and the target wordlists depedent upon whether
+    \ the word is immediate or not.
+    ABORT" tPOSTPONE doesn't know how to POSTPONE an immediate word.."
+  THEN ; COMPILE-ONLY IMMEDIATE
 
-\ TODO: need to fix up COMPILE, hCOMPILE, tCOMPILE,
-\ PROBLEM is that COMPILE, used to do TARGET compile, and I need to do host compile
-
-
-\ run on host, used in definitions that run on the host, generates code
-\ in host space that, when executed, generates code on the target
-: tPOSTPONE CR ." tP>"
-	ALSO t-words (') PREVIOUS 0< IF
-	." non-imm" [ xtLITERAL ] LITERAL hPOSTPONE LITERAL hPOSTPONE tCOMPILE,
-        hPOSTPONE LITERAL hPOSTPONE tCOMPILE,
-	[ xtCOMPILE, ] LITERAL hPOSTPONE LITERAL hPOSTPONE tCOMPILE, \ non-IMMEDIATE
-	ELSE
-	hPOSTPONE LITERAL hPOSTPONE tCOMPILE, THEN ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
-
-
-
-: xxtPOSTPONE  CR ." xxtP>"
-	ALSO t-words (') PREVIOUS 0< IF
-	." non-imm" [ xtLITERAL ] LITERAL tCOMPILE, tCOMPILE,
-	[ xtCOMPILE, ] LITERAL THEN   \ non-IMMEDIATE
-	tCOMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
-
-: xxitPOSTPONE  CR ." xxitP>"
-	ALSO it-words (') PREVIOUS 0< IF
-	." non-imm" [ xtLITERAL ] LITERAL tCOMPILE, tCOMPILE,
-	[ xtCOMPILE, ] LITERAL THEN   \ non-IMMEDIATE
-	tCOMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
 \   rake        ( C: do-sys -- )
 \		Gathers LEAVEs.
@@ -567,7 +553,7 @@ BASE !
 
 \ (End of support words for immediate words and t:)
 PREVIOUS PREVIOUS FORTH DEFINITIONS PREVIOUS \ back to FORTH
-
+CR .( Check search order -> ) ORDER
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ Host Run-time action of words in the target dictionary.
@@ -643,7 +629,8 @@ BASE !
 		CR ." TDEF-ed word not found - target search order must be wrong"
 		QUIT
 	THEN ;
-PREVIOUS
+PREVIOUS \ back to FORTH
+CR .( Check search order -> ) ORDER
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ Forward definitions needed by POSTPONED words in immediate definitions
@@ -670,13 +657,9 @@ FORTDEF +
 FORTDEF - \ bug in PFE?? For some reason it does not detect the absence of
 	  \ the definition of - but instead stacks the number 0.
 FORTDEF *
-FORTDEF sourceVar
-FORTDEF hereVar
 FORTDEF CELLL \ TODO - this should be a findable constant
 FORTDEF CHARS \ ditto
 FORTDEF /             \ used by 1chars/
-FORTDEF 0branch
-FORTDEF doDO
 
 
 PREVIOUS DEFINITIONS
@@ -688,30 +671,27 @@ PREVIOUS DEFINITIONS
 \ DO DOES> ELSE LEAVE LOOP POSTPONE RECURSE REPEAT SLITERAL S" TO UNTIL
 \ WHILE ['] [CHAR] \
 \
-\ In addition to this, the following words are used in the interpreter
-\ and affect the compilation in the target:
-\ IMMEDIATE COMPILE-ONLY VALUE CONSTANT VARIABLE
-\ The last three are handled as special cases in the main source but must
-\ ultimately be supported to allow the supplementary files to be included.
-\
 \ These words are put into the it-words list, which is NOT in the search
 \ order since any self-references should either by POSTPONED (fulfilled by
 \ searching t-words) or fulfilled by host words.
 ALSO it-words DEFINITIONS PREVIOUS
 ALSO its-words
+
+\ In addition to this, the following words are used in the interpreter
+\ and affect the compilation in the target:
+\ : <wordlist control> IMMEDIATE COMPILE-ONLY VALUE CONSTANT VARIABLE
+\ Since they must be available in the interpreter, they are all defined
+\ right at the end of this file, to avoid conflict with host definitions
+\ by the same name (TODO the exceptions at the moment are the : definition,
+\ and the last three; which are handled as special cases in the main source
+\ but must ultimately be supported to allow the supplementary files to be
+\ included.
+
 DECIMAL
-
-\ TODO avoid name clash
-\ : IMMEDIATE  lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
-
-\ TODO - need to make this have effect on the target entry
-\ .. but that version must be in HOST vocab. There are now 3 versions
-\ of compile-only.. need to rationalise
-: COMPILE-ONLY ; \ doesn't mean anything to pfe
 
 : -. -13 THROW ; IMMEDIATE
 
-: [         0 STATE ! restore-order ; IMMEDIATE COMPILE-ONLY
+: [   0 STATE ! restore-order ; IMMEDIATE COMPILE-ONLY
 
 
 \ ; is defined as t; for now to prevent it being found in these defns
@@ -729,7 +709,7 @@ DECIMAL
 	   linkLast 0 TO notNONAME?     \ link the word to wordlist
 \ TODO	THEN POSTPONE EXIT     \ add EXIT at the end of the definition
         THEN [ xtEXIT ] LITERAL ASM,32
-\ TODO	0 TO bal POSTPONE [  ; COMPILE-ONLY IMMEDIATE
+\ TODO	0 TO bal POSTPONE [  ;
         0 TO bal 0 STATE ! ;
 
 : t;    restore-order
@@ -828,10 +808,12 @@ DECIMAL
 	[ xtdoLIT ] LITERAL COMPILE, COMPILE, ; COMPILE-ONLY
 
 
-
 : (         [CHAR] ) PARSE 2DROP ; IMMEDIATE
 
+
 PREVIOUS DEFINITIONS \ back to FORTH
+CR .( Check search order -> ) ORDER
+
 ALSO it-words
 : xxLITERAL niLITERAL ;
 PREVIOUS
@@ -859,6 +841,8 @@ ALSO its-words
 
 
 PREVIOUS DEFINITIONS \ back to FORTH
+CR .( Check search order -> ) ORDER
+
 ALSO it-words
 : xxSLITERAL niSLITERAL ;
 PREVIOUS
@@ -873,6 +857,8 @@ ALSO its-words
 
 
 PREVIOUS DEFINITIONS \ back to FORTH
+CR .( Check search order -> ) ORDER
+
 ALSO it-words
 : xxS" niS" ;
 PREVIOUS
@@ -881,7 +867,6 @@ ALSO its-words
 
 \ use the S" above..
 : ."   xxS" tPOSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
-
 
 META-TODO [IF]
 : TO        ' ?call DUP IF          \ should be call-doVALUE
@@ -912,11 +897,11 @@ META-TODO [IF]
 \ : POSTPONE  (') 0< IF POSTPONE LITERAL
 \	POSTPONE COMPILE, EXIT THEN   \ non-IMMEDIATE
 \	COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
-: POSTPONE CR ." P>"
+: POSTPONE
 	ALSO t-words (') PREVIOUS 0< IF
-	." non-imm" [ xtLITERAL ] LITERAL COMPILE, COMPILE,
+	[ xtLITERAL ] LITERAL COMPILE, COMPILE,
 	[ xtCOMPILE, ] LITERAL THEN   \ non-IMMEDIATE
-	COMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
+	COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
 
 : ABORT"    tPOSTPONE S" tPOSTPONE ROT
@@ -930,6 +915,7 @@ META-TODO [IF]
 
 \ (End of immediate words)
 PREVIOUS DEFINITIONS \ back to FORTH
+CR .( Check search order -> ) ORDER
 
 \ take a number off the stack and create an immediate word whose action is to
 \ parse the input buffer and extract a number. The word D# n has the same
@@ -978,17 +964,32 @@ ALSO its-words
 
 \ (END of meta-compiler : definition and its dependencies)
 PREVIOUS \ back to FORTH
+CR .( Check search order -> ) ORDER
+
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-\ Restore search order
+\ Restore search order, which has been sitting on the stack since the
+\ start of this file.
 PREVIOUS SET-ORDER SET-CURRENT
+CR .( Check search order -> ) ORDER
 
-\ TODO needed to have these found during hforth .. give them separate names
-\ to remind me I need to fix it.
+\ now define all of the words that are needed interactively for compiling
+\ the target image. These all go into the FORTH wordlist and some of them
+\ clash with host words. Therefore, we make aliases for the host words
+\ first, so that they continue to be available to us.
+
+\ words to switch the compilation wordlist for target definitions
 ALSO its-words
-: xF-DEF F-DEF ;
-: xS-DEF S-DEF ;
-: xENV-DEF ENV-DEF ;
+: F-DEF mFORTH-WORDLIST current ! ;
+: S-DEF NONSTANDARD-WORDLIST current ! ;
+: ENV-DEF ENVIRONMENT-WORDLIST current ! ;
 PREVIOUS
+
+\ TODO: make sure these both affect the *most recent* code or colon defn
+\ Set COMPILE bit of most recent definition
+: COMPILE-ONLY _NAME CELLL 2* + DUP tC@ =COMP OR SWAP tC! ;
+\ Set IMMEDIATE bit of most recent definition
+: hIMMEDIATE IMMEDIATE ;
+: IMMEDIATE    _NAME CELLL 2* + DUP tC@ =IMED OR SWAP tC! ;
 
 HEX
