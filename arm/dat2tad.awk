@@ -1,5 +1,5 @@
 # dat2tad.awk
-# usage: gawk -f dat2tad.awk file.macs_data
+# usage: gawk -f dat2tad.awk file.msd
 # called by makesrc.awk
 
 # reverse order of entries in data file.
@@ -9,6 +9,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.2  1997/01/18 16:31:18  crook
+# support new input format of 3 lines/entry
+#
 # Revision 1.1  1997/01/13 09:41:28  crook
 # Initial revision
 #
@@ -16,14 +19,14 @@
 
 BEGIN {
   infile = ARGV[1]
-  accum = "accum.txt"
+  outfile = "accum.txt"
   entry_count = 0
 
   # find out how many entries in the file; 3 lines per entry
-  while (getline > 0) {
+  while ((getline < infile) > 0) {
     entry_count += 1
-    getline
-    getline
+    getline < infile
+    getline < infile
   }
 
   print ("Found " entry_count " entries")
@@ -37,16 +40,16 @@ BEGIN {
     }
 
     # append it to the output file
-    print ($0) > accum
+    print ($0) > outfile
     getline < infile
-    print ($0) > accum
+    print ($0) > outfile
     getline < infile
-    print ($0) > accum
+    print ($0) > outfile
     close(infile)
     entry_count -= 1
 
   }
-  close (accum)
+  close (outfile)
 }
 
 {
