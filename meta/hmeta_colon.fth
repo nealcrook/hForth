@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.12  1998/09/30 23:56:10  crook
+\ first working binary.
+\
 \ Revision 1.11  1998/09/05 12:07:57  crook
 \ move target immediates to a separate file
 \
@@ -488,7 +491,7 @@ ALSO tunresolved-words DEFINITIONS
 4000059C hCONSTANT doVALUE
 40001BE0 hCONSTANT pipe
 40000CE0 hCONSTANT UNLOOP
-40002D78 hCONSTANT doS"
+40002D74 hCONSTANT doS"
 400013FC hCONSTANT abort"msg
 400021A4 hCONSTANT TYPE
 40001B20 hCONSTANT COMPILE,
