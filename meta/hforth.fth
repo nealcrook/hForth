@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.5  1998/08/18 22:13:35  crook
+\ all but a few tiny parts of the source now compile
+\
 \ Revision 1.4  1998/08/17 23:59:25  crook
 \ much closer to finishing
 \
@@ -117,17 +120,7 @@
 4001405C hCONSTANT AddrBal
 40014028 hCONSTANT AddrNPVar
 40014094 hCONSTANT LocCurrent
-40001524 hCONSTANT xtSkipPARSE
 40014024 hCONSTANT LocCPVar
-400141C8 hCONSTANT LocHLD
-400023F4 hCONSTANT xtTHROW
-40001700 hCONSTANT CodeComma
-40014048 hCONSTANT LocBASE
-4001400C hCONSTANT AddrTEMIT
-400141D8 hCONSTANT LocSTATE
-400141CC hCONSTANT LocSourceVar
-400141D4 hCONSTANT LocToIN
-40000724 hCONSTANT udebug
 
 
 \ This is derived from 1.17 of hfsarom.asm
@@ -366,10 +359,13 @@ VARIABLE _ENVLINK 0 _ENVLINK ! \ force a null link
 ' t@ 'ASM@ !
 ' t! 'ASM! !
 
-\ Ready to start definitions for the system. First, load the meta-compiler
-\ that allows colon definitions.
+\ Ready to start definitions for the system. Until now, all of the facilities
+\ of the host Forth compiler have been available. After we load the
+\ meta-compiler, some of the facilities of the host Forth compiler become
+\ hidden; replace by facilites of the traget compiler. Specifically, these
+\ words all refer to the target system:
+\ : ; ] COMPILE-ONLY IMMEDIATE 
 LOAD-COLON
-
 
 CR .( *** Assembly macros)
 
@@ -482,15 +478,6 @@ MICRO-DEBUG [IF]
 
 PREVIOUS \ take ASSEMBLER off search order
 
-\ TODO ultimately these will be replaced by COMPILE-ONLY and IMMEDIATE
-\ Set COMPILE bit of most recent definition
-\ META-TODO: need to add [ ] literal below, but it makes it blow up
-\ at the moment
-: $COMPO
-	_NAME CELLL 2* + DUP tC@ =COMP OR SWAP tC! ;
-\ Set IMMEDIATE bit of most recent definition
-: $IMMED
-	_NAME CELLL 2* + DUP tC@ =IMED OR SWAP tC! ;
 
 
 ALSO ASSEMBLER \ make BL, available
@@ -585,11 +572,11 @@ CR .( *** Make : invoke t: and ; invoke t; )
 ALSO it-words
 \ put these into FORTH
 : h: : ;
-: h; hPOSTPONE ; ; IMMEDIATE
+: h; hPOSTPONE ; ; hIMMEDIATE
 : : t: ;
 \ put this into it-words
 ALSO it-words DEFINITIONS
-h: ; nit; h; IMMEDIATE
+h: ; nit; h; hIMMEDIATE
 PREVIOUS DEFINITIONS
 PREVIOUS
 
@@ -870,7 +857,7 @@ _NAME NumTHROWMsgs CELLL * - 3 - TO _NAME
 
 CR .( *** Run-time routines - Processor-dependent definitions)
 CR .( ***        32-bit Forth for ARM RISC)
-xS-DEF
+S-DEF
 
 \   doLIT	( -- x )
 \		Push an inline literal. The inline literal is at the current
@@ -879,7 +866,7 @@ xS-DEF
 		$SCODE doLIT
 		tos pushD,
 		CELLL # [ fpc ] tos LDR, \ get literal and inc to next forth word
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   doCONST	( -- x )
 \		Run-time routine of CONSTANT and VARIABLE. When you quote a
@@ -897,7 +884,7 @@ xS-DEF
 		$SCODE doCONST
 		tos pushD,
 		[ R14 ] tos LDR,	\ inline address from calling point
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   doVALUE	( -- x )
 \		Run-time routine of VALUE. Return the value of VALUE word.
@@ -910,7 +897,7 @@ xS-DEF
 		tos pushD,
 		[ R14 ] R0 LDR,
 		[ R0 ] tos LDR,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   doCREATE	( -- a-addr )
 \		Run-time routine of CREATE. For CREATEd words with an
@@ -946,7 +933,7 @@ xS-DEF
 		0 # R0 R0 ORRS,			\ set flags..
 		R0 PC NE MOV,			\ a DOES> address.. go there
 						\ (and never come back)
-		$NEXT $COMPO			\ no DOES> actions
+		$NEXT COMPILE-ONLY			\ no DOES> actions
 
 \   doTO        ( x -- )
 \		Run-time routine of TO. Store x at the address in the
@@ -959,7 +946,7 @@ xS-DEF
 		\ update to new value from tos
 		[ R0 ] tos STR,
 		tos popD,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   doUSER      ( -- a-addr )
 \		Run-time routine of USER. Return address of data space.
@@ -974,7 +961,7 @@ xS-DEF
 		AddrUserP R0 =,
 		[ R0 ] R1 LDR,
 		R1 TOS TOS ADD,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   doLIST      ( -- ) ( R: -- nest-sys )
 \		Process colon list.
@@ -993,7 +980,7 @@ xS-DEF
 		$SCODE doLIST
 		fpc pushR,			\ preserve forth PC
 		R14 fpc MOV,			\ first xt of definition
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   doLOOP      ( -- ) ( R: loop-sys1 -- | loop-sys2 )
 \		Run time routine for LOOP.
@@ -1007,7 +994,7 @@ xS-DEF
 		$NEXT-EARLY
 01 L.		CELLL # fpc fpc ADD,		\ ignore branch offset
 		R0 popR,			\ NAC what's this dropping?? -- can just bump rsp rather than doing memory access
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   do+LOOP     ( n -- ) ( R: loop-sys1 -- | loop-sys2 )
 \		Run time routine for +LOOP.
@@ -1022,7 +1009,7 @@ xS-DEF
 		$NEXT-EARLY
 01 L.		CELLL # fpc fpc ADD,		\ ignore branch offset
 		R0 popR,			\ NAC what's this dropping? -- can just bump rsp rather than doing memory access
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   0branch     ( flag -- )
 \		Branch if flag is zero.
@@ -1033,14 +1020,14 @@ xS-DEF
 		CELLL # FPC FPC NE ADD,		\ don't branch, point past dest
 		[ fpc ] fpc EQ LDR,		\ branch; get destination
 		tos popD,			\ tidy up the stack
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   branch      ( -- )
 \		Branch to an inline address.
 \
 		$SCODE branch
 		[ fpc ] fpc LDR,		\ get branch destination
-		$NEXT $COMPO			\ .. and go there
+		$NEXT COMPILE-ONLY			\ .. and go there
 
 \   rp@         ( -- a-addr )
 \		Push the current RP to the data stack.
@@ -1048,7 +1035,7 @@ xS-DEF
 		$SCODE rp@
 		tos pushD,
 		rsp tos MOV,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   rp!         ( a-addr -- )
 \		Set the return stack pointer.
@@ -1056,7 +1043,7 @@ xS-DEF
 		$SCODE rp!
 		tos rsp MOV,
 		tos popD,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   sp@         ( -- a-addr )
 \		Push the current data stack pointer.
@@ -1064,7 +1051,7 @@ xS-DEF
 		$SCODE sp@
 		tos pushD,
 		dsp tos MOV,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   sp!         ( a-addr -- )
 \		Set the data stack pointer.
@@ -1072,7 +1059,7 @@ xS-DEF
 		$SCODE sp!
 		tos dsp MOV,
 		tos popD,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   um+         ( u1 u2 -- u3 1|0 )
 \		Add two unsigned numbers, return the sum and carry.
@@ -1098,7 +1085,7 @@ META-HI [IF]
 
 CR .( *** Standard words - Processor-dependent definitions)
 CR .( ***        32-bit Forth for ARM RISC)
-xF-DEF
+F-DEF
 
 \   !		( x a-addr -- )			\ CORE
 \		Store x at a aligned address.
@@ -1148,7 +1135,7 @@ xF-DEF
 		$FCODE >R
 		tos pushR,
 		tos popD,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   @		( a-addr -- x )			\ CORE
 \		Push the contents at a-addr to the data stack.
@@ -1209,7 +1196,7 @@ xF-DEF
 \
 		$FCODE EXIT
 		fpc popR,			\ where call doLIST left it
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   MOVE	( addr1 addr2 u -- )		\ CORE
 \		Copy u address units from addr1 to addr2 if u is greater
@@ -1259,7 +1246,7 @@ xF-DEF
 		$FCODE R>
 		tos pushD,
 		tos popR,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   R@		( -- x ) ( R: x -- x )		\ CORE
 \		Copy top of return stack to the data stack.
@@ -1267,7 +1254,7 @@ xF-DEF
 		$FCODE R@
 		tos pushD,
 		[ rsp ] tos LDR,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 
 \   SWAP	( x1 x2 -- x2 x1 )		\ CORE
 \		Exchange top two stack items.
@@ -1325,7 +1312,7 @@ META-HI [IF]
 
 CR .( *** Non-Standard words - Processor-dependent definitions)
 CR .( ***        32-bit Forth for ARM RISC)
-xS-DEF
+S-DEF
 
 
 CR .( *** System constants and variables)
@@ -1537,6 +1524,10 @@ $FVAR >IN	( -- a-addr )			\ CORE
 
 $SVAR hld	( -- a-addr )
 \		Hold a pointer in building a numeric output string.
+
+$SVAR sourceVar	( -- a-addr )
+_VAR CELLL + TO _VAR
+\		Hold the current count and addr of the terminal input buffer.
 
 \   EMIT        ( x -- )				\ CORE
 \		Send a character to the output device.
@@ -1792,7 +1783,7 @@ MM_DEMON [IF]
 [THEN]
 		$END-CODE
 
-\ TODO - want this conditional on 21285 systems
+TAR_EBSA285 [IF]
 : INIT-BUS	( -- )
 \               For the 21285, need to init some PCI stuff to avoid hanging
 \               the host system (if any)
@@ -1806,8 +1797,11 @@ MM_DEMON [IF]
     H# 40000000 H# 42000010 !    H#     F000 H# 42000018 !
     H#       17 H# 42000004 !    H#       1  H# 4200013C !
   THEN ;
+[ELSE]
+: INIT-BUS	( -- ) ;
+[THEN]
 
-xS-DEF
+S-DEF
 
 CR .( *** MS-DOS only words -- not necessary for other systems.)
 
@@ -2241,7 +2235,7 @@ META-HI [IF]
 		\ colon version
 		R0 popR,
 		R0 popR,	\ TODO could just bump it up.. save time
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 [THEN]
 
 : SOURCE	( -- c-addr u )			\ CORE
@@ -2296,7 +2290,7 @@ META-HI [IF]
 		1 # R1 R1 NE SUBS,
 		02 L# NE B,
 \ drop through if no bytes to fill or at end
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 [THEN]
 
 
@@ -2759,7 +2753,7 @@ META-HI [IF]
 \ ENVIRONMENT? .
 
 CR .( *** ENVIRONMENT? Strings)
-xENV-DEF
+ENV-DEF
 
 \ META-TODO - these strings are built in the NAME space..
 \ : CPU [ CPUStr ] LITERAL COUNT ;
@@ -2784,7 +2778,7 @@ xENV-DEF
 
 
 CR .( *** Non-Standard words - Colon definitions)
-xS-DEF
+S-DEF
 
 \   I		( -- n|u ) ( R: loop-sys -- loop-sys )  \ CORE
 \		Push the innermost loop index.
@@ -2799,7 +2793,7 @@ META-HI [IF]
 					\ the tos in CODE
 		[ CELLL # rsp ] tos LDR,
 		R0 tos tos ADD,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 [THEN]
 
 \   J           ( -- n|u ) ( R: loop-sys -- loop-sys )  \ CORE
@@ -2815,7 +2809,7 @@ META-HI [IF]
 		[ CELLL 2 * # rsp ] R0 LDR,
 		[ CELLL 3 * # rsp ] tos LDR,
 		R0 tos tos ADD,
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 [THEN]
 
 \   search-word ( c-addr u -- c-addr u 0 | xt f 1 | xt f -1)
@@ -2900,6 +2894,23 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+\   IMMEDIATE   ( -- )				\ CORE
+\		Make the most recent definition an immediate word.
+\
+META-HI [IF]
+: IMMEDIATE	lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
+[ELSE]
+		$FCODE IMMEDIATE
+		AddrNPVar R0 =,
+		[ R0 ] R1 LDR,
+		[ R1 ] R2 LDR,
+		CELLL 2 * # R2 R2 ADD,		\ Lastname
+		[ R2 ] R3 LDR,			\ get length
+		=IMED # R3 R3 ORR,		\ set flag
+		[ R2 ] R3 STR,
+		$NEXT
+[THEN]
+
 \   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
 \		Run-time funtion of DO.
 \
@@ -2916,7 +2927,7 @@ META-HI [IF]
 		LocSTATE R0 =,
 		0 # R1 MOV,
 		[ R0 ] R1 STR,
-		$NEXT $COMPO $IMMED
+		$NEXT COMPILE-ONLY IMMEDIATE
 [THEN]
 
 \   ]           ( -- )		           \ CORE
@@ -3176,7 +3187,7 @@ META-HI [IF]
 [ELSE]
 		$FCODE COMPILE,
 		CodeComma B,
-		$END-CODE $COMPO
+		$END-CODE COMPILE-ONLY
 [THEN]
 
 \   optiCOMPILE, ( xt -- )
@@ -3320,13 +3331,8 @@ META-HI [IF]
   THEN bal- ; COMPILE-ONLY
 
 
-\   sourceVar	( -- a-addr )
-\		Hold the current count and addr of the terminal input buffer.
-\
-		$SVAR sourceVar _VAR CELLL + TO _VAR
-
 CR .( *** Words for multitasking)
-xS-DEF
+S-DEF
 
 \   PAUSE       ( -- )
 \		Stop current task and transfer control to the task of which
@@ -3344,7 +3350,7 @@ xS-DEF
 
 
 CR .( *** Essential Standard words - Colon definitions)
-xF-DEF
+F-DEF
 
 \   HOLD	( char -- )			\ CORE
 \		Add char to the beginning of pictured numeric output string.
@@ -3551,7 +3557,7 @@ META-HI [IF]
   THEN  POSTPONE EXIT     \ add EXIT at the end of the definition
   D# 0 TO bal POSTPONE [ ; COMPILE-ONLY IMMEDIATE
 
-xS-DEF
+S-DEF
 : FILE		( -- )
 \		Set FILE bit in IOBYTES to disable local echo and impose
 \		XON/XOFF flow control for host file download
@@ -3578,7 +3584,7 @@ xS-DEF
 \   CR		( -- )				\ CORE
 \		Carriage return and linefeed.
 \
-xF-DEF
+F-DEF
 : CR  [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
 
 
@@ -3790,7 +3796,7 @@ META-HI [IF]
 
 \   hi          ( -- )
 \		By default, this is the application started through 'boot
-xS-DEF
+S-DEF
 : hi
 		CR ." hForth "
 		S" CPU" ENVIRONMENT? DROP TYPE SPACE
@@ -3849,7 +3855,7 @@ xS-DEF
 
 
 CR .( *** Rest of CORE words and two facility words, EKEY? and EMIT?)
-xF-DEF
+F-DEF
 
 \   (           ( "ccc<)>" -- )		  \ CORE
 \		Ignore following string up to next ) . A comment.
@@ -3880,7 +3886,7 @@ META-HI [IF]
 		tos fpc fpc ADD,	\ point to end of string
 		3 # fpc fpc ADD,	\ and align
 		3 # fpc fpc BIC,	\ by rounding it up
-		$NEXT $COMPO
+		$NEXT COMPILE-ONLY
 [THEN]
 
 \   S"          Compilation: ( "ccc<">" -- )    \ CORE
@@ -4024,23 +4030,6 @@ META-HI [IF]
 \
 : FIND		DUP COUNT search-word ?DUP IF NIP ROT DROP EXIT THEN
 		2DROP 0 ;
-
-\   IMMEDIATE   ( -- )				\ CORE
-\		Make the most recent definition an immediate word.
-\
-META-HI [IF]
-: IMMEDIATE	lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
-[ELSE]
-		$FCODE IMMEDIATE
-		AddrNPVar R0 =,
-		[ R0 ] R1 LDR,
-		[ R1 ] R2 LDR,
-		CELLL 2 * # R2 R2 ADD,		\ Lastname
-		[ R2 ] R3 LDR,			\ get length
-		=IMED # R3 R3 ORR,		\ set flag
-		[ R2 ] R3 STR,
-		$NEXT
-[THEN]
 
 \   LEAVE       ( -- ) ( R: loop-sys -- )       \ CORE
 \		Terminate definite loop, DO|?DO  ... LOOP|+LOOP, immediately.
@@ -4205,11 +4194,11 @@ META-HI [IF]
 		[ R0 ] R1 LDR,
 		LocToIN R3 =,
 		[ R3 ] R1 STR,
-		$NEXT $IMMED
+		$NEXT IMMEDIATE
 [THEN]
 
 CR .( *** RAM/ROM System Only)
-xS-DEF
+S-DEF
 
 \ RESET-SYSTEM   ( -- )
 \		Reset the system. Restore initialization values of system
