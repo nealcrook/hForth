@@ -1,11 +1,8 @@
-- things to merge in from latest hfsarom
-I added maxstring - wonyon has called it maxcountedstring
-
--- I think the AddrFRDD I put into the assembler source is unneeded
-now because the awk macros insert an equivalent  label
-
 \ $Id$
 \ $Log$
+\ Revision 1.14  1998/10/03 15:26:45  crook
+\ merged errors found in my high-level source back into hfsarom.asm
+\
 \ Revision 1.13  1998/10/01 00:17:24  crook
 \ fixed bug in ACCEPT that stopped backspace from working.
 \
@@ -185,7 +182,7 @@ HEX -1		hCONSTANT TRUEE
 1		hCONSTANT CHARR \ byte size of a character
 4		hCONSTANT CELLL \ byte size of a cell
 07F		hCONSTANT MaxChar \ use ASCII only
-0FF		hCONSTANT MaxString \ max length of a string
+0FF		hCONSTANT MaxCountedString \ max length of a string
 07FFFFFFF	hCONSTANT MaxSigned \ max value of a signed integer
 0FFFFFFFF	hCONSTANT MaxUnsigned \ max value of an unsigned integer
 080000000	hCONSTANT MaxNegative \ max value of a negative integer
@@ -2620,7 +2617,7 @@ ENV-DEF
 : CPU [ CPUStr ] LITERAL COUNT ;
 : model [ ModelStr ] LITERAL COUNT ;
 : version [ VersionStr ] LITERAL COUNT ;
-: /COUNTED-STRING [ MaxString ] LITERAL ;
+: /COUNTED-STRING [ MaxCountedString ] LITERAL ;
 : /HOLD [ PADSize ] LITERAL ;
 : /PAD [ PADSize ] LITERAL ;
 : ADDRESS-UNIT-BITS D# 8 ;
@@ -3156,7 +3153,7 @@ META-HI [IF]
 \
 : PARSE		>R  SOURCE >IN @ /STRING        \ c-addr u  R: char
 		DUP IF
-		   OVER CHARS + OVER       \ c-addr c-addr+u c-addr  R: char
+		   CHARS OVER + OVER       \ c-addr c-addr+u c-addr  R: char
 		   BEGIN  DUP C@ R@ XOR
 		   WHILE  CHAR+ 2DUP =
 		   UNTIL  DROP OVER - 1chars/ DUP
@@ -3417,7 +3414,6 @@ META-HI [IF]
 		$END-CODE
 [THEN]
 
-\ pack" is dependent of cell alignment.
 \
 \   pack"       ( c-addr u a-addr -- a-addr2 )
 \		Place a string c-addr u at a-addr and gives the next
@@ -3425,12 +3421,14 @@ META-HI [IF]
 \		null character.
 \
 META-HI [IF]
-: pack" 2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
-\ TODO: need to round the address DOWN to aligned boundary before !
-	1 CHARS - 0 SWAP !        \ fill 0 at the end of string
-	2DUP C! CHAR+ SWAP              \ c-addr a-addr+1 u
-	CHARS MOVE R> ; COMPILE-ONLY
+: pack"	OVER [ MaxCountedString ] LITERAL SWAP U< 
+	IF D# -18 THROW THEN		\ parsed string overflow
+	2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
+	ALIGNED cell- 0 SWAP !		\ fill 0 at the end of string
+	2DUP C! CHAR+ SWAP		\ c-addr a-addr+1 u
+	CHARS MOVE R> ALIGNED ; COMPILE-ONLY
 [ELSE]
+\ TODO this code version doesn't do the length check and THROW
 		$SCODE pack"
 		\ assume strings don't overlap
 		R0 popD,			\ u
@@ -3461,7 +3459,8 @@ META-HI [IF]
 		DUP [ =MASK ] LITERAL > IF D# -19 THROW THEN   \ definition name too long
 		2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
 		IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
-		npVar @ OVER CELL+ - ALIGNED
+		npVar @ OVER CHARS CHAR+ -
+		DUP ALIGNED SWAP OVER XOR IF CELL- THEN \ aligned to lower address
 		DUP >R pack" DROP R>            \ pack the name in dictionary
 		cell- GET-CURRENT @ OVER !      \ build wordlist link
 		cell- DUP npVar !  ! ;          \ adjust name space pointer
@@ -3527,7 +3526,11 @@ F-DEF
 \
 : EKEY		BEGIN PAUSE EKEY? UNTIL 'ekey EXECUTE ;
 
-\ NAC added for file handshake. TODO should it be slink instead? -- yes
+\   KEY         ( -- char )		      \ CORE
+\		Receive a character. Do not display char.
+\
+: KEY		EKEY [ MaxChar ] LITERAL AND ;
+
 \   EMITE       ( x -- )
 \		Send a character to the output device unless FILE bit
 \		is set in IOBYTES
@@ -3535,7 +3538,7 @@ META-HI [IF]
 : EMITE		IOBYTES H# 10000000 AND 
 		IF DROP EXIT THEN 'emit EXECUTE ;
 [ELSE]
-		$FCODE EMITE
+		$SCODE EMITE
 		GetVaxAdr IOBYTES R0 =,		\ find out whether to emit it
 		[ R0 ] R1 LDR,
 		10000000 # R1 R1 ANDS,
@@ -3544,30 +3547,26 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-\ NAC mods for handshaking: FLOW-ON at start, FLOW-OFF at end and use EMITE for
-\ all output in between.
 \   ACCEPT      ( c-addr +n1 -- +n2 )           \ CORE
 \		Accept a string of up to +n1 chars. Return with actual count.
 \		Implementation-defined editing. Stops at EOL# .
 \		Supports backspace and delete editing.
 \
-: ACCEPT FLOW-ON >R 0
-	BEGIN  DUP R@ <		  \ ca n2 f  R: n1
-	WHILE  EKEY [ MaxChar ] LITERAL AND DUP BL <
-	       IF DUP [ CRR ] LITERAL = IF ROT 2DROP R> DROP FLOW-OFF EXIT THEN
-	            DUP [ TABB ] LITERAL =
-	            IF   DROP 2DUP + BL DUP EMITE SWAP C! 1+
-	            ELSE DUP [ BKSPP ] LITERAL =
-			  SWAP [ DEL ] LITERAL = OR
-			  IF DUP
-		            \ discard the last char if not 1st char
-			    IF 1- [ BKSPP ] LITERAL EMITE BL EMITE
-			      [ BKSPP ] LITERAL EMITE
+: ACCEPT	FLOW-ON >R 0
+		BEGIN  DUP R@ < 		\ ca n2 f  R: n1
+		WHILE  KEY DUP BL <
+		       IF   DUP  [ CRR ] LITERAL = IF ROT 2DROP R> DROP FLOW-OFF EXIT THEN
+			    DUP  [ TABB ] LITERAL =
+			    IF	 DROP 2DUP + BL DUP EMITE SWAP C! 1+
+			    ELSE DUP  [ BKSPP ] LITERAL =
+				 SWAP [ DEL ] LITERAL = OR
+				 IF DUP
+					\ discard the last char if not 1st char
+				 	IF 1- [ BKSPP ] LITERAL EMITE BL EMITE [ BKSPP ] LITERAL EMITE THEN
+				 THEN
 			    THEN
-			  THEN
-	            THEN
-	       ELSE >R 2DUP CHARS + R> DUP EMITE SWAP C! 1+  THEN
-	REPEAT SWAP R> 2DROP FLOW-OFF ;
+		       ELSE >R 2DUP CHARS + R> DUP EMITE SWAP C! 1+ THEN
+		REPEAT SWAP  R> 2DROP FLOW-OFF ;
 
 \   AGAIN       ( C: dest -- )		   \ CORE EXT
 \		Resolve backward reference dest. Typically used as
@@ -3636,11 +3635,6 @@ META-HI [IF]
 \		onto control-flow stack.
 \
 : ELSE		POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
-
-\   KEY         ( -- char )		      \ CORE
-\		Receive a character. Do not display char.
-\
-: KEY		EKEY [ MaxChar ] LITERAL AND ;
 
 \   interpret	( i*x -- j*x )
 \		Interpret input string.
@@ -4035,7 +4029,7 @@ META-HI [IF]
 \   SPACES      ( n -- )		         \ CORE
 \		Send n spaces to the output device if n is greater than zero.
 \
-: SPACES	?DUP IF 0 DO SPACE LOOP THEN ;
+: SPACES	DUP 0 > IF 0 DO SPACE LOOP EXIT THEN  DROP ;
 
 \   TO          Interpretation: ( x "<spaces>name" -- ) \ CORE EXT
 \		Compilation:    ( "<spaces>name" -- )
