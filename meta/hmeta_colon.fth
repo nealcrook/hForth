@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.13  1998/10/01 00:18:00  crook
+\ fixed forward references for ACCEPT bugfix.
+\
 \ Revision 1.12  1998/09/30 23:56:10  crook
 \ first working binary.
 \
@@ -458,12 +461,10 @@ BASE !
 \               cell-aligned address. Fill the rest of the last cell with
 \               null character.
 \
-: pack"	 2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
-	1 CHARS - 0 SWAP 
-
-3 OR 3 - \ align down to lword boundary - TODO: do this portably
-
-t!             \ fill 0 at the end of string
+: pack"	OVER MaxCountedString SWAP U<
+	IF -18 THROW THEN		\ parsed string overflow
+	2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
+	ALIGNED cell- 0 SWAP t!		\ fill at end of string
 	2DUP tC! CHAR+ SWAP             \ c-addr a-addr+1 u
 	CHARS tMOVE R> ; COMPILE-ONLY
 
@@ -477,7 +478,8 @@ t!             \ fill 0 at the end of string
 	DUP =MASK > IF -19 THROW THEN   \ definition name too long
 	2DUP mGET-CURRENT mSEARCH-WORDLIST  \ name exist?
 	IF DROP ." t-redefine " 2DUP TYPE SPACE THEN \ warn if redefined
-	_NAME OVER CELL+ - ALIGNED
+	_NAME OVER CHARS CHAR+ -
+	DUP ALIGNED SWAP OVER XOR IF cell- THEN \ aligned to low address
 	DUP >R pack" DROP R>              \ pack the name in dictionary
 	cell- mGET-CURRENT @ OVER t!      \ build wordlist link
 	cell- DUP TO _NAME t! ;          \ adjust name space pointer
@@ -491,7 +493,7 @@ ALSO tunresolved-words DEFINITIONS
 4000059C hCONSTANT doVALUE
 40001BE0 hCONSTANT pipe
 40000CE0 hCONSTANT UNLOOP
-40002D74 hCONSTANT doS"
+40002DB0 hCONSTANT doS"
 400013FC hCONSTANT abort"msg
 400021A4 hCONSTANT TYPE
 40001B20 hCONSTANT COMPILE,
