@@ -209,13 +209,13 @@ R3 [ R7 ] R1 STRH,		E08710B3 zz
 [ -R4 R7 ] R10 STRH,		E107A0B4 zz
 
 .( --- Synonyms for hForth) CR
-pushD, tos			E52C9004 zz
-pushD, r0			E52C0004 zz
-pushD, r3			E52C3004 zz
-pushR, fpc			E52BA004 zz
-popR, r0			E49B0004 zz
-popD, tos			E49C9004 zz
-popD, r1			E49C1004 zz
+tos pushD,			E52C9004 zz
+R0 pushD,			E52C0004 zz
+R3 pushD,			E52C3004 zz
+fpc pushR,			E52BA004 zz
+R0 popR,			E49B0004 zz
+tos popD,			E49C9004 zz
+R1 popD,			E49C1004 zz
 NEXT,				E49AF004 zz
 
 .( --- =, syntax for MOV, MVN op-codes) CR
