@@ -323,6 +323,35 @@ The label-forward-reference syntax requires a new bit in the data structure
 to signal that a label has been used and to force =, to behave accordingly.
 
 
+10A. MOV and MVN
+----------------
+
+Usage of the MOV and MVN instructions with immediate operands shows a way in
+which the behaviour of this assembler differs from that of ARM's
+assembler. ARM's assembler will always treat MOV and MVN op-codes in your
+assembler source as interchangeable, and puts in the appropriate one to load
+the register with the immediate value you specify.
+
+In contrast, this assembler uses the immediate value you specify as the value
+it's going to try to insert into the instruction's immediate field, and uses
+the MOV or MVN as the op-code for the instruction.
+
+For example:
+
+MOV R0, #0	- will load 0 in both ARM's assembler and this assembler
+
+MVN R0, #0	- will load 0 in ARM's assembler; it will emit a MOV
+		  instruction. In this assembler it will emit a MVN
+		  with a parameter of 0 ie load the register with the
+		  bit-invert of 0, which is FFFF.FFFF (-1).
+
+Therefore, you can see that it could easily become confusing to use MVN with
+this assembler. My advice is: don't. It's always easier to use the =,
+pseudo-op, and this always does what you expect.
+
+.. Maybe I will change this behaviour one day.
+
+
 11. Error-handling
 ------------------
 
