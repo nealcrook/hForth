@@ -12,6 +12,9 @@
 \
 \
 \ $Log$
+\ Revision 1.4  1998/10/06 00:28:00  crook
+\ added check for legal shifter immediate.
+\
 \ Revision 1.3  1998/09/05 12:07:57  crook
 \ fix bug with first entry in a literal pool
 \
@@ -51,46 +54,40 @@ MARKER *ASMARM*
 BASE @ HEX
 DEPTH
 
-\ Vector to a routine to emit the 32-bit value at tos at the current PC
+\ Vectors to routines for code generation on the target
+\ .. emit the 32-bit value at tos at the current PC
 VARIABLE 'ASM,32	: ASM,32 'ASM,32 @ EXECUTE ;
-\ default action is that code is assembled for the local (host) system
-\ and emitted in host code space using COMPILE,
-' COMPILE, 'ASM,32 !
 
-\ Vector to a routine to return the current value of "dot" - the point at
-\ which (assembler) code is emitted
+\ .. return the current value of "dot" - the point at which code is emitted
 VARIABLE 'ASM.		: ASM. 'ASM. @ EXECUTE ;
-\ default action is that code is emitted using COMPILE, so the PC is
-\ given by HERE .. TODO: not really true: HERE points to data space
-\ and I want something to emit in *code* space.. for hForth this would be
-\ xhere
-' HERE 'ASM. !
 
-\ Vector to a routine to do a 32-bit store to an address in the target
-\ image
+\ .. do a 32-bit store to an address in the target image code space
+\ TODO -- in Forth source make sure this is *only* used for code space access
 VARIABLE 'ASM!		: ASM! 'ASM! @ EXECUTE ;
-\ default action is to do a 32-bit store in host space
-' ! 'ASM! !
 
-\ Vector to a routine to do a 32-bit fetch from an address in the target
-\ image
-VARIABLE 'ASM@
-\ default action is to do a 32-bit fetch in host space
-' @ 'ASM@ !		: ASM@ 'ASM@ @ EXECUTE ;
+\ .. do a 32-bit fetch from an address in the target image code space
+VARIABLE 'ASM@		: ASM@ 'ASM@ @ EXECUTE ;
 
-\ TODO word for determining the host system -- this should use environment
-\ string and be done in the CALLING system, not here.
-: hForth 0 ;
+\ Initialise all these vectors
+: AsmBadVector ." ASMARM Error: Uninitialised code-generation vector."
+  ABORT ;
+' AsmBadVector 2DUP DUP
+'ASM,32 !	'ASM. !		'ASM! !		'ASM@ !
+
 
 \ TODO ram/rom@ if appropriate model
 
 GET-CURRENT  GET-ORDER
 
-\ In hForth, WORDLIST-NAME associates the name with the wid such that ORDER
-\ can display it.
-hForth INVERT [IF] : WORDLIST-NAME CONSTANT ; [THEN]
+CHAR " PARSE hforth" ENVIRONMENT?
+[IF]
+  \ In hForth, WORDLIST-NAME associates the name with the wid such that ORDER
+  \ can display it.
+  WORDLIST WORDLIST-NAME ASSEMBLER-WORDLIST
+[ELSE]
+  WORDLIST CONSTANT ASSEMBLER-WORDLIST
+[THEN]
 
-WORDLIST WORDLIST-NAME ASSEMBLER-WORDLIST
 : ASSEMBLER GET-ORDER NIP ASSEMBLER-WORDLIST SWAP SET-ORDER ;
 
 ALSO ASSEMBLER DEFINITIONS
@@ -98,7 +95,8 @@ ALSO ASSEMBLER DEFINITIONS
 \ ******************* Redefine standard words
 \ the strings used for some standard words are required in the assembler
 \ so provide aliases to make them accessible from within the assembler
-: [[ POSTPONE [ ; IMMEDIATE    hForth [IF] COMPILE-ONLY [THEN]
+: [[ POSTPONE [ ; IMMEDIATE 
+CHAR " PARSE hforth" ENVIRONMENT? [IF] COMPILE-ONLY [THEN]
 : ]] ] ;
 : ## # ;
 
@@ -779,6 +777,7 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 
 \ TODO should really set a flag to show that a xPSR_xxxx occurred and
 \ TODO then check for it and nothing else in MSR, and MRS, below.
+\ TODO and other words need to check for it, too
 
 : MSR,
 	this-op @ 10000000 AND IF \ Encoding 1 (immediate)
@@ -961,10 +960,9 @@ VARIABLE SYM-TABLE
 		THEN
 	2 CELLS +LOOP DROP ;
 
-\ TODO don't know if the next word needs ASM@ ASM!
 \ create word whose function is to create a label with name n' (range from 0
-\ to maximum local label) with a value given by n. Look for unresolved labels
-\ of this name (in the unresolved list) and resolve them
+\ to maximum local/global label) with a value given by n. Look for unresolved
+\ labels of this name (in the unresolved list) and resolve them
 : label= \ runtime of created word: ( n n' -- )
 	CREATE , CELLS , DOES> DUP @ ROT OR SWAP CELL+ @
 	SYM-TABLE @ + leglab \ value label a-of-number-of-labels
@@ -972,8 +970,7 @@ VARIABLE SYM-TABLE
 	DUP @ DEADFEED = IF
 		ROT SWAP ! \ define value for label
 		resolve
-	ELSE
-		1E huh
+	ELSE 1E huh
 	THEN ;
 
 2 00000000 label= L=			4 80000000 label= G=
@@ -1092,7 +1089,7 @@ VARIABLE SYM-TABLE
 \ error, ?because the =, checks and sets the immediate bit?
 \ FFFF # R1 =, will need a literal pool entry and map to an LDR
 \ but will NOT generate an error. The presence or absence of the #
-\ makes no difference to the code that is produced. The syntax ought to
+\ makes no difference to the code that is produced. The syntax ought NOT to
 \ require the #, I think. In any case, it ought to be consistent.
 
 \ attempt to translate a line of the format: immediate Rn =,
@@ -1101,25 +1098,22 @@ VARIABLE SYM-TABLE
 \ MVN Rn,#immediate
 \ LDR Rn,[R15,offset]
 : =, ( n -- ) \ TODO check stack behaviour.. 
-	this-op @ 800000 AND IF
-		\ ." =, is unresolved forward reference"
-		\ unresolved forward reference. This will have created an
-		\ entry in the forward reference table, with a value that
-		\ points to . (dot) Need to allocate a literal pool entry
-		\ and emit an LDR here that points to the entry.
-		\ When the forward reference is resolved it will use the
-		\ offset in the LDR to locate and fix-up the literal
-		\ pool value
-." Unres fref"
-		0 NEWLIT ABS2OS \ allocate a literal pool entry (0 for now)
-		this-op DUP @ 80000000 OR SWAP ! \ set IMMEDIATE flag
-		0 oldreg R15 reg LDR, \ see comments below..
-	ELSE
-		\ immediate or resolved value at tos
-		DUP 32to12 IF \ can express using MOV
-			\ ." =, is resolved & expressed with MOV" 
-			DROP # MOV, \ fix up as tho MOV, with immediate
-		ELSE DUP INVERT 32to12 IF \ can express using MVN,
+  this-op @ 800000 AND IF
+	\ ." =, is unresolved forward reference"
+	\ unresolved forward reference. This will have created an entry in the
+	\ forward reference table, with a value that points to . (dot) Need
+	\ to allocate a literal pool entry and emit an LDR here that points to
+	\ the entry. When the forward reference is resolved it will  use the
+	\ offset in the LDR to locate and fix-up the literal pool value
+	0 NEWLIT ABS2OS \ allocate a literal pool entry (0 for now)
+	this-op DUP @ 80000000 OR SWAP ! \ set IMMEDIATE flag
+	0 oldreg R15 reg LDR, \ see comments below..
+  ELSE
+	\ immediate or resolved value at tos
+	DUP 32to12 IF \ can express using MOV
+		\ ." =, is resolved & expressed with MOV" 
+		DROP # MOV, \ fix up as tho MOV, with immediate
+	ELSE DUP INVERT 32to12 IF \ can express using MVN,
 			\ ." =, is resolved and expressed with MVN" 
 			DROP INVERT # MVN, \ fix up as tho MVN, with immediate
 		ELSE
@@ -1132,8 +1126,9 @@ VARIABLE SYM-TABLE
 			\ existing register (there should be exactly 1)
 			0 oldreg R15 reg
 			LDR, \ by luck, the immediate is -VE by default
-		THEN THEN
-	THEN ;
+		THEN
+	THEN
+  THEN ;
 
 \ ******************* Implementation-dependent end for CODE and ;CODE
 : END-CODE
@@ -1182,9 +1177,37 @@ VARIABLE SYM-TABLE
 	FFF AND ASM. 1 CELLS - 8 + SWAP - @
 	<> IF ." Error: literal mismatch" CR THEN ;
 
+\ ******************* Set up code access vectors - for hForth only
 
-\ ******************* Standard words for using the assembler
-FORTH-WORDLIST SET-CURRENT	\ add the following word in FORTH-WORDLIST
+CHAR " PARSE hforth" ENVIRONMENT?
+[IF]
+  \ code is assembled for the local (host) system and emitted in host code
+  \ space using COMPILE,
+  ' COMPILE, 'ASM,32 !
+
+  \ code is emitted using COMPILE, and the PC cannot be determined in a
+  \ "standard" way. For hForth, xhere is the pointer to code space.
+  ' xhere 'ASM. !
+
+  \ do a 32-bit store in local (host) code space
+  ' ! 'ASM! !
+
+  \ do a 32-bit fetch in local (host) code space
+  ' @ 'ASM@ !
+[THEN]
+
+
+\ ******************* Standard words for using the assembler - for hForth only
+\ TODO should only do this for ROM model.. other models are slightly
+\ different
+CHAR " PARSE hforth" ENVIRONMENT?
+[IF]
+
+FORTH-WORDLIST SET-CURRENT	\ add the following words in FORTH-WORDLIST
+
+\ TODO -- should NOT be in FORTH-WORDLIST.. should be in FORTH
+\ .. fix up the wordlist stuff.
+
 
 \   CODE	( '<spaces>name' -- )           \ TOOLS EXT
 \		Skip leading space delimiters.	Parse name delimited by a
@@ -1201,16 +1224,13 @@ FORTH-WORDLIST SET-CURRENT	\ add the following word in FORTH-WORDLIST
 \		name Execution:( i*x --- j*x )
 \		Execute the machine code sequence that was generated
 \		following CODE.
-\ TODO check for hForth ROM model.. add alternative for meta-compilation?
-\ TODO fix up usage of HERE/xhere/ ASM-HERE
-\ [IF]
-  : CODE ( "<spaces>name" -- )    \ TOOLS EXT
-\ TODO pfe equivalent of head,
-\      xhere ALIGNED DUP TOxhere   \ align code address
-\      head,			  \ register a word in dictionary
-      ALSO ASSEMBLER
-      init-asm ;
-\ [THEN]
+: CODE ( "<spaces>name" -- )    \ TOOLS EXT
+\ TODO xhere accesses should use the ASM words
+    xhere ALIGNED DUP TOxhere   \ align code address
+    head,			  \ register a word in dictionary
+    ALSO ASSEMBLER
+    init-asm
+;
 
 \   ;CODE	Compilation: ( C: colon-sys -- )	\ TOOLS EXT
 \		Interpretation: Interpretation semantics for this word
@@ -1237,17 +1257,19 @@ FORTH-WORDLIST SET-CURRENT	\ add the following word in FORTH-WORDLIST
 \		Perform the machine code sequence that was generated
 \		following ;CODE.
 : ;CODE
-\ TODO pfe equivalent of bal and pipe
-\    bal @ IF -22 THROW THEN
-\    POSTPONE pipe POSTPONE [
+    bal @ IF -22 THROW THEN
+    POSTPONE pipe POSTPONE [
     ALSO ASSEMBLER init-asm
-    ; IMMEDIATE   hForth [IF] COMPILE-ONLY [THEN]
+; IMMEDIATE COMPILE-ONLY
+
+[THEN]
 
 \ ******************* Tidy up
 
 SET-ORDER  SET-CURRENT
 \ TODO ram/rom! if appropriate model
-CR DEPTH 1- - [IF] .( asmarm.fth affected DEPTH) ABORT [ELSE] CR .( ..asmarm loaded successfully)
+CR DEPTH 1- -
+[IF] .( asmarm affected DEPTH) ABORT [THEN] CR .( ..asmarm loaded OK)
 BASE !
 
 \ TODO: need to revisit and revise the usage of xhere and HERE. All data
