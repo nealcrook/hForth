@@ -30,6 +30,7 @@
 ;;     COM port to be changed. The most efficient way of doing this is to use
 ;;     the vectors to point to the correct I/O routines and to store the base
 ;;     port address in a register.
+;; 25. Maybe I should disable modem control when I init the UARTs
 ;;
 ;; Issues
 ;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
@@ -54,8 +55,8 @@
 ;; the microdebugger herein to be activated.
 ;;
 ;; The following values of TARGET are supported:
-;; EBSA - EBSA-110, SA-110 StrongARM Evaluation Board
-;; EBFB - StrongARM/Footbridge PCI Evaluation Board
+;; EBSA110 - EBSA-110, SA-110 StrongARM Evaluation Board
+;; EBSA285 - StrongARM/Footbridge PCI Evaluation Board
 ;; COGENT - StrongARM PCI Evaluation Board.
 ;; note that the ARM PIE card is no longer supported.
 ;;
@@ -70,7 +71,7 @@
 ;;	      chance to parse it. Useful for initial debugging but
 ;;	      no more than that.
 ;; COM0       - Footbridge internal UART
-;; COM1, COM2 - on-board UART on EBSA, COGENT and (some) EBFB
+;; COM1, COM2 - on-board UART on EBSA110, COGENT and (some) EBSA285
 ;;
 ;; For all com ports except COMDSWI, the following values of
 ;; DEFBAUD are supported:
@@ -99,6 +100,9 @@
 ;; generate a fatal error at build time.
 
 ;; $Log$
+;; Revision 1.14  1997/04/02 09:47:10  crook
+;; revamped file download to use full XON/XOFF
+;;
 ;; Revision 1.13  1997/03/26 14:08:20  crook
 ;; more native-coded words
 ;;
@@ -394,51 +398,77 @@ CALLL		EQU	0eb000000h	;for ARM
 ;   ROMbottom||initial-code>--//--<initial-name||ROMtop
 ;   RAMbottom||code/data>WORDworkarea|--//--|PAD|TIB|reserved<name|sp|rp||RAMtop
 
-;NAC: The memory map for EBSA-110 ARM systems is designed to fit into 2,
+;NAC: The memory map for EBSA110 ARM systems is designed to fit into 2,
 ;64Kbyte sections. The first section is the ROM section, which can be loaded
 ;from Flash and stored back to Flash with new definitions added. The second
 ;section is the RAM Section which is volatile: it never gets saved away. The
 ;first 16Kbytes of the RAM section is reserved for the memory-management page
 ;tables.
-;
 
-	IF (TARGET = "EBSA")
+	IF (TARGET = "EBSA110")
 		; load into SSRAM, 128Kbytes maximum (faster than DRAM)
 MMU0		EQU	040010000h		;start of page tables
-RAM0		EQU	040014000h		;bottom of RAM memory ******
-RAMEnd		EQU	040020000h		;top of RAM memory ******
+RAM0		EQU	040014000h		;bottom of RAM memory
+RAMEnd		EQU	040020000h		;top of RAM memory
 						;RAM size = 48KB
-		IF (MEMMAP = "BOOT")
-		; code in EPROM is linked to run at the start of SSRAM
-		; the initial piece of code copies the image to SSRAM.
-ROM0		EQU	040000000h		;bottom of ROM memory ******
-		ELSE
-		; code in Flash is linked to run at start of
-		; SSRAM plus c0. The PBL copies the image to
-		; SSRAM. The gap of c0 leaves room to form a
-		; formated AIF/Flash header for programming
-		; an updated image back to Flash.
-		; This arrangement is also suita
-ROM0		EQU	0400000c0h		;bottom of ROM memory ******
-		ENDIF
-ROMEnd		EQU	040010000h		;end of ROM memory ******
+ROMEnd		EQU	040010000h		;end of ROM memory
 						;ROM size = 64KB
-	;For EBSA DEMON, the memory map will be the same as for PBLOADED (ie
-	;Flash).
+	    IF ((MEMMAP = "BOOT") :LOR: (MEMMAP = "DEMON"))
+		;code in EPROM or for DEMON is linked to run at the start of
+		;SSRAM. For EPROM, the initial piece of code will copy the
+		;image to SSRAM.
+ROM0		EQU	040000000h		;bottom of ROM memory
+	    ELSE
+		;code in Flash is linked to run at start of SSRAM plus c0. The
+		;PBL copies the image to SSRAM. The gap of c0 leaves room to
+		;form a formated AIF/Flash header for programming an updated
+		;image back to Flash.
+ROM0		EQU	0400000c0h		;bottom of ROM memory
+	    ENDIF
+	ENDIF	;EBSA110
 
-	ELSE
-
-
-		IF (MEMMAP = "DEMON")
+	IF (TARGET = "COGENT")
 MMU0		EQU	00018000h		;start of page tables
-RAM0		EQU	0001C000h		;bottom of RAM memory ******
-RAMEnd		EQU	0002C000h		;top of RAM memory ******
+RAM0		EQU	0001C000h		;bottom of RAM memory
+RAMEnd		EQU	0002C000h		;top of RAM memory
 						;RAM size = 64KB
-ROM0		EQU	00008000h		;bottom of ROM memory ******
-ROMEnd		EQU	00018000h		;end of ROM memory ******
+ROM0		EQU	00008000h		;bottom of ROM memory
+ROMEnd		EQU	00018000h		;end of ROM memory
 						;ROM size = 64KB
-		ENDIF
-	ENDIF
+	ENDIF	;COGENT
+
+	IF (TARGET = "EBSA285")
+	  IF ((MEMMAP = "FLASH0") :LOR: (MEMMAP = "PBLOADED"))
+		; load into SDRAM. Ignore the first 64Kbytes of memory
+		; for now. Eventually I want a version that will run
+		; at 0 but I'll want to leave room for the vectors there.
+MMU0		EQU	20000h			;start of page tables
+RAM0		EQU	24000h			;bottom of RAM memory
+RAMEnd		EQU	24000h			;top of RAM memory
+						;RAM size = 48KB
+		;code in Flash is linked to run at start of SSRAM plus c0. The
+		;gap of c0 leaves room to form a formated AIF/Flash header for
+		;programming an updated image back to Flash. If FLASH0 then
+		;the image is responsible for switching the memory maps,
+		;initialising the memory and memory controller, copying itself
+		;to SDRAM and branching to the copy. If PBLOADED then the
+		;PBL does all that stuff and the image is magically invoked at
+		;the right place.
+ROM0		EQU	100c0h			;bottom of ROM memory
+ROMEnd		EQU	20000h			;end of ROM memory
+						;ROM size = 64KB
+
+	  ELSE ;must be DEMON memmap
+MMU0		EQU	00018000h		;start of page tables
+RAM0		EQU	0001C000h		;bottom of RAM memory
+RAMEnd		EQU	0002C000h		;top of RAM memory
+						;RAM size = 64KB
+ROM0		EQU	00008000h		;bottom of ROM memory
+ROMEnd		EQU	00018000h		;end of ROM memory
+						;ROM size = 64KB
+	  ENDIF
+	ENDIF	;EBSA285
+
 
 
 COLDD		EQU	ROM0			;cold start vector ******
@@ -468,44 +498,123 @@ IOBYTES 	EQU (DEFBAUD * 256) + &ff
 
 ; Equates for host I/O
 
-	IF (TARGET = "EBSA")
-
+	IF (TARGET = "EBSA110")
 ledport 	EQU	&f2400000
+SuperIObase	EQU	&F0000000
+	ENDIF
 
-; Real I/O for EBSA-110
+	IF (TARGET = "EBSA285")
+ledport 	EQU	&40012000
+SuperIObase	EQU	&40011000
 
-IOShift 	EQU	2
-ISAIOBase	EQU	&F0000000
-IOBoff		EQU	0	;Byte offset in word
+CSR_BASE            EQU        &42000000      
 
-;; Macro does I/O port -> memory address conversion for byte I/O
-		MACRO
-$label		  IOBADDR $reg,$io_port
-$label		  LDR	  $reg, =((($io_port):SHL:IOShift)+ISAIOBase+IOBoff)
-		MEND
+ROM_BASE	    EQU		   &41000000
 
-COM1Port	EQU	&3f8		
-COM2Port	EQU	&2f8
+ROM_BYTE_WRITE      EQU        &68
+DRAM_BASE_ADDR_MASK EQU        &100
+DRAM_BASE_ADDR_OFF  EQU        &104
+ROM_BASE_ADDR_MASK  EQU        &108
+DRAM_TIMING         EQU        &10C
+DRAM_ADDR_SIZE_0    EQU        &110
+DRAM_ADDR_SIZE_1    EQU        &114
+DRAM_ADDR_SIZE_2    EQU        &118
+DRAM_ADDR_SIZE_3    EQU        &11C
+SA_CONTROL          EQU        &13C
+PCI_ADDR_EXT        EQU        &140
+PREFETCH_RANGE      EQU        &144
+XBUS_CYCLE          EQU        &148
+XBUS_STROBE         EQU        &14C
+UARTDR              EQU        &160
+UMSEOI              EQU        &164
+RXSTAT              EQU        &164 
+H_UBRLCR            EQU        &168 
+M_UBRLCR            EQU        &16C 
+L_UBRLCR            EQU        &170 
+UARTCON             EQU        &174 
+UARTFLG             EQU        &178 
+
+; register constants
+INIT_COMPLETE       EQU        1
+XCS_2               EQU        &40000000
+XCS_1               EQU        &20000000
+XCS_0               EQU        &10000000
+
+;
+; memory values based on 50 Mhz 130ns parts
+;
+;<1:0>
+Trp_1               EQU        &0
+Trp_2               EQU        &1
+Trp_3               EQU        &2
+Trp_4               EQU        &3
+
+;<3:2>
+Tdal_2              EQU        &0
+Tdal_3              EQU        &4
+Tdal_4              EQU        &8
+Tdal_5              EQU        &C
+
+;<5:4>
+Trcd_2              EQU        &20
+Trcd_3              EQU        &30
+
+;<7:6>
+Tcas_2              EQU        &80
+Tcas_3              EQU        &C0
+
+;<10:8>
+Trc_4               EQU        &100
+Trc_5               EQU        &200
+Trc_6               EQU        &300
+Trc_7               EQU        &400
+Trc_8               EQU        &500
+Trc_9               EQU        &600
+Trc_10              EQU        &700
+
+;<11>
+CMD_DRIVE           EQU        &800
+;<12>
+PARITY_ENABLE       EQU        &1000
+;<21:16>
+Tref_min            EQU        &010000
+Tref_norm           EQU        &1A0000
+
+Trp                 EQU        Trp_2
+Tdal                EQU        Tdal_3
+Trcd                EQU        Trcd_2
+Tcas                EQU        Tcas_2
+Trc                 EQU        Trc_6
+      
+	ENDIF
+
+	IF ((TARGET = "EBSA110") :LOR: (TARGET = "EBSA285"))
+
+COM1Port	EQU	(SuperIObase + (&3f8 :SHL: 2))
+COM2Port	EQU	(SuperIObase + (&2f8 :SHL: 2))
 
 ;;; UART registers
 	
-	;; Receive, Transmit, Interupt enable, Interrupt Identification and
+	;; Receive, Transmit, Interrupt enable, Interrupt Identification and
 	;; FIFO are only 
 	;; accessable when the Divisor latch access bit in the line control
 	;; register is 0
 Rx		EQU	&0	; Receive port, read only
 Tx		EQU	&0	; Transmit port, write only
-IntEnable	EQU	&1	; Interrupt enable, read/write
-FIFOcntl	EQU	&2	; FIFO control, write only
+IntEnable	EQU	&4	; Interrupt enable, read/write
+IntId		EQU	&8	; Interrupt ID, read only
+FIFOcntl	EQU	&8	; FIFO control, write only
 
 	;; With the Divisor latch access bit set the first 2 registers set
 	;; the divisor, which controls the line speed.
 Dllsb		EQU	&0
-Dlmsb		EQU	&1		
+Dlmsb		EQU	&4
 
 	;; The remaining registers are always accessable and read/write
-LineCntl	EQU	&3	; Line control, the main control register
-LineStatus	EQU	&5
+LineCntl            EQU        &C     ; Line control, the main control register
+ModemCntl           EQU        &10    ; Modem control
+LineStatus          EQU        &14
+ModemStatus         EQU        &18
 	
 ;;; Masks etc. for useful fields
 
@@ -532,7 +641,7 @@ Baud38400high	EQU	0
 Baud56000low	EQU	2
 Baud56000high	EQU	0
 
-	ENDIF
+	ENDIF	; uart for EBSA110, EBSA285
 
 ;NAC end of equates for host I/O
 
@@ -738,7 +847,7 @@ $NEXT	MACRO
 		; should turn off all interrupts, too?
 	ENDIF
 
-	IF (TARGET = "EBSA") :LAND: (MEMMAP = "BOOT")
+	IF (TARGET = "EBSA110") :LAND: (MEMMAP = "BOOT")
 
 ; Image is programmed into EPROM and we have to take the responsibility of
 ; copying ourself into RAM. The code is built to run at &40000000 and is running
@@ -767,7 +876,7 @@ movit		ldr	r3,[r1],#4
 herefar2
 	ENDIF
 
-	IF	(TARGET = "EBSA")
+	IF	(TARGET = "EBSA110")
 
 	; turn off the DEBUG LED to prove we got here.
 		ldr	r0,=ledport
@@ -775,6 +884,152 @@ herefar2
 		orr	r1,r1,#0x80		;don't corrupt the DRAM type..
 		str	r1,[r0]
 	ENDIF
+
+
+	IF (TARGET = "EBSA285") :LAND: (MEMMAP = "FLASH0")
+
+;Image is programmed into Flash block 0 and we have to take the responsibility
+;of copying ourself into SDRAM. First of all we need to switch the memory map
+;and inititialise the XBUS and the memory.
+
+;The code is built to run at &10000 and is running in Flash at 0, but after the
+;first WRITE we will be magically running at ROM_BASE
+
+;;TODO fix up the comments properly and make the branching code smarter; it
+;; can find out where it is without all this palava
+
+; ROM equivalent of whereabouts we are
+;;;hialias 	EQU	((herefar1 :AND: &000000ff) :OR: ROM_BASE)
+;;;hard-code for Flash block 2 -- see also hack to ROM copy code below
+hialias 	EQU	((herefar1 :AND: &000000ff) :OR: &41020000)
+; SDRAM equivalent of whereabouts we are
+loalias 	EQU	herefar2
+
+		ldr	pc,=hialias		;jump to to high ROM alias
+herefar1	mov	r0, #0
+		str	r0, [r1]		;switch memory map
+
+; now running in ROM alias at ROM_BASE. 
+
+; ***** init x-bus
+		ldr     r1,=CSR_BASE
+;
+; xcs<2> = output (softIO, leds and jumpers), xcs<1> = output (SuperIO),
+; xcs<0> = input (interrupt)
+;
+		ldr     r0,=INIT_COMPLETE:OR:XCS_2:OR:XCS_1
+		str     r0,[r1,#SA_CONTROL]
+;
+; set cycle length = 2 for all devices, strobe shift divisor = 1 (2)
+;
+		ldr     r0,=&1492
+		str     r0,[r1,#XBUS_CYCLE]
+;
+; set strobe mask = 0xFC for all devices
+;
+		ldr     r0,=&FCFCFCFC
+		str     r0,[r1,#XBUS_STROBE]
+
+; ***** strike LEDs 000 - all on
+		ldr r0,=0
+		ldr     r4,=ledport
+		str     r0,[r4]
+
+; ***** do the store to stop the super I/O from heating up
+; on pass-1 vv285 boards
+		ldr	r0,=0
+		ldr	r1,=&40011de0
+		str	r0,[r1]
+
+; ***** strike leds 001 - RED GREEN
+		ldr	r0,=1
+		str     r0,[r4]
+; ***** init memory
+
+; Power on sequence
+;
+; 1. Attempt to maintain a NOP condition at inputs
+; 2. Maintain NOP condition for a minimum of 200 us.
+; 3. Issue precharge commands for all banks of the device.
+; 4. Issue a mode register set command to initialize mode register
+; 5. Issue 8 or more autorefresh commands
+;
+; start by reading all the mode regions to initiate pre-charge
+;
+	ldr     r0,=&40000008:OR:Tcas
+	ldr     r0,[r0]
+	ldr     r0,=&40004008:OR:Tcas
+	ldr     r0,[r0]
+	ldr     r0,=&40008008:OR:Tcas
+	ldr     r0,[r0]
+	ldr     r0,=&4000C008:OR:Tcas
+	ldr     r0,[r0]
+
+; SDRAM mode register (region) write. Address is important, not the data
+	ldr     r0,=&40000008:OR:Tcas
+	str     r0,[r0]
+	ldr     r0,=&40004008:OR:Tcas
+	str     r0,[r0]
+	ldr     r0,=&40008008:OR:Tcas
+	str     r0,[r0]
+	ldr     r0,=&4000C008:OR:Tcas
+	str     r0,[r0]
+	   
+	ldr     r1,=CSR_BASE
+
+; setup DRAM timing with refresh set to 1
+	ldr     r0,=Trp:OR:Tdal:OR:Trcd:OR:Tcas:OR:Trc:OR:CMD_DRIVE:OR:Tref_min
+	str     r0,[r1,#DRAM_TIMING]    
+
+; wait 8x32 cycles here for first refresh to complete
+;
+		ldr     r0,=&100
+01		subs	r0,r0,#1
+		bgt	%b01
+
+; set the size; assume 4 arrays each of 8Mbyte
+		ldr     r0,=&14
+		str     r0,[r1,#DRAM_ADDR_SIZE_0] 
+		ldr     r0,=&800014
+		str     r0,[r1,#DRAM_ADDR_SIZE_1]     
+		ldr     r0,=&1800014
+		str     r0,[r1,#DRAM_ADDR_SIZE_2]     
+		ldr     r0,=&2000014
+		str     r0,[r1,#DRAM_ADDR_SIZE_3]     
+
+; enable refresh (64 ms x 4096 rows) = 15.xx us
+	ldr     r0,=Trp:OR:Tdal:OR:Trcd:OR:Tcas:OR:Trc:OR:CMD_DRIVE:OR:Tref_norm
+	str     r0,[r1,#DRAM_TIMING]
+
+; ***** strike leds 010 - RED YELLOW
+		ldr 	r0,=2
+		str     r0,[r4]
+
+; Copy image from ROM to SSRAM - copy it all, including the header
+temp1		EQU	(ROM0 :AND: &ffffff00)
+		mov	r0, #(ROM0 :AND: &ffffff00)	;destination
+;;;		mov	r1, #ROM_BASE		;source
+		ldr	r1, =&41020000		;source
+		mov	r2, #(&10000/4) 	;number of Dwords (64Kbytes)
+
+movit		ldr	r3,[r1],#4
+		str	r3,[r0],#4
+		subs	r2,r2,#1
+		bne	movit
+
+; ***** strike leds 011 - RED
+		ldr	r0,=3
+		str     r0,[r4]
+
+		ldr	pc,=loalias		;jump to the RAM copy
+herefar2
+
+; ***** image should strike leds 100 to show we got here - GREEN YELLOW
+		ldr	r0,=4
+		str	r0,[r4]
+
+	ENDIF
+
 
 	; common startup code for every TARGET and every MEMMAP
 		ldr	rsp, =RPP		;init return stack pointer
@@ -942,13 +1197,16 @@ ULAST
 ;		Initialize the serial devices for terminal I/O
 
 		$CODE	3,'!IO',STOIO,_SLINK
-	IF ((TARGET = "EBSA") :LOR: (TARGET = "COGENT"))
+	IF ((TARGET = "EBSA110") :LOR: (TARGET = "EBSA285") :LOR: (TARGET = "COGENT"))
 
 ; This is a general purpose Reset for the serial chip, cancelling the current
 ; transmission and reception and setting the baudrate according to IOBYTES
 
 ;TODO this is only coded for SuperIO uarts, and it isn't exactly *efficient*!
+;TODO also, the conditional at the start includes *all* the supported
+;targets..
 
+		ldr	r4,=COM2Port	;TODO - make a fn of IOBYTES
 		ldr	r0,=AddrIOBYTES
 		ldr	r1,[r0]
 		ands	r2,r1,#&ff
@@ -974,36 +1232,31 @@ Set38400	ldr	r0,=Baud38400low
 		b	SetRate
 Set56000	ldr	r0,=Baud56000low
 		ldr	r1,=Baud56000high
-SetRate 	IOBADDR r2,(COM2Port+IntEnable) ; Prevent serial interrupts while setting divisor
-		LDR	r3,=0			; This is because the divisor latch makes
-		STRB	r3,[r2] 		; resuming this from an interrupt difficult
-		IOBADDR r2,(COM2Port+LineCntl)
+; Prevent serial interrupts while setting divisor because the divisor latch
+; makes it difficult to resume this from an interrupt
+SetRate 	LDR	r3,=0
+		STRB	r3,[r4,#IntEnable]
 		LDR	r3,=WordLen8+DLABMsk	; Set divisor access
-		STRB	r3,[r2]
+		STRB	r3,[r4,#LineCntl]
 	
 	;; Set the actual rate in the divisor.
-		IOBADDR r2,(COM2Port+Dllsb)
-		STRB	r0,[r2]
-		IOBADDR r2,(COM2Port+Dlmsb)
-		STRB	r1,[r2]
-		IOBADDR r2,(COM2Port+LineCntl)
+		STRB	r0,[r4,#Dllsb]
+		STRB	r1,[r4,#Dlmsb]
 	;; Clear the divisor access and simultaneously set the
 	;; line control register for 8 bit data, no parity, 1 stop bit.
 		LDR	r1,=WordLen8
-		STRB	r1,[r2]
+		STRB	r1,[r4,#LineCntl]
 
 	;; Turn on the FIFOs and clear them
-		IOBADDR r2,(COM2Port+FIFOcntl)
 		LDR	r1,=7	; All bits clear disables the FIFOs
-		STRB	r1,[r2]
+		STRB	r1,[r4,#FIFOcntl]
 	
 	;; Clear out any errors by reading the line status
 	IF (TARGET = "COGENT")
 		ldr	r3,=&100
 	ENDIF
 01
-		IOBADDR r2,(COM2Port+LineStatus)
-		LDRB	r1,[r2]
+		LDRB	r1,[r4,#LineStatus]
 
 ;COGENT todo Carey reads the line status many times
 	IF (TARGET = "COGENT")
@@ -1012,9 +1265,8 @@ SetRate 	IOBADDR r2,(COM2Port+IntEnable) ; Prevent serial interrupts while setti
 	ENDIF
 
 	;; Disable receive and error interrupts
-		IOBADDR r2,(COM2Port+IntEnable)
 		LDR	r1,=0
-		STRB	r1,[r2]
+		STRB	r1,[r4,#IntEnable]
 
 ;COGENT todo: Carey has a delay loop here.
 	IF (TARGET = "COGENT")
@@ -1024,7 +1276,7 @@ SetRate 	IOBADDR r2,(COM2Port+IntEnable) ; Prevent serial interrupts while setti
 	ENDIF
 STOdone
 		$NEXT
-	ENDIF ; TARGET cogent or EBSA
+	ENDIF ; TARGET cogent or EBSA110 or EBSA285
 
 ;   TRUE	( -- f )
 ;		Return the TRUE flag
@@ -1037,9 +1289,9 @@ STOdone
 		$CODE	3,'RX?',RXQ,_SLINK
 		pushD	tos			;make room for flag
 
-;TODO only handles COM2 .. should check IOBYTES further
-		IOBADDR r0, (COM2Port+LineStatus)
-		LDRB	tos, [r0]		;look for a character, note that reading this
+		ldr	r4,=COM2Port		;TODO only handles COM2 .. should check IOBYTES
+
+		LDRB	tos, [r4,#LineStatus]	;look for a character, note that reading this
 		TST	tos, #LineDRMsk 	;register also clears any errors
 		mov	tos, #0 		;predict no char available
 		subne	tos, tos, #1		;change flag to -1 (TRUE)
@@ -1050,8 +1302,8 @@ STOdone
 
 		$CODE	3,'RX@',RXFetch,_SLINK
 		pushD	tos			;make room
-		IOBADDR r0, (COM2Port+Rx)	;Read the character
-		LDRB	tos, [r0]			
+		ldr	r4,=COM2Port		;TODO make a fn IObytes
+		LDRB	tos, [r4,#Rx]		;Read the character
 		$NEXT
 
 ;   DRX@	 ( -- u )
@@ -1074,8 +1326,8 @@ STOdone
 
 		$CODE  3,'TX?',TXQ,_SLINK
 		pushD	tos			; make room
-		IOBADDR r1, (COM2Port+LineStatus)
-		LDRB	r2,[r1]
+		ldr	r4,=COM2Port		;TODO make a fn IObytes
+		LDRB	r2,[r4,#LineStatus]
 		TST	r2,#LineTHREMsk 	;Wait until ready to queue character
 		ldr	tos,=TRUEE		;predict ready
 		ldrne	tos,=FALSEE
@@ -1091,12 +1343,11 @@ STOdone
 ;be to enable the interrupt then poll the interrupt status register.
 
 		$CODE	3,'TX!',TXStore,_SLINK
-		IOBADDR r1, (COM2Port+LineStatus)
-txstoreloop	LDRB	r2,[r1]
+		ldr	r4,=COM2Port		;TODO make a fn IObytes
+txstoreloop	LDRB	r2,[r4,#LineStatus]
 		TST	r2,#LineTHREMsk 	;Wait until ready to queue character
 		beq	txstoreloop
-		IOBADDR r1,(COM2Port+Tx)	;Queue the character
-		strb	tos,[r1]
+		strb	tos,[r4,#Tx]		;Queue the character
 		popD	tos
 		$NEXT
 
