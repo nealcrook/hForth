@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.16  1998/11/25 21:48:57  crook
+\ check-point before starting on STC modifications.
+\
 \ Revision 1.15  1998/10/08 20:33:54  crook
 \ minor tidy-ups; first working asm version
 \
@@ -787,6 +790,8 @@ ALSO its-words
 	DUP t['] doCONST =
 	SWAP t['] doVALUE = OR	  \ CONST or VALUE marker?
 	    IF t@ EXIT
+\ if the forward references fail, comment out the THROW and recompile to
+\ get the forward file correct, then you can put the THROW back.
 	    THEN -32 THROW ; \ invalid name argument
 
 \ (search-wordlist4name)   ( c-addr u wid -- 0 | xt-addr )
