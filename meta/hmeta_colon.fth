@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.4  1998/08/17 23:59:47  crook
+\ much closer to finishing
+\
 \ Revision 1.3  1998/06/30 20:35:34  crook
 \ add ability to save and restore search order
 \
@@ -25,6 +28,7 @@ HEX
 : POSTPONE ." Error: use hPOSTPONE or tPOSTPONE" QUIT ;
 
 : g ." got here" .S ;
+: xg ." got here" .S 2DUP DUMP ;
 : ig ." (" DEPTH ." depth=" . ." )" ; IMMEDIATE
 
 \ There are three definition of : (colon) :-
@@ -143,6 +147,17 @@ WORDLIST WORDLIST-NAME its-words-WORDLIST
 : it-words GET-ORDER NIP it-words-WORDLIST SWAP SET-ORDER ;
 : its-words GET-ORDER NIP its-words-WORDLIST SWAP SET-ORDER ;
 
+\ hPOSTPONE postpones the compile-time behaviour of words that have been
+\ defined on the host. It generates code (in host code space) whose
+\ run-time function is dependent upon the function of the word being 
+\ postponed.
+\ htPOSTPONE is like hPOSTPONE, except that it looks in it-words for
+\ the postponed definition; it is used for definitions in it-words that
+\ reference other words in it-words (since definitions in it-words cannot
+\ normally see other definitions in it-words)
+\ later we also have tPOSTPONE, whose function is to generate code in
+\ target code space.
+
 : htPOSTPONE ALSO it-words hPOSTPONE hPOSTPONE PREVIOUS ; IMMEDIATE
 
 
@@ -197,7 +212,7 @@ CREATE errWord 2 CELLS ALLOT	\ last found word. Used for error reporting
 
 : bal+ bal 1+ TO bal ;
 : bal- bal 1- TO bal ;
-: COMPILE, meta-asm,32 ;
+: tCOMPILE, meta-asm,32 ;
 : xhere meta-asm. ;
 : TOxhere meta-asm! ;
 : 1chars/ ;
@@ -459,7 +474,9 @@ BASE !
 \ simplification because we *know* than LITERAL is immediate
 \ LITERAL needs to be from the *target* dictionary
 
-: ['] ' [ xtLITERAL ] LITERAL COMPILE, ; COMPILE-ONLY IMMEDIATE
+\ TODO check what this is used for and whether it is spitting out code
+\ in the right place
+: ['] ' [ xtLITERAL ] LITERAL tCOMPILE, ; COMPILE-ONLY IMMEDIATE
 
 
 \ Description of POSTPONE:
@@ -492,7 +509,8 @@ BASE !
 \	COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
 \ tPOSTPONE fred
-\ When executed, parse a word in the input stream (eg, fred).
+\ When executed, parse a word in the input stream (eg, fred) and look for
+\ its header information (xt and immediacy) in the t-words wordlist.
 \ Generate, in the host dictionary, (by appending the the current definition)
 \ a code sequence that has the run-time effect of emitting a code sequence
 \ in target space. The code sequence in the host depends upon whether fred is
@@ -506,11 +524,34 @@ BASE !
 \ dolit fred code,
 \ xtLITERAL and xtCOMPILE, are *target* xts; LITERAL and COMPILE,
 \ run on the *host*
-: tPOSTPONE  CR ." tP>"
+
+\ TODO: need to fix up COMPILE, hCOMPILE, tCOMPILE,
+\ PROBLEM is that COMPILE, used to do TARGET compile, and I need to do host compile
+
+
+\ run on host, used in definitions that run on the host, generates code
+\ in host space that, when executed, generates code on the target
+: tPOSTPONE CR ." tP>"
 	ALSO t-words (') PREVIOUS 0< IF
-	." non-imm" [ xtLITERAL ] LITERAL COMPILE, COMPILE,
+	." non-imm" [ xtLITERAL ] LITERAL hPOSTPONE LITERAL hPOSTPONE tCOMPILE,
+        hPOSTPONE LITERAL hPOSTPONE tCOMPILE,
+	[ xtCOMPILE, ] LITERAL hPOSTPONE LITERAL hPOSTPONE tCOMPILE, \ non-IMMEDIATE
+	ELSE
+	hPOSTPONE LITERAL hPOSTPONE tCOMPILE, THEN ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
+
+
+
+: xxtPOSTPONE  CR ." xxtP>"
+	ALSO t-words (') PREVIOUS 0< IF
+	." non-imm" [ xtLITERAL ] LITERAL tCOMPILE, tCOMPILE,
 	[ xtCOMPILE, ] LITERAL THEN   \ non-IMMEDIATE
-	COMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
+	tCOMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
+
+: xxitPOSTPONE  CR ." xxitP>"
+	ALSO it-words (') PREVIOUS 0< IF
+	." non-imm" [ xtLITERAL ] LITERAL tCOMPILE, tCOMPILE,
+	[ xtCOMPILE, ] LITERAL THEN   \ non-IMMEDIATE
+	tCOMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
 \   rake        ( C: do-sys -- )
 \		Gathers LEAVEs.
@@ -520,7 +561,7 @@ BASE !
             WHILE  DUP @ xhere ROT !
             REPEAT rakeVar ! DROP
             ?DUP IF                 \ check for ?DO
-               1 bal+ tPOSTPONE THEN \ orig type is 1
+               1 bal+ hPOSTPONE THEN \ orig type is 1
             THEN bal- ; COMPILE-ONLY
 
 
@@ -566,7 +607,7 @@ BASE @ HEX
 		THEN
 		\ found and not immediate. Drop the compile-only flag to
 		\ leave the xt, then emit the xt
-		DROP meta-asm,32 \ TODO == compile, .. which should I use?
+		DROP meta-asm,32 \ TODO == tcompile, .. which should I use?
 	ELSE
 		\ not found
 		DROP 1 TUNRESOLVED +!
@@ -618,7 +659,7 @@ ALSO t-words DEFINITIONS
 : hGET-ORDER GET-ORDER ;
 : hWORDS WORDS ;
 : h. . ;
-: hCOMPILE, ." (hc,)" COMPILE, ;
+\ : hCOMPILE, ." (hc,)" COMPILE, ;
 : hCREATE CREATE ;
 : hIMMEDIATE IMMEDIATE ;
 : hDOES> DOES> ;
@@ -634,6 +675,9 @@ FORTDEF hereVar
 FORTDEF CELLL \ TODO - this should be a findable constant
 FORTDEF CHARS \ ditto
 FORTDEF /             \ used by 1chars/
+FORTDEF 0branch
+FORTDEF doDO
+
 
 PREVIOUS DEFINITIONS
 
@@ -725,14 +769,15 @@ DECIMAL
 
 
 \ TODO what's the difference between POSTPONE doLIST and ['] doLIST xt, ??
+\ TODO not sure if this is the right POSTPONE..
 : DOES>     bal 1- IF -22 THROW THEN        \ control structure mismatch
 	    NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
 	    tPOSTPONE pipe [']-doLIST xt, -1 ; COMPILE-ONLY IMMEDIATE
 
-
+\ TODO I deduced the POSTPONE types by looking at the assembler code, but
+\ there ought to be a better way
 : LEAVE     tPOSTPONE UNLOOP tPOSTPONE branch
 	    xhere rakeVar DUP @ code, ! ; COMPILE-ONLY IMMEDIATE
-
 
 \ TODO not sure if this needs modification..
 : RECURSE   bal 1- 2* PICK 1+ IF -22 THROW THEN
@@ -743,6 +788,7 @@ DECIMAL
 : IF	    tPOSTPONE 0branch xhere 0 code,
 	    1 bal+          \ orig type is 1
 	    ; COMPILE-ONLY IMMEDIATE
+
 
 : THEN	    1- IF -22 THROW THEN	\ control structure mismatch
 				\ .. check that orig type was 1
@@ -759,6 +805,7 @@ DECIMAL
 \ htPOSTPONE must find this target 'AHEAD' and 'THEN'
 : ELSE	   htPOSTPONE AHEAD 2SWAP htPOSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
+
 : AGAIN	IF -22 THROW THEN  \ control structure mismatch; dest type is 0
 	tPOSTPONE branch code, bal- ; COMPILE-ONLY IMMEDIATE
 
@@ -768,7 +815,8 @@ DECIMAL
 \ htPOSTPONE must find this target IF
 : WHILE     htPOSTPONE IF 2SWAP ; COMPILE-ONLY IMMEDIATE
 
-
+\ TODO the code doesn't do what the comment says it ought to - it
+\ emits an XT appropriate for the *target*
 \ generate, in the host dictionary, the code that has the run-time effect
 \ of emitting a code sequence in target space. The code sequence is:
 \ <dolit> <value from stack>
@@ -779,6 +827,10 @@ DECIMAL
 : niLITERAL
 	[ xtdoLIT ] LITERAL COMPILE, COMPILE, ; COMPILE-ONLY
 
+
+
+: (         [CHAR] ) PARSE 2DROP ; IMMEDIATE
+
 PREVIOUS DEFINITIONS \ back to FORTH
 ALSO it-words
 : xxLITERAL niLITERAL ;
@@ -786,19 +838,50 @@ PREVIOUS
 ALSO it-words DEFINITIONS PREVIOUS
 ALSO its-words
 
-
-: (         [CHAR] ) PARSE 2DROP ; IMMEDIATE
-
-
-META-TODO [IF]
-: SLITERAL  DUP LITERAL tPOSTPONE doS"
+\ Copy a string into target space along with the words that are needed
+\ at run-time in order to print it.
+: SLITERAL  g DUP tPOSTPONE LITERAL tPOSTPONE doS"
 	    CHARS xhere 2DUP + ALIGNED TOxhere
-	    SWAP MOVE ; COMPILE-ONLY IMMEDIATE
+	    SWAP tMOVE ; COMPILE-ONLY IMMEDIATE
 
-: S" [CHAR] " PARSE tPOSTPONE SLITERAL ; COMPILE-ONLY IMMEDIATE
-[THEN]
+\ start with <from> <len> <-TOS
+\ the DUP tPOSTPONE LITERAL should spit out "DoLIT <len>" into target space
 
-: ."        tPOSTPONE S" tPOSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
+: niSLITERAL
+\	DUP tPOSTPONE LITERAL tPOSTPONE doS" g
+	DUP [ xtLITERAL ] LITERAL tCOMPILE, tCOMPILE, tPOSTPONE doS"
+
+	CHARS xhere 2DUP + ALIGNED TOxhere
+	SWAP tMOVE ; COMPILE-ONLY
+
+\ ALSO it-WORDS HEX SEE niSLITERAL DECIMAL PREVIOUS
+\ QUIT
+
+
+PREVIOUS DEFINITIONS \ back to FORTH
+ALSO it-words
+: xxSLITERAL niSLITERAL ;
+PREVIOUS
+ALSO it-words DEFINITIONS PREVIOUS
+ALSO its-words
+
+
+
+: S" [CHAR] " PARSE xxSLITERAL ; COMPILE-ONLY IMMEDIATE
+\ non-immediate version
+: niS" [CHAR] " PARSE xxSLITERAL ; COMPILE-ONLY
+
+
+PREVIOUS DEFINITIONS \ back to FORTH
+ALSO it-words
+: xxS" niS" ;
+PREVIOUS
+ALSO it-words DEFINITIONS PREVIOUS
+ALSO its-words
+
+\ use the S" above..
+: ."   xxS" tPOSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
+
 
 META-TODO [IF]
 : TO        ' ?call DUP IF          \ should be call-doVALUE
@@ -836,7 +919,7 @@ META-TODO [IF]
 	COMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
 
-: ABORT"    S" tPOSTPONE ROT
+: ABORT"    tPOSTPONE S" tPOSTPONE ROT
 	    tPOSTPONE IF tPOSTPONE abort"msg tPOSTPONE 2!
 	    -2 tPOSTPONE LITERAL tPOSTPONE THROW
 	    tPOSTPONE ELSE tPOSTPONE 2DROP tPOSTPONE THEN
@@ -852,11 +935,13 @@ PREVIOUS DEFINITIONS \ back to FORTH
 \ parse the input buffer and extract a number. The word D# n has the same
 \ effect as [ n ] LITERAL - which is normally redundant, but is needed when
 \ using the interpreter to target compile.
+ALSO its-words \ want access to PARSE-WORD
 : N#	CREATE , IMMEDIATE DOES>
 	BASE @ >R @ BASE !
 	0 0 \ >NUMBER accumulates a DOUBLE
-	BL PARSE >NUMBER R> BASE ! 2DROP DROP
+	PARSE-WORD >NUMBER R> BASE ! 2DROP DROP
 	xxLITERAL ;
+PREVIOUS
 
 ALSO it-words DEFINITIONS
 BASE @ DECIMAL
