@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.1  1998/06/07 22:50:48  crook
+\ Initial revision
+\
 
 \ requires: nothing
 \ hForth meta-compiler project
@@ -72,9 +75,7 @@ CR ." ..hforth" CR ;
 \ Load the assembler NOW!
 LOAD-ASM
 
-
 : hCONSTANT CONSTANT ;
-\ hCONSTANT is a constant defined in the host domain
 
 
 \ TODO the pieces below determine the target machine, mem-map, comm port
@@ -193,6 +194,7 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 \ TARGET-IMAGE ROMEnd ROM0 - + VALUE	npVar 
 \ RAM0 VALUE				hereVar
 
+
 \ in the normal hForth assembler source:
 \ - cpVar is the address at which to emit new code
 \ - npVar is the address at which to emit new dictionary data.
@@ -215,4 +217,6 @@ PREVIOUS
    .( Code pointer is 0x) _CODE U.
 CR .( Name pointer is 0x) _NAME U.
 CR .( Space is 0x) _NAME _CODE - U.
+ALSO its-words TUNRESOLVED @ PREVIOUS
+CR .( Unresolved high-level forward references ) U.
 
