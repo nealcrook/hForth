@@ -258,6 +258,12 @@ FF R2 =,			E3A020FF zz
 FFFFFF00 R3 =,			E3E030FF zz
 3C0000 R2 =,			E3A0270F zz
 3 R10 =,			E3A0A003 zz
+
+\ The following two should both generate errors as the # is not wanted
+\ FF # R1 =,
+\ FFFF # R1 =,
+
+
 \ TODO move MOV and MVN tests
 
 .( --- =, syntax for Literal Pool accesses ) CR
@@ -309,6 +315,7 @@ F40 ALLOT
 \ 12345 r13 =,
 
 LTORG-STATS
+SYM-STATS
 
 PREVIOUS
 CR .( +++ End of armtest) CR
