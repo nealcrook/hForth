@@ -1,0 +1,104 @@
+Hi Wonyong,
+
+I successfully migrated my code to your version 1 -- it worked 2nd time (I
+misunderstood the behaviour of the new $INSTR macro).
+
+Here is my port. I've left off the chunk of code at the end which is almost
+identical to yours, and just listed the minor mods that I made in that section.
+
+I had two major problems with my port. The first was (as I explained to you
+long ago) that the ARM assembler is very poor, in that it does not allow
+multiple ORG statements. My solution to this was to preprocess the source
+using AWK scripts -- the end result is rather like what you did in your
+EXE source file: all of the data is built in a separate area from the code.
+What the AWK scripts do is to preprocess the source by expanding the macros
+and generating two text files: one of them is the code space, and the other
+is the name space. Each colon definition (for example) spits out a fixed
+number of lines into the name-space file, and a variable number of lines
+into the code-space file. The entries in the name-space file are in reverse
+order, so I then reverse the order of all of the entries (another AWK script)
+then append the two files and pass the result through the assembler and linker.
+It all sounds very awkward, but once the AWK scripts are written an debugged
+they are quite rugged, and the whole process is done from a single command
+at the command-line.
+
+The second problem that I had was that I started on the port about 6 months
+ago and then left it due to pressures of other work. When I came back to it I
+had forgotten how it worked and forgotten how 'preliminary' some of the code
+that I had written was. The result was that I spent time debugging code on
+the target machine when it would have been better for me to review the code
+first.
+
+Never mind. A few debugging sessions later and I understood the code a lot
+better. I still need to add native-coded versions of same? and
+(search-wordlist), then I need to add support for the StrongARM caches
+(I already have that code in eforth so it should be easy) and a version
+of Eforth's FILE and HAND so that I can serially download code onto my
+target system.
+
+I added a lot of comments to some of the code definitions, and if you wanted
+to put them into your source they might help someone doing another port. I
+would quite like to write a short porting guide, but I'm afraid that I
+will be too busy to make much progress on that over the next three months.
+
+I'd like to congratulate you on a very portable piece of code! I have found
+no bugs at all, and it all seems to run fine on a 32-bit machine.
+
+I added a few more macros in my code, to help my AWK script. Some of the
+macros in the code (for example, $ALIGN_NAME) don't have definitions -- the
+macro definitions in the code are only for your convenience -- the AWK
+script ignores them, and is designed to 'know' how to expand each
+ocurrence of a macro
+
+I changed the way that the throwtable is generated. Firstly, I made an
+equate for the number of throw messages. Then I reserved room for the throw
+table right at the top of memory (by decrementing _NAME by CELL*NumTHROWMsgs),
+and 'grew' the strings below it. I used a macro to emit the string-address and
+the string itself in the appropriate places. Also, I moved the definition
+of the SystemID string and VersionStr to be adjacent to the throw table
+(no good reason for this).
+
+Your $STR routines align the start of each string to a cell boundary, but
+I'm not sure that there's any need to do this. I aligned all of
+the throw strings simply to a char boundary. The only extra thing that you
+have to do is to realign _NAME at the end of the definitions (I found that out
+the hard way)
+
+
+< snip snip >
+< snip snip >
+
+
+The remainder is the same as your code, with these few very minor exceptions:
+
+1. *** In the definition of userP I changed this:
+
+		$VAR    5,'userP',UserP,_SLINK
+_CODE   = $
+ORG _VAR -CELLL
+AddrUserP       DW      ?
+ORG _CODE
+
+to this (which should be equivalent, but simpler):
+
+		$VAR    5,'userP',UserP,_SLINK
+AddrUserP       EQU _VAR - CELLL
+
+2. *** In the Assembly Constants section, I added
+
+SPC		EQU	32	;space (blank)
+
+then recoded BL as
+	$CONST 2,'BL',BLank,SPC,_FLINK
+
+3. *** In the definition of doS" I think the stack comments are wrong:
+	( -- c-addr u ) should be ( u -- c-addr u )
+
+4. *** I spotted a few typos
+
+At start of Environment strings section ENVIRONMETN? --> ENVIRONMENT?
+In definition of #		nemeric  --> numeric
+In definition of -.		exeption --> exception
+In definition of QUIT		Exeption --> Exception
+
+-end-
