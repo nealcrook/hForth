@@ -13,10 +13,18 @@
 \	caught by the assembler) - probably need to make the assembler
 \	THROW then add a vectored CATCH handler that this test suite
 \	can modify.
+\	for all shifters, check that the illegal values are detected.
 
 MARKER *armtest*
 ALSO ASSEMBLER
 CR .( +++ Start of armtest - marker is *armtest*) CR
+
+\ set up vectors to dump code in DATA space
+' , 'ASM,32 !
+' HERE  'ASM. !
+' ! 'ASM! !
+' @ 'ASM@ !
+
 INIT-ASM HEX
 
 .( --- Simple branches) CR
@@ -59,6 +67,7 @@ r2 r3 r4 add,			E0834002 zz
 r9 r7 cmp,			E1570009 zz
 
 .( --- DP Format 3) CR
+2 # lsr r0 r2 mov,		E1A02120 zz
 2 # lsl r0 r2 mov,		E1A02100 zz
 3 # lsl r5 r5 r9 add,		E0859185 zz
 3 # lsl r5 r5 r9 rsb,		E0659185 zz
@@ -219,7 +228,32 @@ R1 popD,			E49C1004 zz
 NEXT,				E49AF004 zz
 
 .( --- =, syntax for MOV, MVN op-codes) CR
-0 R1 =,				E3A01000 zz
+0 R0 =,				E3A00000 zz
+1 R1 =,				E3A01001 zz
+-1 R2 =,			E3E02000 zz
+0 # R4 MOV,			E3A04000 zz
+1 # R5 MOV,			E3A05001 zz
+
+\ ARM's assembler would generate a MVN op-code for the next one
+\ but it's hard for us to do so.. we just generate a "can't express"
+\ error.
+\ -1 # R6 MOV,			E3E06000 zz
+
+\ ARM's assembler will always interchange MOV, MVN to get the value
+\ you ask for into the register. This assembler takes you more
+\ literally. The next instruction loads bit-invert of 0 == FFFF.FFFF
+\ whereas ARM's assembler would use a MOV op-code and load 0
+0 # R4 MVN,			E3E04000 zz
+\ The next instruction loads a bit-invert of 1 == FFFF.FFFE
+\ whereas ARM's assembler would use a MOV op-code and load 1
+1 # R5 MVN,			E3E05001 zz
+\ The next instruction causes a "can't express" again, because we
+\ take the operand too literally. ARM's assembler would generate
+\ MVN of 0, putting FFFF.FFFF into the register.
+\ -1 # R6 MVN,			E3E06000 zz
+\ The solution to any confusion you feel about this is resolved by always
+\ using the =, syntax to load literals.
+
 FF R2 =,			E3A020FF zz
 FFFFFF00 R3 =,			E3E030FF zz
 3C0000 R2 =,			E3A0270F zz
