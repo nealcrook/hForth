@@ -3,73 +3,62 @@
 ;;PAGE 62,132     ;62 lines per page, 132 characters per line
 
 ;; TODO
-;; 1. code trivial words (marked *) and important words (marked **)
-;; 2. recode new version of pack" in assembler
-;; 4. test coding of 2@ 2! /STRING um* m* name>xt ABORT
-;; 5. test alias $CODE versions of (then promote) UNLOOP 2OVER doS"
-;;    pack" (test THROW paths) U< C, FILL (test case where fill length is 0)  <# ABS
-;; 6. test error path entry to THROW in (search-wordlist)
-;; 7. find out why double.f doesn't load and see if coreext.f loads.
-;; 8. review coding and see if use of the N (sign) flag would optimise some
-;;    arithmetic
-;; 12. add word FREE? (or somesuch) to determine free space in code and data areas
-;; 15. add cogent serial port and ROM support
-;; 17. write porting guide
-;; 18. Bugfix for MMU stuff; turning OFF cache requires
-;;     cache clean/flush/disable to be an atomic operation.
-;; 19. Recast _NAME calculations relatively, in terms of ROMend. This would
-;; save the need to pass dict_pc into the awk script
-;; 20. reword descriptions at start about different build options
-;; 21. When doing a BYE back to DEMON, flush and turn off the caches so that a
-;;     new image can be loaded safely.
-;; 22. add memory map and io equates from Carey's cogent port.
-;; 23. For cogent, only support MEMMAP=DEMON at the moment
-;; 24. currently IOBYTE allows switch between DEMON and a COM port and allows
-;;     the baud rate to be changed on the COM port, but doesn't allow the
-;;     COM port to be changed. The most efficient way of doing this is to use
-;;     the vectors to point to the correct I/O routines and to store the base
-;;     port address in a register.
-;; 25. Maybe I should disable modem control when I init the UARTs
+;; -  code more words in assembler. Eg ?call xt, doDO optiCOMPILE
+;;    skipPARSE PAUSE wake # #S /MOD < > >NUMBER DEPTH FM/MOD
+;;    GET-CURRENT KEY LITERAL PARSE SIGN SOURCE TYPE UM/MOD (for
+;;    a vast speedup in printing number conversion) WITHIN */MOD
+;;    PICK SM/REM SPACES \ EKEY? EMIT?
+;; -  test coding of name>xt
+;; -  test error path entry to THROW in (search-wordlist)
+;; -  add word FREE? (or somesuch) to determine free space in code and data areas
+;; -  Better support for Cogent - current stuff is untested
+;; -  Bugfix for MMU stuff; turning OFF cache requires
+;;    cache clean/flush/disable to be an atomic operation. Cache flush can
+;;    be faster by using special address region on EBSA-285
+;; -  Recast _NAME calculations relatively, in terms of ROMend. This would
+;;    save the need to pass dict_pc into the awk script
+;; -  reword descriptions at start about different build options
+;; -  When doing a BYE back to DEMON, flush and turn off the caches so that a
+;;    new image can be loaded safely.
+;; -  add memory map and io equates from Carey's cogent port.
 ;;
 ;; Issues
 ;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
 ;;
 ;; BIG things to do: make the whole code position independent; self-determining
-;; at startup. Define an API at the front-end to allow any target IO routines to
-;; be bolted on. This would also make it possible to plop the code in memory
+;; at startup. Define an API at the front-end to allow any target IO routines
+;; to be bolted on. This would also make it possible to plop the code in memory
 ;; in any system and have some OS provide the IO -- hForth would become an
 ;; application that would take whatever CPU cycles you chose to give it. The
 ;; API would have to deal with IO, cache control and turn-the-tables in the
 ;; sense that it would 'own' all the CPU cycles. Currently, hForth expects to
-;; own spare CPU cycles; it burns them in the getchar routines and the
+;; own all CPU cycles; it burns spare cycles in the getchar routines and the
 ;; multitasker.
-	
+
 ;; $Id$
 ;;
-;; This port supports a number of targets and target options that
-;; are controlled by parameters passed to this file and the AWK
-;; files through the build procedures.
+;; This port supports a number of targets and target options that are
+;; controlled by parameters passed to this file and the AWK files through the
+;; build procedures.
 ;;
-;; The AWK files allow builds from either DOS or Unix and allow
-;; the microdebugger herein to be activated.
+;; The AWK files allow builds from either DOS or Unix and allow the
+;; microdebugger herein to be activated.
 ;;
 ;; The following values of TARGET are supported:
 ;; EBSA110 - EBSA-110, SA-110 StrongARM Evaluation Board
-;; EBSA285 - StrongARM/Footbridge PCI Evaluation Board
-;; COGENT - StrongARM PCI Evaluation Board.
+;; EBSA285 - StrongARM/21285 PCI Evaluation Board
+;; COGENT  - StrongARM PCI Evaluation Board.
 ;; note that the ARM PIE card is no longer supported.
 ;;
-;; At startup, the default I/O and baud rate are set as
-;; build-time options. At run-time they can be changed to
-;; use any method available on the target. The following values
-;; of DEFIO are supported:
-;; COMDSWI    - serial I/O through the ARM debugger terminal using
-;;            DEMON SWI calls. This is rather crude since the SWI
-;;            don't handle backspace or other control characters
-;;            and insist on echoing everything before you get a
-;;            chance to parse it. Useful for initial debugging but
-;;            no more than that.
-;; COM0       - Footbridge internal UART
+;; At startup, the default I/O and baud rate are set as build-time options. At
+;; run-time they can be changed to use any method available on the target. The
+;; following values of DEFIO are supported:
+;; COMDSWI    - serial I/O through the ARM debugger terminal using DEMON SWI
+;;		calls. This is rather crude since the SWI don't handle
+;;		backspace or other control characters and insist on echoing
+;;		everything before you get a chance to parse it. Useful for
+;;		initial debugging but no more than that.
+;; COM0       - 21285 internal UART
 ;; COM1, COM2 - on-board UART on EBSA110, COGENT and (some) EBSA285
 ;;
 ;; For all com ports except COMDSWI, the following values of
@@ -79,13 +68,12 @@
 ;; 6    - 38K4
 ;; 7    - 56K
 ;;
-;; The memory-map is a build-time option. In general, the image
-;; is set up so that all its resources fit into a 128Kbyte block
-;; but it could be cut down below that. For ROM-type targets,
-;; 64Kbytes of ROM is required and the image gets copied to RAM
-;; where it occupies 64K for ROM and the next 64K for data and
-;; for building memory-management page tables. The following
-;; values of MEMMAP are supported:
+;; The memory-map is a build-time option. In general, the image is set up so
+;; that all its resources fit into a 128Kbyte block but it could be cut down
+;; below that. For ROM-type targets, 64Kbytes of ROM is required and the image
+;; gets copied to RAM where it occupies 64K for ROM and the next 64K for data
+;; and for building memory-management page tables. The following values of
+;; MEMMAP are supported:
 ;; DEMON      - image loaded at 0x8000 and executes in place
 ;;                              ^^^^^^ not always true!!
 ;; BOOT       - designed to be blown into ROM and executed from
@@ -94,11 +82,14 @@
 ;;              by the PBL; the PBL will initialise RAM, copy the
 ;;              image to RAM and jump to it.
 ;;
-;; Not all permutations of target/io/memory-map are supported
-;; and/or tested. Some illegal permutations are set up to
-;; generate a fatal error at build time.
+;; Not all permutations of target/io/memory-map are supported and/or tested.
+;; Some (but not all) illegal permutations will generate a fatal error at
+;; build time.
 
 ;; $Log$
+;; Revision 1.16  1997/08/12 10:07:24  crook
+;; merged in changes from Wonyong's V0.9.9
+;;
 ;; Revision 1.15  1997/04/30 20:33:00  crook
 ;; first working 21285 port
 ;;
@@ -356,6 +347,7 @@ CHARR           EQU     1               ;byte size of a character
 CELLL           EQU     4               ;byte size of a cell
 MaxChar         EQU     07Fh            ;Extended character set
 					;  Use 07Fh for ASCII only
+MaxString       EQU     0ffh            ;max length of a string         
 MaxSigned       EQU     07FFFFFFFh      ;max value of signed integer
 MaxUnsigned     EQU     0FFFFFFFFh      ;max value of unsigned integer
 MaxNegative     EQU     080000000h      ;max value of negative integer
@@ -390,7 +382,7 @@ CRR             EQU     13              ;carriage return
 DEL             EQU     127             ;delete
 
 ;For the ARM, this is the branch-with-link op-code; the offset gets ORed in.
-;Used by ?call and xt, -- note that only xt, emits opcodes.
+;Used by ?call and xt, but only xt, actually emits opcodes.
 CALLL           EQU     0eb000000h      ;for ARM
 
 ; Memory allocation for writable ROM
@@ -400,12 +392,14 @@ CALLL           EQU     0eb000000h      ;for ARM
 ;   ROMbottom||initial-code>--//--<initial-name||ROMtop
 ;   RAMbottom||code/data>WORDworkarea|--//--|PAD|TIB|reserved<name|sp|rp||RAMtop
 
-;NAC: The memory map for EBSA110 ARM systems is designed to fit into 2,
-;64Kbyte sections. The first section is the ROM section, which can be loaded
-;from Flash and stored back to Flash with new definitions added. The second
-;section is the RAM Section which is volatile: it never gets saved away. The
-;first 16Kbytes of the RAM section is reserved for the memory-management page
-;tables.
+
+;The memory map for the EBSA-285 and EBSA-110 ARM systems is designed to fit
+;into 2, 64Kbyte sections. The first section is the ROM section, which can
+;be loaded from Flash and stored back to Flash with new definitions added.
+;The second section is the RAM Section which is volatile: it never gets
+;saved away. The first 16Kbytes of the RAM section is reserved for the
+;memory-management page tables. The remainder is used for data storage
+;(for example, if you define a VARIABLE its value gets stored there)
 
 	IF (TARGET = "EBSA110")
 		; load into SSRAM, 128Kbytes maximum (faster than DRAM)
@@ -430,44 +424,42 @@ ROM0            EQU     0400000c0h              ;bottom of ROM memory
 	ENDIF   ;EBSA110
 
 	IF (TARGET = "COGENT")
+ROM0            EQU     00008000h               ;bottom of ROM memory
+ROMEnd          EQU     00018000h               ;end of ROM memory
+						;ROM size = 64KB
 MMU0            EQU     00018000h               ;start of page tables
 RAM0            EQU     0001C000h               ;bottom of RAM memory
 RAMEnd          EQU     0002C000h               ;top of RAM memory
 						;RAM size = 64KB
-ROM0            EQU     00008000h               ;bottom of ROM memory
-ROMEnd          EQU     00018000h               ;end of ROM memory
-						;ROM size = 64KB
 	ENDIF   ;COGENT
 
 	IF (TARGET = "EBSA285")
-	  IF ((MEMMAP = "FLASH0") :LOR: (MEMMAP = "PBLOADED"))
+	  IF (MEMMAP = "PBLOADED")
+		;code in Flash is linked to run at start of SSRAM plus c0. The
+		;gap of c0 leaves room to form a formated AIF/Flash header for
+		;programming an updated image back to Flash. The PBL will
+		;switch the memory map, init the X-Bus and SDRAM and copy the
+		;image from Flash to SDRAM, then branch to it. Thereby,
+		;the image is magically invoked at the right place.
+ROM0            EQU     100c0h                  ;bottom of ROM memory
+ROMEnd          EQU     20000h                  ;end of ROM memory
+						;ROM size = 64KB
 		; load into SDRAM. Ignore the first 64Kbytes of memory
 		; for now. Eventually I want a version that will run
 		; at 0 but I'll want to leave room for the vectors there.
 MMU0            EQU     20000h                  ;start of page tables
 RAM0            EQU     24000h                  ;bottom of RAM memory
-RAMEnd          EQU     24000h                  ;top of RAM memory
+RAMEnd          EQU     30000h                  ;top of RAM memory
 						;RAM size = 48KB
-		;code in Flash is linked to run at start of SSRAM plus c0. The
-		;gap of c0 leaves room to form a formated AIF/Flash header for
-		;programming an updated image back to Flash. If FLASH0 then
-		;the image is responsible for switching the memory maps,
-		;initialising the memory and memory controller, copying itself
-		;to SDRAM and branching to the copy. If PBLOADED then the
-		;PBL does all that stuff and the image is magically invoked at
-		;the right place.
-ROM0            EQU     100c0h                  ;bottom of ROM memory
-ROMEnd          EQU     20000h                  ;end of ROM memory
-						;ROM size = 64KB
 
 	  ELSE ;must be DEMON memmap
-MMU0            EQU     00018000h               ;start of page tables
-RAM0            EQU     0001C000h               ;bottom of RAM memory
-RAMEnd          EQU     0002C000h               ;top of RAM memory
-						;RAM size = 64KB
-ROM0            EQU     00008000h               ;bottom of ROM memory
-ROMEnd          EQU     00018000h               ;end of ROM memory
+ROM0            EQU     08000h                  ;bottom of ROM memory
+ROMEnd          EQU     18000h                  ;end of ROM memory
 						;ROM size = 64KB
+MMU0            EQU     18000h                  ;start of page tables
+RAM0            EQU     1C000h                  ;bottom of RAM memory
+RAMEnd          EQU     2C000h                  ;top of RAM memory
+						;RAM size = 64KB
 	  ENDIF
 	ENDIF   ;EBSA285
 
@@ -509,24 +501,7 @@ SuperIObase     EQU     &F0000000
 ledport         EQU     &40012000
 SuperIObase     EQU     &40011000
 
-CSR_BASE            EQU        &42000000      
-
-ROM_BASE            EQU            &41000000
-
-ROM_BYTE_WRITE      EQU        &68
-DRAM_BASE_ADDR_MASK EQU        &100
-DRAM_BASE_ADDR_OFF  EQU        &104
-ROM_BASE_ADDR_MASK  EQU        &108
-DRAM_TIMING         EQU        &10C
-DRAM_ADDR_SIZE_0    EQU        &110
-DRAM_ADDR_SIZE_1    EQU        &114
-DRAM_ADDR_SIZE_2    EQU        &118
-DRAM_ADDR_SIZE_3    EQU        &11C
 SA_CONTROL          EQU        &13C
-PCI_ADDR_EXT        EQU        &140
-PREFETCH_RANGE      EQU        &144
-XBUS_CYCLE          EQU        &148
-XBUS_STROBE         EQU        &14C
 UARTDR              EQU        &160
 UMSEOI              EQU        &164
 RXSTAT              EQU        &164 
@@ -538,55 +513,6 @@ UARTFLG             EQU        &178
 
 ; register constants
 INIT_COMPLETE       EQU        1
-XCS_2               EQU        &40000000
-XCS_1               EQU        &20000000
-XCS_0               EQU        &10000000
-
-;
-; memory values based on 50 Mhz 130ns parts
-;
-;<1:0>
-Trp_1               EQU        &0
-Trp_2               EQU        &1
-Trp_3               EQU        &2
-Trp_4               EQU        &3
-
-;<3:2>
-Tdal_2              EQU        &0
-Tdal_3              EQU        &4
-Tdal_4              EQU        &8
-Tdal_5              EQU        &C
-
-;<5:4>
-Trcd_2              EQU        &20
-Trcd_3              EQU        &30
-
-;<7:6>
-Tcas_2              EQU        &80
-Tcas_3              EQU        &C0
-
-;<10:8>
-Trc_4               EQU        &100
-Trc_5               EQU        &200
-Trc_6               EQU        &300
-Trc_7               EQU        &400
-Trc_8               EQU        &500
-Trc_9               EQU        &600
-Trc_10              EQU        &700
-
-;<11>
-CMD_DRIVE           EQU        &800
-;<12>
-PARITY_ENABLE       EQU        &1000
-;<21:16>
-Tref_min            EQU        &010000
-Tref_norm           EQU        &1A0000
-
-Trp                 EQU        Trp_2
-Tdal                EQU        Tdal_3
-Trcd                EQU        Trcd_2
-Tcas                EQU        Tcas_2
-Trc                 EQU        Trc_6
       
 	ENDIF
 
@@ -645,7 +571,7 @@ Baud56000high   EQU     0
 
 	ENDIF   ; uart for EBSA110, EBSA285
 
-;NAC end of equates for host I/O
+;end of equates for host I/O
 
 ; Initialize assembly variables
 
@@ -657,7 +583,7 @@ Baud56000high   EQU     0
 		GBLA _VAR
 		GBLA _THROW
 
-;NAC the _NAME value is not used in the ARM port.. instead, makesrc.awk
+;The _NAME value is not used in the ARM port.. instead, makesrc.awk
 ;keeps track of an equivalent value, which is initialised by passing the
 ;parameter dict_pc into makesrc.awk with the value _NAME would have had.
 ;Everywhere that _NAME appears herein, special treatment is required.
@@ -888,150 +814,13 @@ herefar2
 	ENDIF
 
 
-	IF (TARGET = "EBSA285") :LAND: (MEMMAP = "FLASH0")
+	IF (TARGET = "EBSA285")
 
-;Image is programmed into Flash block 0 and we have to take the responsibility
-;of copying ourself into SDRAM. First of all we need to switch the memory map
-;and inititialise the XBUS and the memory.
-
-;The code is built to run at &10000 and is running in Flash at 0, but after the
-;first WRITE we will be magically running at ROM_BASE
-
-;;TODO fix up the comments properly and make the branching code smarter; it
-;; can find out where it is without all this palava
-
-; ROM equivalent of whereabouts we are
-;;;hialias      EQU     ((herefar1 :AND: &000000ff) :OR: ROM_BASE)
-;;;hard-code for Flash block 2 -- see also hack to ROM copy code below
-hialias         EQU     ((herefar1 :AND: &000000ff) :OR: &41020000)
-; SDRAM equivalent of whereabouts we are
-loalias         EQU     herefar2
-
-		ldr     pc,=hialias             ;jump to to high ROM alias
-herefar1        mov     r0, #0
-		str     r0, [r1]                ;switch memory map
-
-; now running in ROM alias at ROM_BASE. 
-
-; ***** init x-bus
-		ldr     r1,=CSR_BASE
-;
-; xcs<2> = output (softIO, leds and jumpers), xcs<1> = output (SuperIO),
-; xcs<0> = input (interrupt)
-;
-		ldr     r0,=INIT_COMPLETE:OR:XCS_2:OR:XCS_1
-		str     r0,[r1,#SA_CONTROL]
-;
-; set cycle length = 2 for all devices, strobe shift divisor = 1 (2)
-;
-		ldr     r0,=&1492
-		str     r0,[r1,#XBUS_CYCLE]
-;
-; set strobe mask = 0xFC for all devices
-;
-		ldr     r0,=&FCFCFCFC
-		str     r0,[r1,#XBUS_STROBE]
-
-; ***** strike LEDs 000 - all on
-		ldr r0,=0
+	; turn on GREEN, YELLOW LEDs to prove we got here.
+		ldr     r0,=4
 		ldr     r4,=ledport
 		str     r0,[r4]
-
-; ***** do the store to stop the super I/O from heating up
-; on pass-1 vv285 boards
-		ldr     r0,=0
-		ldr     r1,=&40011de0
-		str     r0,[r1]
-
-; ***** strike leds 001 - RED GREEN
-		ldr     r0,=1
-		str     r0,[r4]
-; ***** init memory
-
-; Power on sequence
-;
-; 1. Attempt to maintain a NOP condition at inputs
-; 2. Maintain NOP condition for a minimum of 200 us.
-; 3. Issue precharge commands for all banks of the device.
-; 4. Issue a mode register set command to initialize mode register
-; 5. Issue 8 or more autorefresh commands
-;
-; start by reading all the mode regions to initiate pre-charge
-;
-	ldr     r0,=&40000008:OR:Tcas
-	ldr     r0,[r0]
-	ldr     r0,=&40004008:OR:Tcas
-	ldr     r0,[r0]
-	ldr     r0,=&40008008:OR:Tcas
-	ldr     r0,[r0]
-	ldr     r0,=&4000C008:OR:Tcas
-	ldr     r0,[r0]
-
-; SDRAM mode register (region) write. Address is important, not the data
-	ldr     r0,=&40000008:OR:Tcas
-	str     r0,[r0]
-	ldr     r0,=&40004008:OR:Tcas
-	str     r0,[r0]
-	ldr     r0,=&40008008:OR:Tcas
-	str     r0,[r0]
-	ldr     r0,=&4000C008:OR:Tcas
-	str     r0,[r0]
-	   
-	ldr     r1,=CSR_BASE
-
-; setup DRAM timing with refresh set to 1
-	ldr     r0,=Trp:OR:Tdal:OR:Trcd:OR:Tcas:OR:Trc:OR:CMD_DRIVE:OR:Tref_min
-	str     r0,[r1,#DRAM_TIMING]    
-
-; wait 8x32 cycles here for first refresh to complete
-;
-		ldr     r0,=&100
-01              subs    r0,r0,#1
-		bgt     %b01
-
-; set the size; assume 4 arrays each of 8Mbyte
-		ldr     r0,=&14
-		str     r0,[r1,#DRAM_ADDR_SIZE_0] 
-		ldr     r0,=&800014
-		str     r0,[r1,#DRAM_ADDR_SIZE_1]     
-		ldr     r0,=&1800014
-		str     r0,[r1,#DRAM_ADDR_SIZE_2]     
-		ldr     r0,=&2000014
-		str     r0,[r1,#DRAM_ADDR_SIZE_3]     
-
-; enable refresh (64 ms x 4096 rows) = 15.xx us
-	ldr     r0,=Trp:OR:Tdal:OR:Trcd:OR:Tcas:OR:Trc:OR:CMD_DRIVE:OR:Tref_norm
-	str     r0,[r1,#DRAM_TIMING]
-
-; ***** strike leds 010 - RED YELLOW
-		ldr     r0,=2
-		str     r0,[r4]
-
-; Copy image from ROM to SSRAM - copy it all, including the header
-temp1           EQU     (ROM0 :AND: &ffffff00)
-		mov     r0, #(ROM0 :AND: &ffffff00)     ;destination
-;;;             mov     r1, #ROM_BASE           ;source
-		ldr     r1, =&41020000          ;source
-		mov     r2, #(&10000/4)         ;number of Dwords (64Kbytes)
-
-movit           ldr     r3,[r1],#4
-		str     r3,[r0],#4
-		subs    r2,r2,#1
-		bne     movit
-
-; ***** strike leds 011 - RED
-		ldr     r0,=3
-		str     r0,[r4]
-
-		ldr     pc,=loalias             ;jump to the RAM copy
-herefar2
-
-; ***** image should strike leds 100 to show we got here - GREEN YELLOW
-		ldr     r0,=4
-		str     r0,[r4]
-
 	ENDIF
-
 
 	; common startup code for every TARGET and every MEMMAP
 		ldr     rsp, =RPP               ;init return stack pointer
@@ -1119,7 +908,7 @@ ULAST
 
 	$STR        CPUStr,'StrongARM'
 	$STR        ModelStr,'ROM Model'
-	$STR        VersionStr,'1.0'
+	$STR        VersionStr,'0.9.9'
 								    ;THROW code
 	$THROWMSG       'ABORT'                                         ;-01
 	$THROWMSG       'ABORT"'                                        ;-02
@@ -1188,11 +977,6 @@ ULAST
 ;;;;;;;;;;;;;;;;
 ; System dependent words -- Must be re-defined for each system.
 ;;;;;;;;;;;;;;;;
-; I/O words must be redefined if serial communication is used instead of
-; keyboard. Following words are for MS-DOS system.
-
-;NAC: added stoio and setbaud from eForth
-
 
 ;   !IO         ( -- )  "store i o"
 ;               Initialize the serial devices for terminal I/O
@@ -1207,9 +991,12 @@ ULAST
 ;TODO also, the conditional at the start includes *all* the supported
 ;targets..
 
-		ldr     r4,=COM2Port    ;TODO - make a fn of IOBYTES
 		ldr     r0,=AddrIOBYTES
 		ldr     r1,[r0]
+		ands	r2,r1,#&ff
+		cmp	r2,#1
+		ldreq	r4,=COM1Port
+		ldrne	r4,=COM2Port
 		ands    r2,r1,#&ff
 		cmp     r2,#&ff
 		beq     STOdone         ;DEMON SWI in use so don't touch the
@@ -1289,9 +1076,12 @@ STOdone
 
 		$CODE   3,'RX?',RXQ,_SLINK
 		pushD   tos                     ;make room for flag
-
-		ldr     r4,=COM2Port            ;TODO only handles COM2 .. should check IOBYTES
-
+		ldr     r0,=AddrIOBYTES
+		ldr     r1,[r0]
+		ands	r1,r1,#&ff
+		cmp	r1,#1
+		ldreq	r4,=COM1Port
+		ldrne	r4,=COM2Port
 		LDRB    tos, [r4,#LineStatus]   ;look for a character, note that reading this
 		TST     tos, #LineDRMsk         ;register also clears any errors
 		mov     tos, #0                 ;predict no char available
@@ -1303,7 +1093,12 @@ STOdone
 
 		$CODE   3,'RX@',RXFetch,_SLINK
 		pushD   tos                     ;make room
-		ldr     r4,=COM2Port            ;TODO make a fn IObytes
+		ldr     r0,=AddrIOBYTES
+		ldr     r1,[r0]
+		ands	r1,r1,#&ff
+		cmp	r1,#1
+		ldreq	r4,=COM1Port
+		ldrne	r4,=COM2Port
 		LDRB    tos, [r4,#Rx]           ;Read the character
 		$NEXT
 
@@ -1327,7 +1122,12 @@ STOdone
 
 		$CODE  3,'TX?',TXQ,_SLINK
 		pushD   tos                     ; make room
-		ldr     r4,=COM2Port            ;TODO make a fn IObytes
+		ldr     r0,=AddrIOBYTES
+		ldr     r1,[r0]
+		ands	r1,r1,#&ff
+		cmp	r1,#1
+		ldreq	r4,=COM1Port
+		ldrne	r4,=COM2Port
 		LDRB    r2,[r4,#LineStatus]
 		TST     r2,#LineTHREMsk         ;Wait until ready to queue character
 		ldr     tos,=TRUEE              ;predict ready
@@ -1338,13 +1138,14 @@ STOdone
 ;   TX!         ( u -- )
 ;               Send char to the output device. Have to wait until the output
 ;               device is ready because TX? is NOT called first
-;TODO looks as though it's hard to use the TX FIFO in polled mode
-;because the only status you get is when the FIFO is empty -- really
-;want to know when it is not-full. The only way to do this seems to
-;be to enable the interrupt then poll the interrupt status register.
 
 		$CODE   3,'TX!',TXStore,_SLINK
-		ldr     r4,=COM2Port            ;TODO make a fn IObytes
+		ldr     r0,=AddrIOBYTES
+		ldr     r1,[r0]
+		ands	r1,r1,#&ff
+		cmp	r1,#1
+		ldreq	r4,=COM1Port
+		ldrne	r4,=COM2Port
 txstoreloop     LDRB    r2,[r4,#LineStatus]
 		TST     r2,#LineTHREMsk         ;Wait until ready to queue character
 		beq     txstoreloop
@@ -1389,10 +1190,10 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 ;               S" model" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
 ;               S" version"  ENVIRONMENT? DROP TYPE
 ;               ."  by Wonyong Koh, 1997" CR
+;               ." StrongARM port by neal.crook@reo.mts.dec.com" CR ;
 ;               ." ALL noncommercial and commercial uses are granted." CR
 ;               ." Please send comment, bug report and suggestions to:" CR
 ;               ."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR
-;               ." StrongARM port by neal.crook@reo.mts.dec.com" CR ;
 
 		$COLON  2,'hi',HI,_SLINK
 		DW      CR
@@ -1406,14 +1207,50 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 		DW      ENVIRONMENTQuery,DROP,TYPEE
 		$INSTR  ' by Wonyong Koh, 1997'
 		DW      TYPEE,CR
+		$INSTR  'StrongARM port by neal.crook@reo.mts.dec.com'
+		DW      TYPEE,CR
 		$INSTR  'All noncommercial and commercial uses are granted.'
 		DW      TYPEE,CR
 		$INSTR  'Please send comment, bug report and suggestions to:'
 		DW      TYPEE,CR
 		$INSTR  '  wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr'
-		DW      TYPEE,CR
-		$INSTR  'StrongARM port by neal.crook@reo.mts.dec.com'
 		DW      TYPEE,CR,EXIT
+
+;   INIT-BUS ( -- )
+;               For the 21285, need to init some PCI stuff to avoid hanging
+;               the host system (if any)
+;
+;   : INIT-BUS 40012000 @ 40 AND 0= IF
+;       \ init PCI because stand-alone bit is clear - see
+;	\ EBSA-285 reference manual for explanation of these
+;       0C 42000034 !
+;       00 42000150 !
+;	00 42000154 !
+;       00 42000140 !
+;       200 4200013C !
+;       7C0000 42000100 !
+;       40000000 42000010 !
+;	F000 42000018 !
+;       17 42000004 !
+;       1  4200013C !
+;     THEN ;
+
+		$COLON  8,'INIT-BUS',InitBus,_SLINK
+	IF (TARGET = "EBSA285")
+		DW DoLIT,&40012000,Fetch,DoLIT
+		DW &40,ANDD,ZeroEquals,ZBranch,IBDONE
+		DW DoLIT,&0C,DoLIT,&42000034,Store
+		DW Zero,DoLIT,&42000150,Store
+		DW Zero,DoLIT,&42000154,Store
+		DW Zero,DoLIT,&42000140,Store
+		DW DoLIT,&200,DoLIT,&4200013C,Store
+		DW DoLIT,&7C0000,DoLIT,&42000100,Store
+		DW DoLIT,&40000000,DoLIT,&42000010,Store
+		DW DoLIT,&0F000,DoLIT,&42000018,Store
+		DW DoLIT,&017,DoLIT,&42000004,Store
+		DW DoLIT,One,DoLIT,&4200013C,Store
+	ENDIF
+IBDONE		DW      EXIT
 
 ;   COLD        ( -- )
 ;               The cold start sequence execution word.
@@ -1426,6 +1263,7 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 ;               sp0 sp! rp0 rp!                 \ initialize stack
 ;               'init-i/o EXECUTE
 ;               'boot EXECUTE
+;		INIT-BUS
 ;               QUIT ;                          \ start interpretation
 
 		$COLON  4,'COLD',COLD,_SLINK
@@ -1434,7 +1272,7 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 		DW      ZBranch,COLD1
 		DW      RAMB,DoTO,AddrCPVar,RAMT,DoTO,AddrNPVar
 COLD1           DW      SPZero,SPStore,RPZero,RPStore
-		DW      TickINIT_IO,EXECUTE,TickBoot,EXECUTE
+		DW      TickINIT_IO,EXECUTE,TickBoot,EXECUTE,InitBus
 		DW      QUIT
 
 ;   set-i/o ( -- )
@@ -1509,7 +1347,7 @@ FLOF1           DW      EXIT
 ;;;;;;;;;;;;;;;;
 ; MS-DOS only words -- not necessary for other systems.
 ;;;;;;;;;;;;;;;;
-;NAC: deleted
+
 
 ;;;;;;;;;;;;;;;;
 ; Non-Standard words - Processor-dependent definitions
@@ -1585,7 +1423,6 @@ udebug          ldr r0,=RAM0            ; where UZERO table will go to
 
 ;   W@          ( a -- c )      "w fetch"
 ;               Fetch word value from word address.
-;TODO what if the address is not word aligned?
 
 		$CODE   2,'W@',WAT,_SLINK
 		ldrh    r1, [tos]               ;get the word
@@ -1738,8 +1575,6 @@ coffm           EQU &ffffefff
 ;               Dcache (in case the code word is sitting in a dirty block there)
 ;               and then flush the Icache (in case it has a copy of the old
 ;               value at that location).
-;               A refinement is to determine the correct cache block and only
-;               flush that block -- that would improve compile performance.
 ;               Currently, the only word that uses this is xt,
 
 		$CODE 11,'IDflushline',IDflushline,_SLINK
@@ -1885,7 +1720,6 @@ PSRCH4          ldrb    r3, [r7], #1
 PSRCH3
 		$NEXT
 
-;**
 ;   ?call       ( xt1 -- xt1 0 | a-addr xt2 )
 ;               If xt1 starts with a machine CALL instruction then leave
 ;               xt of the CALLed routine and the address of the cell following
@@ -1921,7 +1755,6 @@ QCALL2          DW      DoLIT,2,LSHIFT,Plus,CELLPlus,CELLPlus
 		DW      SWAP,CELLPlus,SWAP,EXIT
 QCALL1          DW      Zero,EXIT
 
-;*
 ;   xt,         ( xt1 -- xt2 )
 ;               Take a run-time word xt1 for :NONAME , CONSTANT , VARIABLE and
 ;               CREATE . Return xt2 of current definition.
@@ -2093,10 +1926,6 @@ QCALL1          DW      Zero,EXIT
 		popR    r0                      ;;NAC what's this dropping?? -- can just bump rsp rather than doing memory access
 		$NEXT
 
-;;NAC in above could delete the branch and run the other instructions
-;;NAC conditionally.. just need a conditional version of pushR
-;;TODO: might be able to change the macro to take a conditional?
-
 ;   do+LOOP     ( n -- ) ( R: loop-sys1 -- | loop-sys2 )
 ;               Run time routine for +LOOP.
 
@@ -2238,47 +2067,31 @@ QCALL1          DW      Zero,EXIT
 ;               2DUP C! CHAR+ SWAP              \ c-addr a-addr+1 u
 ;               CHARS MOVE R> ; COMPILE-ONLY
 
-		$COLON  COMPO+5,'pack"',PackQuote,_SLINK
-		DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
-		DW      DoLIT,CHARR,Minus,Zero,SWAP,Store
-		DW      TwoDUP,CStore,CHARPlus,SWAP
-		DW      CHARS,MOVE,RFrom,EXIT
-
-; old version of pack"
-;   : pack"     OVER max-char > IF -18 THROW THEN  \ parsed string overflow
-;               2DUP SWAP CHARS + CHAR+ ALIGNED DUP >R  \ ca u aa aa+u+1
-;               cell- 0 SWAP !                  \ fill 0 at the end of string
-;               2DUP C! CHAR+ SWAP              \ c-addr a-addr+1 u
-;               CHARS MOVE R> ; COMPILE-ONLY
-
 ;		$COLON  COMPO+5,'pack"',PackQuote,_SLINK
-;		DW      OVER,DoLIT,MaxChar,GreaterThan,ZBranch,PACKQ1
-;		DW      DoLIT,-18,THROW
-;PACKQ1          DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
-;		DW      CellMinus,Zero,SWAP,Store
+;		DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
+;		DW      DoLIT,CHARR,Minus,Zero,SWAP,Store
 ;		DW      TwoDUP,CStore,CHARPlus,SWAP
 ;		DW      CHARS,MOVE,RFrom,EXIT
 
-;		$CODE   COMPO+5,'Pack"',xPackQuote,_SLINK
-;		;assume strings don't overlap
-;		popD    r0      ;u
-;		popD    r1      ;c-addr
-;		cmp     r0,#MaxChar   ; that was always BOGUS - reuse of MaxChar
-;		movle   tos,#-18
-;		ble     THROW
-;01              ldrb    r2,[r1], #CHARR
-;		strb    r2,[tos], #CHARR
-;		subs    r0, r0, #CHARR
-;		bne     %b01
-;		;next address is in tos. Need to align, filling any
-;		;space with 0. r0 holds 0
-;		rsb     r1,r1,#4        ;take 4-r1
-;		ands    r1,tos,#3       ;how many bytes to fill; EQ if aligned
-;02              strneb  r0,[tos], #CHARR
-;		subnes  r1,r1,#1
-;		bne     %b02
-;;drop through if no bytes to fill or at end
-;		$NEXT
+                $CODE   COMPO+5,'pack"',PackQuote,_SLINK
+                ;assume strings don't overlap
+                popD    r0      ;u
+                popD    r1      ;c-addr
+                strb    r0,[tos],#CHARR ;store length
+01              ldrb    r2,[r1], #CHARR
+                strb    r2,[tos], #CHARR
+                subs    r0, r0, #CHARR
+                bne     %b01
+                ;next address is in tos. Need to align, filling any
+                ;space with 0. r0 holds 0
+		and	r1,tos,#3 ;number of runt bytes
+		rsb	r1,r1,#4
+		cmp	r1,#4	  ;EQ if aligned
+02              strneb  r0,[tos], #CHARR
+                subnes  r1,r1,#1
+                bne     %b02
+;drop through if no bytes to fill or at end
+                $NEXT
 
 ;   CELLS       ( n1 -- n2 )                    \ CORE
 ;               Calculate number of address units for n1 cells.
@@ -2314,12 +2127,10 @@ QCALL1          DW      Zero,EXIT
 		popD    tos                     ;clear up stack
 		$NEXT
 
-;TODO test this. Think immediate value should be 31 rather than 32
 ;   0<          ( n -- flag )                   \ CORE
 ;               Return true if n is negative.
 
 		$CODE   2,'0<',ZeroLess,_FLINK
-		;TODO if I used OR below I need not load r0 -- it could be X
 		mov     r0, #0                  ;get zeroes for dummy arg
 		add     tos, r0, tos, asr #32   ;echo bit 32 value through r1
 		$NEXT
@@ -2767,7 +2578,7 @@ AddrTrapfpc     EQU     _VAR -CELLL
 		DW      DoLIT,VersionStr,COUNT,EXIT
 
 		$ENVIR  15,'/COUNTED-STRING'
-		DW      DoLIT,MaxChar,EXIT
+		DW      DoLIT,MaxString,EXIT
 
 		$ENVIR  5,'/HOLD'
 		DW      DoLIT,PADSize,EXIT
@@ -2970,19 +2781,18 @@ _VAR            SETA _VAR +CELLL
 ;
 ;   : doS"      R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
 
-		$COLON  COMPO+4,'doS"',DoSQuote,_SLINK
-		DW      RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
+;		$COLON  COMPO+4,'doS"',DoSQuote,_SLINK
+;		DW      RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
 
-		$CODE   COMPO+4,'DoS"',doSQuote,_SLINK
-		popR    r0
-		pushD   r0              ;next addr is start of string
-		add     r0,r0,tos       ;point to end of string
-		add     r0,r0,#3        ;and align
-		and     r0,r0,#0fffffffch ;
-		pushR   r0
+		$CODE   COMPO+4,'doS"',DoSQuote,_SLINK
+		;in the colon case the 'next address' is on the
+		;return stack. In the code case it is still in fpc
+		pushD   fpc             ;start of string
+		add     fpc,fpc,tos     ;point to end of string
+		add     fpc,fpc,#3      ;and align
+		and     fpc,fpc,#0fffffffch ;
 		$NEXT
 
-;*
 ;   doDO        ( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
 ;               Run-time funtion of DO.
 ;
@@ -3059,7 +2869,6 @@ INTERP5         DW      OnePlus,TwoStar,STATE,Fetch,OnePlus,Plus,CELLS
 INTERP3         DW      TwoDROP,EXIT
 INTERP4         DW      DoLIT,-14,THROW
 
-;**
 ;   optiCOMPILE, ( xt -- )
 ;               Optimized COMPILE, . Reduce doLIST ... EXIT sequence if
 ;               xt is COLON definition which contains less than two words.
@@ -3257,7 +3066,6 @@ DOUBC1          DW      LITERAL,EXIT
 		DW      RFrom,SWAP,Store,EXIT
 PIPE1           DW      DoLIT,-32,THROW
 
-;**
 ;   skipPARSE   ( char "<chars>ccc<char>" -- c-addr u )
 ;               Skip leading chars and parse a word using char as a
 ;               delimeter. Return the name.
@@ -3419,7 +3227,6 @@ _VAR            SETA _VAR +CELLL
 ; Words for multitasking
 ;
 
-;*
 ;   PAUSE       ( -- )
 ;               Stop current task and transfer control to the task of which
 ;               'status' USER variable is stored in 'follower' USER variable
@@ -3430,7 +3237,6 @@ _VAR            SETA _VAR +CELLL
 		$COLON  COMPO+5,'PAUSE',PAUSE,_SLINK
 		DW      RPFetch,SPFetch,StackTop,Store,Follower,Fetch,ToR,EXIT
 
-;*
 ;   wake        ( -- )
 ;               Wake current task.
 ;
@@ -3445,7 +3251,6 @@ _VAR            SETA _VAR +CELLL
 ; Essential Standard words - Colon definitions
 ;;;;;;;;;;;;;;;;
 
-;**
 ;   #           ( ud1 -- ud2 )                  \ CORE
 ;               Extract one digit from ud1 and append the digit to
 ;               pictured numeric output string. ( ud2 = ud1 / BASE )
@@ -3469,7 +3274,6 @@ _VAR            SETA _VAR +CELLL
 		DW      TwoDROP,HLD,Fetch,XHere,DoLIT,PADSize*CHARR,Plus
 		DW      OVER,Minus,OneCharsSlash,EXIT
 
-;* - replicate the code for # within a loop
 ;   #S          ( ud -- 0 0 )                   \ CORE
 ;               Convert ud until all digits are added to the output string.
 ;
@@ -3561,8 +3365,7 @@ NUMSS1          DW      NumberSign,TwoDUP,ORR
 		pushD   tos
 		mov     r1,#0
 		;sign-extend tos into tos to form ms of double
-		;TODO if I used OR below I need not load r1 -- it could be X
-		add     tos,r1,tos,asr #32      ;should this be 31?
+		add     tos,r1,tos,asr #32
 		b       DDot
 
 ;   /           ( n1 n2 -- n3 )                 \ CORE
@@ -3573,7 +3376,6 @@ NUMSS1          DW      NumberSign,TwoDUP,ORR
 		$COLON  1,'/',Slash,_FLINK
 		DW      SlashMOD,NIP,EXIT
 
-;** code the initial part then b to FM/MOD
 ;   /MOD        ( n1 n2 -- n3 n4 )              \ CORE
 ;               Divide n1 by n2, giving single-cell remainder n3 and
 ;               single-cell quotient n4.
@@ -3742,7 +3544,6 @@ SEMI2           DW      NotNONAMEQ,ZBranch,SEMI3
 SEMI3           DW      DoLIT,EXIT,COMPILEComma
 		DW      Zero,DoTO,AddrBal,LeftBracket,EXIT
 
-;*
 ;   <           ( n1 n2 -- flag )               \ CORE
 ;               Returns true if n1 is less than n2.
 ;
@@ -3761,10 +3562,10 @@ LESS1           DW      Minus,ZeroLess,EXIT
 ;
 ;   : <#        xhere size-of-PAD + hld ! ;
 
-		$COLON  2,'<#',LessNumberSign,_FLINK
-		DW      XHere,DoLIT,PADSize*CHARR,Plus,HLD,Store,EXIT
+;		$COLON  2,'<#',LessNumberSign,_FLINK
+;		DW      XHere,DoLIT,PADSize*CHARR,Plus,HLD,Store,EXIT
 
-		$CODE   3,'x<#',xLessNumberSign,_FLINK
+		$CODE   2,'<#',LessNumberSign,_FLINK
 		ldr     r0,=LocCPVar
 		ldr     r1,[r0]
 		ldr     r2,[r1] ;xhere address
@@ -3788,7 +3589,6 @@ LESS1           DW      Minus,ZeroLess,EXIT
 		ldrne   tos,=FALSEE
 		$NEXT
 
-;*
 ;   >           ( n1 n2 -- flag )               \ CORE
 ;               Returns true if n1 is greater than n2.
 ;
@@ -3802,7 +3602,6 @@ LESS1           DW      Minus,ZeroLess,EXIT
 
 		$VAR    3,'>IN',ToIN,_FLINK
 
-;**
 ;   >NUMBER     ( ud1 c-addr1 u1 -- ud2 c-addr2 u2 )    \ CORE
 ;               Add number string's value to ud1. Leaves string of any
 ;               unconverted chars.
@@ -3855,7 +3654,7 @@ TONUM3          DW      EXIT
 ;               DW      MinusOne,THROW
 
 		$CODE   5,'ABORT',ABORT,_FLINK
-		pushD   tos
+		pushD   tos			;gonna trash the stack so no need..
 		mov     tos,#-1
 		b       THROW
 
@@ -4080,7 +3879,6 @@ CREAT1          DW      DoLIT,DoCREATE,xtComma,HeadComma
 		str     r1,[r0]
 		$NEXT
 
-;*
 ;   DEPTH       ( -- +n )                       \ CORE
 ;               Return the depth of the data stack.
 ;
@@ -4149,7 +3947,6 @@ EMIT01          ldr     r0,=AddrTEMIT
 		popD    tos
 		$NEXT
 
-;**
 ;   FM/MOD      ( d n1 -- n2 n3 )               \ CORE
 ;               Signed floored divide of double by single. Return mod n2
 ;               and quotient n3.
@@ -4181,7 +3978,6 @@ FMMOD6          DW      EXIT
 FMMOD3          DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		DW      DoLIT,-11,THROW
 
-;*
 ;   GET-CURRENT   ( -- wid )                    \ SEARCH
 ;               Return the indentifier of the compilation wordlist.
 ;
@@ -4266,7 +4062,6 @@ FMMOD3          DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		mvn     tos,tos
 		$NEXT
 
-;*
 ;   KEY         ( -- char )                     \ CORE
 ;               Receive a character. Do not display char.
 ;
@@ -4275,7 +4070,6 @@ FMMOD3          DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		$COLON  3,'KEY',KEY,_FLINK
 		DW      EKEY,DoLIT,MaxChar,ANDD,EXIT
 
-;* easy
 ;   LITERAL     Compilation: ( x -- )           \ CORE
 ;               Run-time: ( -- x )
 ;               Append following run-time semantics. Put x on the stack on
@@ -4313,7 +4107,6 @@ FMMOD3          DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 
 		LTORG
 
-;**
 ;   PARSE       ( char "ccc<char>"-- c-addr u )         \ CORE EXT
 ;               Scan input stream and return counted string delimited by char.
 ;
@@ -4422,8 +4215,7 @@ REFIL1          DW      NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 		pushD   tos
 		mov     r1,#0
 		;sign-extend tos into tos to form ms of double
-		;TODO if I used OR below I need not load r1 -- it could be X
-		add     tos,r1,tos,asr #32      ;should this be 31?
+		add     tos,r1,tos,asr #32
 		$NEXT
 
 ;   SEARCH-WORDLIST     ( c-addr u wid -- 0 | xt 1 | xt -1)     \ SEARCH
@@ -4439,7 +4231,6 @@ REFIL1          DW      NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 		DW      NIP
 SRCHW1          DW      EXIT
 
-;*
 ;   SIGN        ( n -- )                        \ CORE
 ;               Add a minus sign to the numeric output string if n is negative.
 ;
@@ -4450,7 +4241,6 @@ SRCHW1          DW      EXIT
 		DW      DoLIT,'-',HOLD
 SIGN1           DW      EXIT
 
-;*
 ;   SOURCE      ( -- c-addr u )                 \ CORE
 ;               Return input buffer string.
 ;
@@ -4513,7 +4303,6 @@ THEN1           DW      XHere,SWAP,Store,BalMinus,EXIT
 		DW      TickINIT_IO,EXECUTE
 THROW1          DW      EXIT
 
-;*
 ;   TYPE        ( c-addr u -- )                 \ CORE
 ;               Display the character string if u is greater than zero.
 ;
@@ -4530,18 +4319,17 @@ TYPE2           DW      DROP,EXIT
 ;
 ;   : U<        2DUP XOR 0< IF NIP 0< EXIT THEN - 0< ;
 
-		$COLON  2,'U<',ULess,_FLINK
-		DW      TwoDUP,XORR,ZeroLess
-		DW      ZBranch,ULES1
-		DW      NIP,ZeroLess,EXIT
-ULES1           DW      Minus,ZeroLess,EXIT
+;		$COLON  2,'U<',ULess,_FLINK
+;		DW      TwoDUP,XORR,ZeroLess
+;		DW      ZBranch,ULES1
+;		DW      NIP,ZeroLess,EXIT
+;ULES1           DW      Minus,ZeroLess,EXIT
 
-;TODO this doesn't work -- it does a SIGNED Compare.
-		$CODE   2,'u<',xULess,_FLINK
+		$CODE   2,'U<',ULess,_FLINK
 		popD    r0      ;u1
-		cmp     r0,tos
-		ldrlt   tos,=TRUEE
-		ldrge   tos,=FALSEE
+		cmp     tos,r0  ;u2-u1
+		ldr     tos,=TRUEE
+		ldrls   tos,=FALSEE ; C or Z
 		$NEXT
 
 ;   UM*         ( u1 u2 -- ud )                 \ CORE
@@ -4567,7 +4355,6 @@ ULES1           DW      Minus,ZeroLess,EXIT
 		pushD   r1                      ;ms 32-bits are at top of stack
 		$NEXT
 
-;** for vast speedup in printing number conversion.
 ;   UM/MOD      ( ud u1 -- u2 u3 )              \ CORE
 ;               Unsigned division of a double-cell number ud by a single-cell
 ;               number u1. Return remainder u2 and quotient u3.
@@ -4604,17 +4391,17 @@ UMM4            DW      DoLIT,-11,THROW
 ;
 ;   : UNLOOP    R> R> R> 2DROP >R ;
 
-		$COLON  COMPO+6,'UNLOOP',UNLOOP,_FLINK
-		DW      RFrom,RFrom,RFrom,TwoDROP,ToR,EXIT
+;		$COLON  COMPO+6,'UNLOOP',UNLOOP,_FLINK
+;		DW      RFrom,RFrom,RFrom,TwoDROP,ToR,EXIT
 
-;note: code version doesn't save fpc on return stack and so
-; it doesn't have to do the same save/restore as the colon version
-		$CODE   COMPO+6,'uNLOOP',uNLOOP,_FLINK
+		$CODE   COMPO+6,'UNLOOP',UNLOOP,_FLINK
+		;The code version doesn't save fpc on return stack so
+		;it doesn't have to do the same save/restore as the
+		;colon version
 		popR    r0
 		popR    r0      ;TODO can just bump it up
 		$NEXT
 
-;*
 ;   WITHIN      ( n1|u1 n2|n2 n3|u3 -- flag )   \ CORE EXT
 ;               Return true if (n2|u2<=n1|u1 and n1|u1<n3|u3) or
 ;               (n2|u2>n3|u3 and (n2|u2<=n1|u1 or n1|u1<n3|u3)).
@@ -4689,7 +4476,6 @@ UMM4            DW      DoLIT,-11,THROW
 		$COLON  2,'*/',StarSlash,_FLINK
 		DW      StarSlashMOD,NIP,EXIT
 
-;*
 ;   */MOD       ( n1 n2 n3 -- n4 n5 )           \ CORE
 ;               Multiply n1 by n2 producing double-cell intermediate,
 ;               then divide it by n3. Return single-cell remainder and
@@ -4728,13 +4514,13 @@ UMM4            DW      DoLIT,-11,THROW
 ;
 ;   : 2OVER     >R >R 2DUP R> R> 2SWAP ;
 
-		$COLON  5,'2OVER',TwoOVER,_FLINK
-		DW      ToR,ToR,TwoDUP,RFrom,RFrom,TwoSWAP,EXIT
+;		$COLON  5,'2OVER',TwoOVER,_FLINK
+;		DW      ToR,ToR,TwoDUP,RFrom,RFrom,TwoSWAP,EXIT
 
-		$CODE   5,'2oVER',TwooVER,_FLINK
+		$CODE   5,'2OVER',TwoOVER,_FLINK
 		pushD   tos
-		ldr     r0, [dsp, #-(CELLL*3)] ;x1
-		ldr     tos, [dsp, #-(CELLL*2)] ;x2
+		ldr     r0, [dsp, #+(CELLL*3)] ;x1
+		ldr     tos, [dsp, #+(CELLL*2)] ;x2
 		pushD   r0
 		$NEXT
 
@@ -4779,13 +4565,15 @@ TBODY1          DW      DoLIT,-31,THROW
 ;
 ;   : ABS       DUP 0< IF NEGATE THEN ;
 
-		$COLON  3,'ABS',ABSS,_FLINK
-		DW      DUPP,ZeroLess,ZBranch,ABS1
-		DW      NEGATE
-ABS1            DW      EXIT
+;		$COLON  3,'ABS',ABSS,_FLINK
+;		DW      DUPP,ZeroLess,ZBranch,ABS1
+;		DW      NEGATE
+;ABS1            DW      EXIT
 
-		$CODE   3,'aBS',xABSS,_FLINK
-		and     tos,tos,#07fffffffh     ;
+		$CODE   3,'ABS',ABSS,_FLINK
+		orrs	tos,tos,#0		;set flags
+		ldr	r0,=0
+		submi   tos,r0,tos
 		$NEXT
 
 ;   ALLOT       ( n -- )                        \ CORE
@@ -4916,13 +4704,14 @@ ENVRN1          DW      RFrom,EXIT
 ;
 ;   : FILL      ROT ROT ?DUP IF 0 DO 2DUP C! CHAR+ LOOP THEN 2DROP ;
 
-		$COLON  4,'FILL',FILL,_FLINK
-		DW      ROT,ROT,QuestionDUP,ZBranch,FILL2
-		DW      Zero,DoDO
-FILL1           DW      TwoDUP,CStore,CHARPlus,DoLOOP,FILL1
-FILL2           DW      TwoDROP,EXIT
+;		$COLON  4,'FILL',FILL,_FLINK
+;		DW      ROT,ROT,QuestionDUP,ZBranch,FILL2
+;		DW      Zero,DoDO
+;FILL1           DW      TwoDUP,CStore,CHARPlus,DoLOOP,FILL1
+;FILL2           DW      TwoDROP,EXIT
 
-		$CODE   4,'fILL',xFILL,_FLINK
+		$CODE   4,'FILL',FILL,_FLINK
+		; tos holds char
 		popD    r0      ;count
 		popD    r1      ;dest
 		orrs    r0,r0,r0;drop straight through if length is 0
@@ -5075,7 +4864,6 @@ FIND1           DW      TwoDROP,Zero,EXIT
 		$COLON  3,'MOD',MODD,_FLINK
 		DW      SlashMOD,DROP,EXIT
 
-;*
 ;   PICK        ( x_u ... x1 x0 u -- x_u ... x1 x0 x_u )        \ CORE EXT
 ;               Remove u and copy the uth stack item to top of the stack. An
 ;               ambiguous condition exists if there are less than u+2 items
@@ -5174,7 +4962,6 @@ RECUR1          DW      Bal,OneMinus,TwoStar,OnePlus,PICK
 		$COLON  IMMED+COMPO+2,'S"',SQuote,_FLINK
 		DW      DoLIT,'"',PARSE,SLITERAL,EXIT
 
-;**
 ;   SM/REM      ( d n1 -- n2 n3 )               \ CORE
 ;               Symmetric divide of double by single. Return remainder n2
 ;               and quotient n3.
@@ -5200,7 +4987,6 @@ SMREM5          DW      EXIT
 SMREM3          DW      DUPP,ZeroLess,ZBranch,SMREM5
 SMREM4          DW      DoLIT,-11,THROW
 
-;*
 ;   SPACES      ( n -- )                        \ CORE
 ;               Send n spaces to the output device if n is greater than zero.
 ;
@@ -5332,7 +5118,6 @@ VARIA1          DW      DoLIT,DoCONST,xtComma,HeadComma
 		$COLON  IMMED+COMPO+6,'[CHAR]',BracketCHAR,_FLINK
 		DW      CHAR,LITERAL,EXIT
 
-;*
 ;   \           ( "ccc<eol>" -- )               \ CORE EXT
 ;               Parse and discard the remainder of the parse area.
 ;
@@ -5352,7 +5137,6 @@ VARIA1          DW      DoLIT,DoCONST,xtComma,HeadComma
 
 ; Optional Facility words
 
-;*
 ;   EKEY?       ( -- flag )                     \ FACILITY EXT
 ;               If a keyboard event is available, return true.
 ;
@@ -5361,7 +5145,6 @@ VARIA1          DW      DoLIT,DoCONST,xtComma,HeadComma
 		$COLON  5,'EKEY?',EKEYQuestion,_FLINK
 		DW      TickEKEYQ,EXECUTE,EXIT
 
-;*
 ;   EMIT?       ( -- flag )                     \ FACILITY EXT
 ;               flag is true if the user output device is ready to accept data
 ;               and the execution of EMIT in place of EMIT? would not have
