@@ -12,6 +12,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.3  1997/01/18 16:31:18  crook
+# change name space file to 3 lines/entry to speed dat2tad
+#
 # Revision 1.2  1997/01/15 23:24:58  crook
 # minor tweaks
 #
@@ -181,22 +184,19 @@ function do_envir_header() {
     print("\t\tDCD ", param[4]) > codefile
   }
   else
-  if ($1 == "D$") {
-    # format of line is: D$   DoDotQuote,' some text'  ; comment
-    #           or       D$   DoSQuote,' some text'  ; comment
-    #print ("compile an inline string:  --->" $0 "<---")
-    # $2 is of the form Doblah,' - strip off comma and everything after
-    param[1] = substr($2,1,index($2,",") - 1)
+  if ($1 == "$INSTR") {
+    # format of line is: $INSTR  ' some text'  ; optional comment
+    # print ("compile an inline string:  --->" $0 "<---")
     # find a substring delimited by single quotes
     match($0,/'[^'][^']*'/)
-    param[2] = substr($0, RSTART+1, RLENGTH-2)
-    calc_length = length(param[2])
+    param[1] = substr($0, RSTART+1, RLENGTH-2)
+    calc_length = length(param[1])
     # Double quote and dollar characters must be escaped by being doubled up
-    gsub(/"/,doubquot,param[2])
-    gsub(/\$/,"$$",param[2])
-    #print("funct = " param[1] " string = >" param[2] "<, length = " calc_length )
-    print ("\t\tDCD\t" param[1] "\t\t\t;D$") > codefile
-    print ("\t\tDCB\t" calc_length "," quot param[2] quot ) > codefile
+    gsub(/"/,doubquot,param[1])
+    gsub(/\$/,"$$",param[1])
+    #print(" string = >" param[2] "<, length = " calc_length )
+    print ("\t\tDCD\tDoLIT," calc_length ",DoSQuote\t\t\t;$INSTR") > codefile
+    print ("\t\tDCB\t" quot param[1] quot ) > codefile
     print ("\t\tALIGN") > codefile
   }
   else
