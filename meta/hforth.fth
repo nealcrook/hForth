@@ -1,5 +1,9 @@
 \ $Id$
 \ $Log$
+\ Revision 1.15  1998/10/03 18:05:09  crook
+\ Updates to head, pack" ACCEPT PARSE REFILL SPACES from Wonyong's
+\ release of 05-Jan-1998
+\
 \ Revision 1.14  1998/10/03 15:26:45  crook
 \ merged errors found in my high-level source back into hfsarom.asm
 \
@@ -70,64 +74,6 @@
 \ the target defn - non-portable at the moment (Actually, this applies
 \ to *all* stuff within [ ] ). Should change the search list so that, by
 \ default, no words are available
-
-\ ** "Bugs" in Wonyong's source
-\ 2DROP 2DUP had no high-level definition
-\ =mask in head, should be [ =MASK ] LITERAL
-\ =imed in IMMEDIATE should be [ =IMED ] LITERAL
-\ =comp in COMPILE-ONLY should be =COMP
-\ MaxNegative in doDO should be [ MaxNegative ] LITERAL
-\ .. or maybe they should all change to MASKK IMMED COMPO to match the
-\ assembler constants
-\ UNLOOP hi-level defn. needs COMPILE-ONLY
-\ the label NOrder0 in UZERO table is not needed.
-\ high-level definition of BEGIN and ELSE have IMMEDIATE typo'd (IMMDEDIATE)
-\ high-level definition for ( should be IMMEDIATE
-\ CHARS and ALIGNED and use char-size and cell-size whereas assembler
-\   source uses CHARR and CELLL
-\ call-code in FORTH, CALLL in assembler
-\ size-of-PAD in FORTH, PADSize in assembler
-\ max-char in FORTH MaxChar in assembler
-\ carriage-return-char, linefeed-char  in FORTH, CRR, LFF in assembler
-\ max-negative in FORTH, MaxNegative in assembler
-\ .ok asm def not the same as high-level def. Equivalent hi-level def
-\  is S" ok" TYPE
-\ >IN should be labelled \ CORE
-\ optiCOMPILE, has one THEN too many
-\ doubleAlso, both LITERALs should be POSTPONE LITERAL
-\ PADSize in #> and <# and REFILL should be [ PADSize ] LITERAL 
-\ MaxChar in ACCEPT, EKEY should be [ MaxChar ] LITERAL
-\ cr# in ACCEPT should be [ CRR ] LITERAL
-\ tab# in ACCEPT should be [ TABB ] LITERAL
-\ bsp# in ACCEPT should be [ BKSPP ] LITERAL (3 occurrences)
-\ del# in ACCEPT should be [ DEL ] LITERAL
-\ THEN THEN REPEAT in ACCEPT shuld be THEN REPEAT
-\ IF >R DROP 1+ R> THEN in UM/MOD should be IF >R DROP 1+ R>
-\ definition of CR should be:
-\  : CR [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
-\ CELLL should be [ CELLL ] LITERAL in ALIGNED (2 occurrences), CELLS CELL+
-\       , DEPTH
-\ CHARR should be [ CHARR ] LITERAL in CHARS
-\ change cell- definition to:
-\  : cell- [ 0 CELLL - ] LITERAL + ;
-\ XORR in = should be XOR
-\ char-size in CHAR+ should be [ CHARR ] LITERAL
-\ cell-size-in-bits in UM* and UM/MOD and RSHIFT should be [ CELLL 8 * ] LITERAL
-\ char-size in C, should be [ CHARR ] LITERAL
-\ LITERAL in singleOnly, should be POSTPONE LITERAL
-\ REPEAT should be POSTPONE AGAIN POSTPONE THEN
-\ defn of RESET-SYSTEM requires definition of a new constant sysVar00, set
-\  to a value of UZERO0 (like sysVar0).
-\ defn of TRUE should be marked CORE EXT and therefore use _FLINK
-\ defn of REPEAT should be "POSTPONE AGAIN POSTPONE THEN"
-\ in defn of SLITERAL, "DUP LITERAL" should be "DUP POSTPONE LITERAL"
-\ in defn of ABORT", >>S"<< should be >>POSTPONE S"<<
-\ more tidy to move defn of THROWMsgTbl beyond the defn of variables that are
-\  initialised from the table at reset
-\ pack" fill-to-end part may attempt a ! to an unaligned address. Fix is
-\  to be able to round-down the address.
-\ -------------- bugs discovered after reporting the first set
-\ in ACCEPT " IF DROP DUP IF 1-" should be "IF DUP IF 1-"
 
 \ This is derived from 1.17 of hfsarom.asm
 \ which in turn is derived from Wonyong's v0.9.9
@@ -464,10 +410,11 @@ MICRO-DEBUG [IF]
 [THEN]
 
 \ TODO these are forward definitions of XTs for the $VAR $CONST $VALUE $USER
-\ definitions.. 
+\ definitions..
 4000059C hCONSTANT doVALUE
 40000590 hCONSTANT doCONST
 400005D4 hCONSTANT doUSER
+
 
 
 \ $xVALUE string <label> - compile a system/Forth VALUE header
@@ -569,6 +516,9 @@ init-asm
 0 LTORG-HEAD ! \ make sure no other puddle exists
 
 		00 L# B, \ branch past literal pool
+\ TODO this literal pool is reported as having 64 entries
+\ ..if I make it half the size the compilation falls over with a
+\ seeminlgy non-literal-pool-related error
 		20 LTORG \ create the first puddle in the literal pool
 00 L.
 
@@ -658,6 +608,7 @@ CR .( *** Build THROW messages at top of name space)
 
 \ TODO - had to put in the -3 to match the prebuilt image, but don't see
 \ how it got there.. could be a bug in the awk scripts.
+\ check in asm source and fix there and here if possible.
 _NAME NumTHROWMsgs CELLL * - 3 - TO _NAME
 
 $ENVSTR" StrongARM" CPUStr \ TODO -- should be ARM4T or somesuch
@@ -1188,9 +1139,8 @@ F-DEF
 \
 		$FCODE 0<
 		0 # R0 MOV,			\ get zeroes for dummy arg
-\ TODO assembler bug - should recognise 32 = 0 for this instruction
 						\ 20H = 32 decimal
-		0 # ASR tos R0 tos ADD,	\ echo bit 32 value through r1
+		20 # ASR tos R0 tos ADD,	\ echo bit 32 value through r1
 		$NEXT
 
 \   0=		( x -- flag )			\ CORE
@@ -1871,6 +1821,8 @@ META-HI [IF]
 		$SCODE -1
 		tos pushD,
 		1 # tos MVN, \ TODO make assembler accept -1 & gen MVN
+\ TODO or see whether 	-1 tos =, works -- which might be the nicer way
+\ of doing it.
 		$NEXT
 [THEN]
 
@@ -1950,7 +1902,7 @@ META-HI [IF]
 		tos pushD,
 		0 # R1 MOV,
 		\ sign-extend tos into tos to form ms of double
-		0 # ASR tos R1 tos ADD, \ TODO 0 s/b 32 really..
+		20 # ASR tos R1 tos ADD, \ 20H = 32 decimal
 		$NEXT
 [THEN]
 
@@ -2282,7 +2234,7 @@ META-HI [IF]
 [ELSE]
 		$SCODE xhere
 		tos pushD,
-		GetVaxAdr CpVar R0 =,
+		GetVaxAdr cpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] tos LDR,
 		$NEXT
@@ -2295,7 +2247,7 @@ META-HI [IF]
 : TOxhere	cpVar ! ;
 [ELSE]
 		$SCODE TOxhere
-		GetVaxAdr CpVar R0 =,
+		GetVaxAdr cpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] tos STR,
 		tos popD,
@@ -2309,7 +2261,7 @@ META-HI [IF]
 : code,		xhere DUP CELL+ TOxhere ! ;
 [ELSE]
 		$SCODE code,
-		GetVaxAdr CpVar R0 =,
+		GetVaxAdr cpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
 		CELLL # [ R2 ] tos STR,
@@ -2429,7 +2381,7 @@ META-HI [IF]
 		$FCODE ABORT
 		tos pushD,	\ TODO gonna trash the stack so no need..
 		1 # tos MVN,
-		xtTHROW B,
+		' THROW B,
 		$END-CODE			\ tidy up
 [THEN]
 
@@ -2508,7 +2460,7 @@ META-HI [IF]
 		R1 popD,		\ c-addr
 		R0 R0 R0 ORRS,
 		10 # tos EQ MVN,	\ message -16 decimal
-\ TODO fix up	THROW EQ B,		\ can't use 0-length string as a name
+		' THROW EQ B,		\ can't use 0-length string as a name
 		R0 R1 R6 ADD,		\ point past reference string
 02 L.		[ tos ] tos LDR,	\ link to next word
 		tos tos tos ORRS,
@@ -2613,7 +2565,6 @@ META-HI [IF]
 CR .( *** ENVIRONMENT? Strings)
 ENV-DEF
 
-
 : CPU [ CPUStr ] LITERAL COUNT ;
 : model [ ModelStr ] LITERAL COUNT ;
 : version [ VersionStr ] LITERAL COUNT ;
@@ -2634,6 +2585,11 @@ ENV-DEF
 : EXCEPTION-EXT [ TRUEE ] LITERAL ;
 : WORDLISTS [ OrderDepth ] LITERAL ;
 
+\ TODO the error was rather nasty/unhelpful when this puddle wasn't present
+
+		ALSO ASSEMBLER
+		20 LTORG \ create the 2nd puddle in the literal pool
+		PREVIOUS
 
 CR .( *** Non-Standard words - Colon definitions)
 S-DEF
@@ -3089,7 +3045,7 @@ META-HI [IF]
 : COMPILE,	code, ; COMPILE-ONLY
 [ELSE]
 		$FCODE COMPILE,
-		CodeComma B,
+		' code, B,
 		$END-CODE COMPILE-ONLY
 [THEN]
 
@@ -3128,7 +3084,7 @@ META-HI [IF]
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
 		CELLL 2 * # R2 R2 ADD,	\ address of last definition name
-		GetVaxAdr Current R0 =,
+		GetVaxAdr current R0 =,
 		[ R0 ] R1 LDR,		\ wid of compilation wordlist
 		[ R1 ] R2 STR,		\ gets bumped up by new addition
 		$NEXT
@@ -3184,7 +3140,7 @@ META-HI [IF]
 		$SCODE PARSE-WORD
 		tos pushD,
 		SPC # tos MOV,
-		xtSkipPARSE B,
+		' skipPARSE B,
 		$END-CODE			\ tidy up
 [THEN]
 
@@ -3263,6 +3219,12 @@ S-DEF
 CR .( *** Essential Standard words - Colon definitions)
 F-DEF
 
+		ALSO ASSEMBLER
+		10 LTORG \ create the 3rd puddle in the literal pool
+		PREVIOUS
+
+
+
 \   HOLD	( char -- )			\ CORE
 \		Add char to the beginning of pictured numeric output string.
 \
@@ -3311,7 +3273,7 @@ META-HI [IF]
 : <#		xhere [ PADSize ] LITERAL + hld ! ;
 [ELSE]
 		$FCODE <#
-		GetVaxAdr CpVar R0 =,
+		GetVaxAdr cpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,		\ xhere address
 		PADSize CHARR * # R2 R2 ADD,
@@ -3410,7 +3372,7 @@ META-HI [IF]
 		$FCODE SPACE
 		tos pushD,
 		SPC # tos MOV,
-\ TODO		xtEMIT B,
+		' EMIT B,
 		$END-CODE
 [THEN]
 
@@ -3460,7 +3422,7 @@ META-HI [IF]
 		2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
 		IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
 		npVar @ OVER CHARS CHAR+ -
-		DUP ALIGNED SWAP OVER XOR IF CELL- THEN \ aligned to lower address
+		DUP ALIGNED SWAP OVER XOR IF cell- THEN \ aligned to lower address
 		DUP >R pack" DROP R>            \ pack the name in dictionary
 		cell- GET-CURRENT @ OVER !      \ build wordlist link
 		cell- DUP npVar !  ! ;          \ adjust name space pointer
@@ -3681,8 +3643,8 @@ META-HI [IF]
 		tos pushD,
 		0 # R1 MOV,
 		\ sign-extend tos into tos to form ms of double
-		0 # ASR tos R1 tos ADD, \ asm TODO - should accept 20 (32dec)
-\ TODO fix up		DDot B,
+		20 # ASR tos R1 tos ADD, \ 20H = 32 decimal
+		' D. B,
 		$END-CODE			\ tidy up
 [THEN]
 
@@ -3695,7 +3657,7 @@ META-HI [IF]
 		$FCODE U.
 		tos pushD,
 		0 # tos MOV,
-\ TODO		DDot B,
+		' D. B,
 		$END-CODE
 [THEN]
 
@@ -3778,6 +3740,9 @@ ALSO ASSEMBLER 02 G. PREVIOUS
   'init-i/o EXECUTE 'boot EXECUTE
   INIT-BUS QUIT ;		\ start interpretation
 
+		ALSO ASSEMBLER
+		40 LTORG \ create the 4th puddle in the literal pool
+		PREVIOUS
 
 CR .( *** Rest of CORE words and two facility words, EKEY? and EMIT?)
 F-DEF
@@ -4100,6 +4065,7 @@ META-HI [IF]
 \
 : [CHAR]	CHAR POSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
 
+
 \   \           ( "ccc<eol>" -- )		\ CORE EXT
 \		Parse and discard the remainder of the parse area.
 \
@@ -4164,8 +4130,8 @@ ALSO its-words \ find XTs for these words in the target wordlist on the host
 ' hi			4 $INIT	\ 'boot
 InitIOBYTES		4 $INIT	\ IOBYTES
 0			4 $INIT	\ SOURCE-ID
-GetVaxAdr ROMB		4 $INIT	\ CPVar
-GetVaxAdr ROMT		4 $INIT	\ NPVar
+GetVaxAdr ROMB		4 $INIT	\ cpVar
+GetVaxAdr ROMT		4 $INIT	\ cpVar
 GetVaxAdr RAMB		4 $INIT	\ hereVar points RAM space
 				\ execution vectors for 'doWord
 ' optiCOMPILE,		4 $INIT	\ nonimmediate word - compilation
