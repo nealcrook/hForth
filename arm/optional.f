@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.1  1997/08/13 18:11:54  crook
+\ Initial revision
+\
 \
 \ OPTIONAL.F
 \ Optional wordset words for 8086 hForth
@@ -470,7 +473,7 @@ FORTH-WORDLIST SET-CURRENT
 : DUMP  ?DUP
 	IF   BASE @ >R HEX
 	     1- 16 / 1+
-	     0 DO CR DUP DUP 0 <# # # # # #> TYPE SPACE SPACE
+	     0 DO CR DUP DUP 0 <# # # # # # # # # #> TYPE SPACE SPACE
 		  16 0 DO DUP C@ 0 <# # # #> TYPE SPACE CHAR+ LOOP
 		  SPACE SWAP
 		  16 0 DO   DUP C@ 127 AND DUP 0 BL WITHIN
