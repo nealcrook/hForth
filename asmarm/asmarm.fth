@@ -12,6 +12,9 @@
 \
 \
 \ $Log$
+\ Revision 1.6  1998/10/23 05:27:05  crook
+\ add sym-table dump, fix a couple of bugs and tidy up comments
+\
 \ Revision 1.5  1998/10/08 20:35:11  crook
 \ add conditional hForth stuff.
 \
@@ -206,6 +209,15 @@ ALIGN
 : huh
 	CR SOURCE TYPE CR 0 .AsmMsg$ .AsmMsg$ newop ABORT ;
 
+\ ******************* misc. factoring
+: asm-imm
+	this-op @ 80000000 AND IF 5 huh THEN \ immediate already exists?
+	this-op DUP @ 80000000 OR SWAP ! ; \ an immediate is now available
+
+: asm-shft
+	this-op @ 10000000 AND IF 6 huh THEN \ shifter already exists?
+	this-op DUP @ 10000000 OR SWAP ! ; \ a shifter is now available
+
 \ ******************* words for creating and handling registers
 \ The act of quoting a register r0 - r15 is twofold:
 \ - it pushes the number of the quoted register into a FIFO
@@ -387,9 +399,7 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ and sets flags. The consumer of the operand is responsible for range
 \ checking and coping with negative offsets.
 : #
-	this-op @ 80000000 AND IF 5 huh THEN
-	this-op @   800000 AND IF 20 huh THEN
-	this-op @ 80000000 OR this-op ! ; \ an immediate is now available
+	this-op @ 800000 AND IF 20 huh THEN asm-imm ;
 
 \ ******************* Shifter operands
 \ The shifter operands LSL, LSR, ASR, ROR, RRX can be used in DP instructions
@@ -411,9 +421,7 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 	CREATE , , , DOES> DUP >R @
 	\ expect no shifter currently defined, and *either* an immediate
 	\ available *or* exactly one register available. 
-	this-op @ DUP 10000000 AND IF 6 huh THEN
-	\ set the shifter-defined bit in case all turns out ok
-	10000000 OR this-op !
+	asm-shft
 	\ stack just holds shift op-code bits
 	this-op @ 800F0000 AND \ look at immediate bit and reg count
 	DUP 90000 = IF
@@ -441,12 +449,10 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ Build bits 11-4 for RRX shift.
 : RRX ( -- )
 	\ expect no shifter currently defined, no registers and no immediate
-	this-op @ DUP 90070000 AND IF \ TODO -- more rigorous check of # reg
-		9 huh
-	ELSE
-		10000000 OR this-op ! \ show that a shifter is defined
-		oip @ 60 OR oip ! \ make bits 11:4 of the oip indicate RRX
-	THEN ;
+	asm-shft
+	this-op @ DUP 80070000 AND \ TODO -- more rigorous check of #regs
+	IF 9 huh THEN
+	oip @ 60 OR oip ! ; \ make bits 11:4 of the oip indicate RRX
 
 \ ******************* Data-processing instructions
 \ Attempt to convert a 32-bit immediate into an 8-bit immediate and 4-bit
@@ -1133,8 +1139,7 @@ VARIABLE SYM-TABLE
 	\ the entry. When the forward reference is resolved it will  use the
 	\ offset in the LDR to locate and fix-up the literal pool value
 	0 NEWLIT ABS2OS \ allocate a literal pool entry (0 for now)
-	this-op DUP @ 80000000 OR SWAP ! \ set IMMEDIATE flag
-	0 oldreg R15 reg LDR, \ see comments below..
+	asm-imm	0 oldreg R15 reg LDR, \ see comments below..
   ELSE
 	\ immediate or resolved value at tos
 	DUP 32to12 IF \ can express using MOV
@@ -1147,7 +1152,7 @@ VARIABLE SYM-TABLE
 			\ ." =, is resolved - requires literal pool entry"
 			\ cannot express.. need to generate literal and use LDR
 			NEWLIT ABS2OS \ leave immediate offset on stack
-			this-op DUP @ 80000000 OR SWAP ! \ set IMMEDIATE flag
+			asm-imm
 			\ want to do an LDR with PC-relative addressing
 			\ need to put an R15 on reg_fifo underneath the
 			\ existing register (there should be exactly 1)
@@ -1161,7 +1166,8 @@ VARIABLE SYM-TABLE
 \ ******************* Useful macros for hForth
 4 CONSTANT CELLL
 : tos R9 ;
-: fpc R10 ;
+: fpc R10 ; \ for DTC model
+: tmp R10 ; \ scratch register for STC model
 : rsp R11 ;
 : dsp R12 ;
 \ usage of these is R4 pushD,
@@ -1217,84 +1223,22 @@ CHAR " PARSE hforth" ENVIRONMENT?
   ' @ 'ASM@ !
 [THEN]
 
+\ ******************* Standard words for using the assembler
 
-\ ******************* Standard words for using the assembler - for hForth only
-\ TODO should only do this for ROM model.. other models are slightly
-\ different
-CHAR " PARSE hforth" ENVIRONMENT?
-[IF]
-
-FORTH-WORDLIST SET-CURRENT	\ add the following words in FORTH-WORDLIST
-
-\ TODO -- should NOT be in FORTH-WORDLIST.. should be in FORTH
-\ .. fix up the wordlist stuff. ??huh??
-
-
-\   CODE	( '<spaces>name' -- )           \ TOOLS EXT
-\		Skip leading space delimiters.	Parse name delimited by a
-\		space. Create a definition for name, called a
-\		'code definition,' with the execution semantics defined below.
-\		Process subsequent characters in the parse area in an
-\		implementation-defined manner, thus generating corresponding
-\		machine code. Those characters typically represent source code
-\		in a programming language, usually some form of assembly
-\		language.  The process continues, refilling the input buffer
-\		as needed, until an implementation-defined ending sequence is
-\		processed.
-\
-\		name Execution:( i*x --- j*x )
-\		Execute the machine code sequence that was generated
-\		following CODE.
-: CODE	( "<spaces>name" -- )    \ TOOLS EXT
-	-1 TO notNONAME?
-\ TODO xhere accesses should use the ASM words?
-	xhere ALIGNED DUP TOxhere	\ align code address
-	head,				\ register a word in dictionary
-	ALSO ASSEMBLER init-asm ;
-
-\   ;CODE	Compilation: ( C: colon-sys -- )	\ TOOLS EXT
-\		Interpretation: Interpretation semantics for this word
-\				are undefined.
-\		Append the run-time semantics below to the current definition.
-\		End the current definition, allow it to be found in the
-\		dictionary, and enter interpretation state, consuming
-\		colon-sys. Process subsequent characters in the parse area in
-\		an implementation-defined manner, thus generating corresponding
-\		machine code. Those characters typically represent source code
-\		in a programming language, usually some form of assembly
-\		language.  The process continues, refilling the input buffer as
-\		needed, until an implementation-defined ending sequence is
-\		processed.
-\
-\		Run-time:( -- ) ( R: nest-sys -- )
-\		Replace the execution semantics of the most recent definition
-\		with the name execution semantics given below. Return control
-\		to the calling definition specified by nest-sys. An ambiguous
-\		condition exists if the most recen definition was not defined
-\		with CREATE or a user-defined word that calls CREATE.
-\
-\		name Execution:( i*x --- j*x )
-\		Perform the machine code sequence that was generated
-\		following ;CODE.
-: ;CODE
-	bal 1- IF -22 THROW THEN        \ control structure mismatch
-	NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
-	bal- POSTPONE [
-\ TODO xhere accesses should use the ASM words?
-	xhere 2 CELLS - TOxhere
-	ALSO ASSEMBLER init-asm ; COMPILE-ONLY IMMEDIATE
+\ (Deleted - define in application.)
 
 \ ******************* Implementation-dependent end for CODE and ;CODE
-: END-CODE
-	LOCAL-RESOLVED \ ensure all forward references are resolved
-	PREVIOUS notNONAME? IF linklast 0 to notNONAME THEN ;
 
-[THEN]
+\ (Deleted - define in application. Here is an example of what you
+\ might include:
+\ : END-CODE
+\	LOCAL-RESOLVED \ ensure all forward references are resolved
+\	PREVIOUS notNONAME? IF linklast 0 to notNONAME THEN ;
+\ )
 
 \ ******************* Tidy up
 
 SET-ORDER  SET-CURRENT
-\ TODO ram/rom! if appropriate model
 CR DEPTH 1- -
-[IF] .( asmarm affected DEPTH) ABORT [THEN] CR .( ..asmarm loaded OK)
+[IF] .( asmarm affected DEPTH) ABORT [THEN] CR .( ..asmarm loaded OK) CR
 BASE !
