@@ -1,5 +1,9 @@
 \ $Id$
 \ $Log$
+\ Revision 1.4  1999/06/25 00:40:08  crook
+\ "immediate" target words don't actually need to be labelled as
+\ immediate on the host.
+\
 \ Revision 1.3  1998/11/25 21:48:57  crook
 \ check-point before starting on STC modifications.
 \
@@ -16,6 +20,10 @@ CR .( *** Immediate words for target system)
 \ -. ; AGAIN AHEAD IF LITERAL THEN [ ( +LOOP ." ABORT" BEGIN
 \ DO DOES> ELSE LEAVE LOOP POSTPONE RECURSE REPEAT SLITERAL S" TO UNTIL
 \ WHILE ['] [CHAR] \
+\
+\ Of these, the definitions for -. \ ( are not required on the host
+\ ( -. is used for error detection, the function of the other two can
+\ be performed by the host's definition.)
 \
 \ there are 3 definitions of each of these words. For an immediate word
 \ fred there is:
@@ -47,10 +55,6 @@ CR .( Check search order -> ) ORDER
 BASE @ DECIMAL
 ALSO its-words
 
-: nit--. -13 THROW ;
-: it--. nit--. ; hIMMEDIATE
-
-
 : nit-[   0 STATE ! restore-order ; hCOMPILE-ONLY
 : it-[ nit-[ ; hIMMEDIATE hCOMPILE-ONLY
 
@@ -58,7 +62,7 @@ ALSO its-words
 \   ;           ( colon-sys -- )		 \ CORE
 \		Terminate a colon definition.
 \
-: nit-;  restore-order
+: nit-;
 	bal 1- IF -22 THROW THEN        \ control structure mismatch
 	NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
 	notNONAME? IF   \ if the last definition is not created by ':'
@@ -161,10 +165,6 @@ ALSO its-words
 : it-WHILE nit-WHILE ; hCOMPILE-ONLY hIMMEDIATE
 
 
-: nit-(         [CHAR] ) PARSE 2DROP ;
-: it-( nit-( ; hIMMEDIATE
-
-
 \ Copy a string into target space along with the words that are needed
 \ at run-time in order to print it.
 : nit-SLITERAL
@@ -231,9 +231,6 @@ ALSO its-words
   tPOSTPONE 2DROP nit-THEN ;  hCOMPILE-ONLY
 : it-ABORT" nit-ABORT" ; hCOMPILE-ONLY hIMMEDIATE
 
-: nit-\ SOURCE >IN ! DROP ;
-: it-\ nit-\ ; hIMMEDIATE
-
 \ take a number off the stack and create an immediate word whose action is to
 \ parse the input buffer and extract a number. The word D# n has the same
 \ effect as [ n ] LITERAL - which is normally redundant, but is needed when
@@ -268,7 +265,6 @@ PREVIOUS \ back to standard
 ALSO it-words DEFINITIONS PREVIOUS
 ALSO its-words
 
-: -. nit--. ;
 : [ nit-[ ;
 \ : ; nit-; ;
 : BEGIN nit-BEGIN ;
@@ -287,7 +283,7 @@ ALSO its-words
 : REPEAT nit-REPEAT ;
 : WHILE nit-WHILE ;
 : LITERAL nit-LITERAL ;
-: ( nit-( ;
+: ( hPOSTPONE ( ; \ host version
 : SLITERAL nit-SLITERAL ;
 : S" nit-S" ;
 : ." nit-." ;
@@ -296,7 +292,7 @@ ALSO its-words
 : [CHAR] nit-[CHAR] ;
 : POSTPONE nit-POSTPONE ;
 : ABORT" nit-ABORT" ;
-: \ nit-\ ;
+: \ hPOSTPONE \ ; \ host version
 16 N# H#
 10 N# D#
 
