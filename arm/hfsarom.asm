@@ -5,6 +5,10 @@
 ;; $Id$
 ;;
 ;; $Log$
+;; Revision 1.8  1997/01/28 20:41:21  crook
+;; Native same? (search-wordlist), complete cache support
+;; multitasker works, optional.f loads and at least some of it works.
+;;
 ;; Revision 1.7  1997/01/24 19:48:20  crook
 ;; migrated to
 ;; Wonyong's V1.0 sources
@@ -31,16 +35,14 @@
 
 
 ;;; NAC things-to-do
-;;; 1. test mmu words
-;;; 2. redesign mem map to allow space for page tables
 ;;; 3. add mmu words from utils, create hutils.fth
 ;;; 5. port support routines
-;;; 6. recode stuff in here for speed
 ;;; 7. port EBSA words
 ;;; 8. write porting guide
+;;; - On error, the serial I/O gets re-initialised. That's a problem if
+;;;   SETBAUD has been used. Need a variable for storing it.
 ;;; Issues
 ;;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
-
 	
 ;===============================================================
 ;
@@ -291,11 +293,12 @@ CALLL           EQU     0eb000000h      ;for ARM
 ;   ROMbottom||initial-code>--//--<initial-name||ROMtop
 ;   RAMbottom||code/data>WORDworkarea|--//--|PAD|TIB|reserved<name|sp|rp||RAMtop
 
-;NAC: The memory map for EBSA-110 ARM systems is designed to fit into 2, 64Kbyte sections.
-;NAC: The first section is the ROM section, which can be loaded from Flash and stored back
-;NAC: to Flash with new definitions added. The second section is the RAM Section which is
-;NAC: volatile: it never gets saved away. The first 16Kbytes of the RAM section is reserved for
-;NAC: the memory-management page tables.
+;NAC: The memory map for EBSA-110 ARM systems is designed to fit into 2,
+;64Kbyte sections. The first section is the ROM section, which can be loaded
+;from Flash and stored back to Flash with new definitions added. The second
+;section is the RAM Section which is volatile: it never gets saved away. The
+;first 16Kbytes of the RAM section is reserved for the memory-management page
+;tables.
 ;
 MMU0		EQU	040010000h		;start of page tables
 RAM0            EQU     040014000h              ;bottom of RAM memory ******
@@ -1227,6 +1230,8 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 		$INSTR  'Please send comment, bug report and suggestions to:'
 		DW      TYPEE,CR
 		$INSTR  '  wykoh@pado.krict.re.kr'
+		DW      TYPEE,CR
+		$INSTR  'StrongARM port by neal.crook@reo.mts.dec.com'
 		DW      TYPEE,CR,EXIT
 
 ;   COLD        ( -- )
@@ -1622,8 +1627,6 @@ coffm		EQU &ffffefff
 ;                 DW      DoLOOP,SAMEQ3
 ; SAMEQ4:         DW      TwoDROP,Zero,EXIT
 
-;NAC: TODO this isn't tested since (compare-wordlist) native version never
-;uses it..
 		$CODE   5,'same?',SameQ,_SLINK
 		popD	r0		;c-addr2
 		popD	r1		;c-addr1
@@ -1698,35 +1701,35 @@ SAME1:
 ; into cells
 
 		$CODE   17,'(search-wordlist)',ParenSearch_Wordlist,_SLINK
-		popD	r0	;u
-		popD	r1	;c-addr
+		popD	r0		;u
+		popD	r1		;c-addr
 		orrs	r0, r0, r0
 		moveq	tos,#-16
 		beq	THROW	;attempt to use 0-length string as a name
-PSRCH2:		ldr	tos,[tos] ;link to next word
+		add	r6, r1, r0  	;point past reference string
+PSRCH2:		ldr	tos,[tos]	;link to next word
 		orrs	tos, tos, tos
 		beq	PSRCH3	;link of 0 indicates end of word list
 		; get length byte and point to next-word link
 		ldrb	r5, [tos], #-CELLL
-		and	r2, r5, #MASKK ;get length
-		cmp	r2, r0	;same length as word we're looking for?
-		bne	PSRCH2	;no. Try next word in the list
-		add	r2, tos, #5 ;point to 1st byte of string in dict'y
-		add	r6, r2, r0  ;r6 points past end of string in dict'y
-		mov	r7, r1	    ; take a copy of the start address
-		;now compare strings at r7, r2 until r2=r6
+		and	r2, r5, #MASKK	;get length
+		cmp	r2, r0		;same length as word we're looking for?
+		bne	PSRCH2		;no. Try next word in the list
+		add	r2, tos, #5 	;point to 1st byte of string in dict'y
+		mov	r7, r1		;take a copy of the start address
+		;now compare strings at r7, r2 until r7=r6
 PSRCH4:		ldrb	r3, [r7], #1
 		ldrb	r4, [r2], #1
 		subs	r3, r4, r3
 		bne	PSRCH2	;mismatch. Try next word in the list
-		subs	r4, r2, r6
-		bne	PSRCH4	;match so far, keep going
+		subs	r4, r7, r6
+		bne	PSRCH4		;match so far, keep going
 ;match!! and we tricked 0 into r3 and r4 for later use..
 		ldr	r0, [tos, #-CELLL]
-		pushD	r0	;stack the xt
+		pushD	r0		;stack the xt
 		tst	r5, #COMPO
 		; eq => !COMPO, want to push -1. ne => COMPO push 0
-		subeq	r3, r3, #1 ;r3 started as 0
+		subeq	r3, r3, #1	;r3 started as 0
 		pushD	r3
 		ands	tos, r5, #IMMED
 		; eq => tos=0 => IMMED clear
@@ -3130,17 +3133,30 @@ NUMSS1:         DW      NumberSign,TwoDUP,ORR
 ;
 ;   : +         um+ DROP ;
 
-		$COLON  1,'+',Plus,_FLINK
-		DW      UMPlus,DROP,EXIT
+;		$COLON  1,'+',Plus,_FLINK
+;		DW      UMPlus,DROP,EXIT
+
+		$CODE	1,'+',Plus,_FLINK
+		popD	r1
+		add	tos,tos,r1
+		$NEXT
 
 ;   +!          ( n|u a-addr -- )               \ CORE
 ;               Add n|u to the contents at a-addr.
 ;
 ;   : +!        SWAP OVER @ + SWAP ! ;
 
-		$COLON  2,'+!',PlusStore,_FLINK
-		DW      SWAP,OVER,Fetch,Plus
-		DW      SWAP,Store,EXIT
+;		$COLON	2,'+!',PlusStore,_FLINK
+;		DW      SWAP,OVER,Fetch,Plus
+;		DW      SWAP,Store,EXIT
+
+		$CODE	2,'+!',PlusStore,_FLINK
+		popD	r0
+		ldr	r1,[tos]
+		add	r1,r1,r0
+		str	r1,[tos]
+		popD	tos
+		$NEXT
 
 ;   ,           ( x -- )                        \ CORE
 ;               Reserve one cell in RAM or ROM data space and store x in it.
@@ -3197,16 +3213,24 @@ NUMSS1:         DW      NumberSign,TwoDUP,ORR
 ;
 ;   : 1+        1 + ;
 
-		$COLON  2,'1+',OnePlus,_FLINK
-		DW      One,Plus,EXIT
+;		$COLON  2,'1+',OnePlus,_FLINK
+;		DW      One,Plus,EXIT
+
+		$CODE  2,'1+',OnePlus,_FLINK
+		add	tos,tos,#1
+		$NEXT
 
 ;   1-          ( n1|u1 -- n2|u2 )              \ CORE
 ;               Decrease top of the stack item by 1.
 ;
 ;   : 1-        -1 + ;
 
-		$COLON  2,'1-',OneMinus,_FLINK
-		DW      MinusOne,Plus,EXIT
+;		$COLON  2,'1-',OneMinus,_FLINK
+;		DW      MinusOne,Plus,EXIT
+
+		$CODE	2,'1-',OneMinus,_FLINK
+		sub	tos,tos,#1
+		$NEXT
 
 ;   2!          ( x1 x2 a-addr -- )             \ CORE
 ;               Store the cell pare x1 x2 at a-addr, with x2 at a-addr and
@@ -3229,8 +3253,13 @@ NUMSS1:         DW      NumberSign,TwoDUP,ORR
 ;   2DROP       ( x1 x2 -- )                    \ CORE
 ;               Drop cell pair x1 x2 from the stack.
 
-		$COLON  5,'2DROP',TwoDROP,_FLINK
-		DW      DROP,DROP,EXIT
+;		$COLON  5,'2DROP',TwoDROP,_FLINK
+;		DW      DROP,DROP,EXIT
+
+		$CODE  5,'2DROP',TwoDROP,_FLINK
+		popD	tos
+		popD	tos
+		$NEXT
 
 ;   2DUP        ( x1 x2 -- x1 x2 x1 x2 )        \ CORE
 ;               Duplicate cell pair x1 x2.
