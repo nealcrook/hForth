@@ -5,6 +5,10 @@
 ;; $Id$
 ;;
 ;; $Log$
+;; Revision 1.6  1997/01/18 16:32:18  crook
+;; changed whitespace to tab. Fixed ?call and doCREATE. No known bugs..
+;; Words still exit through udebug for now
+;;
 ;; Revision 1.5  1997/01/16 19:19:01  crook
 ;; fix bug in QCALL
 ;;
@@ -24,7 +28,6 @@
 
 ;;; NAC things-to-do
 ;;; 1. add memory-management words
-;;; 2. update to Wonyong's V1 code
 ;;; 3. feed changes back to Wonyong
 ;;; 4. add file/hand
 ;;; 5. port support routines
@@ -33,16 +36,126 @@
 ;;; 8. write porting guide
 ;;; Issues
 ;;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
+
 	
 ;===============================================================
 ;
-;       hForth ARM ROM model v0.9.7 by Neal Crook,
-;       ported from: 8086 model by Wonyong Koh, 1995
-; 
-; 1996. 5. 21.
-;       Start ARM version derived from 8086 version v0.9.7
+;	ARM RISC port of Wonyong Koh's hForth.
+;	Starting point was:
+;       hForth 8086 ROM model v1.0 by Wonyong Koh, 1996
 ;
-;;NAC: removed Korean language stuff from here
+;
+; 1996. 12. 18.
+;       Revise 'head,'.
+; 1996. 12. 3.
+;       Revise PICK to catch stack underflow.
+; 1996. 11. 29.
+;       Implement control-flow stack on data stack. Control-flow stack
+;               item consists of two data stack items, one for value
+;               and one for the type of control-flow stack item.
+;
+;       control-flow stack item   data stack representation
+;               dest            control-flow_destination        0
+;               orig            control-flow_origin             1
+;               of-sys          OF_origin                       2
+;               case-sys        x (any value)                   3
+;               do-sys          ?DO_origin         DO_destination
+;               colon-sys       xt_of_current_definition       -1
+;
+;       Add PICK.
+;       'bal' is now the depth of control-flow stack.
+;       Drop 'lastXT'.
+;       Introduce 'notNONAME?'
+;       Add 'bal+' and 'bal-'. Drop  'orig+', 'orig-', 'dest+', 'dest-',
+;               'dosys+', and 'dosys-'.
+;       Revise ':NONAME', ':', ';', 'linkLast', 'head,', RECURSE, 'DOES>',
+;               CONSTANT, CREATE, VALUE, VARIABLE, and QUIT.
+;               This change makes RECURSE work properly in ':NONAME ... ;'
+;               and '... DOES> ... ;'.
+;       Revise 'rake', AGAIN, AHEAD, IF, THEN, +LOOP, BEGIN, DO, ELSE, LOOP,
+;               UNTIL, and WHILE.
+;
+; 1996. 11. 29.
+;       Revise SLITERAL, '."', 'doS"' to allow a string larger than
+;               max char size.
+;       Revise $INSTR and remove 'do."'.
+;       Revise 'pack"'.
+; 1996. 6. 19.
+;       Fix '/STRING'.
+;
+; Changes from 0.9.7
+;
+; 1996. 2. 10.
+;       Revise FM/MOD and SM/REM to catch result-out-of-range error in
+;               '80000. 2 FM/MOD'.
+; 1996. 1. 19.
+;       Rename 'x,' to 'code,'.
+; 1996. 1. 7.
+;       Rename non-Standard 'parse-word' to PARSE-WORD.
+; 1995. 12. 2.
+;       Drop '?doLIST' and revise 'optiCOMPILE,'.
+;
+; Changes from 0.9.6
+;
+; 1995. 11. 25.
+;       Make 'lastXT' VALUE word.
+; 1995. 11. 23.
+;       Revise doCREATE, CREATE, pipe, DOES>, and >BODY.
+;               'pipe' is no longer processor-dependent.
+; 1995. 11. 17.
+;       Move ERASE to ASM8086.F.
+;
+; Changes from 0.9.5
+;
+; 1995. 11. 15.
+;       Fix MOVE to check whether 'u' is 0.
+;       Add ERASE.
+; 1995. 11. 5.
+;       Revise 'orig+', 'dosys+', etc to catch 'DO IF LOOP' mismatch.
+;
+; Changes from 0.9.2
+;
+; 1995. 9. 6.
+;       Move terminal input buffer (TIB) below the name space to
+;               prevent accidental overwriting it. It was too close
+;               to HERE and might be overwritten by ALLOT or , .
+;       TIB address is only known to REFILL . Revise REFILL .
+;       Move PAD also with TIB.
+; 1995. 9. 5.
+;       Revise EVALUATE for FILE words.
+; 1995. 8. 21
+;       Mr. Chris Jakeman kindly report several bugs and made suggestions.
+;       CHARS is added in the definition of /STRING .
+;       '1chars/' is introduced to convert # address units to # chars.
+;       'skipPARSE' is introduced. 'parse-word' and 'WORD' are
+;               redefined using it.
+;
+; Changes from 0.9.0
+;
+; 1995. 7. 21.
+;       Make 'cpVar', 'npVar' and 'hereVar' VALUE type.
+;       Make SOURCE-ID VALUE type, replace TOsource-id with
+;               "TO SOURCE-ID" and remove TOsource-id .
+; 1995. 7. 20.
+;       Make 'ekey? , 'ekey , 'emit? , 'emit , 'init-i/o , 'prompt
+;               and 'boot VALUE type and replace "'emit @ EXECUTE"
+;               with "'emit EXECUTE".
+; 1995. 7. 19.
+;       Add doVALUE , doTO , VALUE and TO .
+;       Replace 'DUP' with '?DUP' in the definition of "(')".
+;       Replace 'CREATEd' with 'doCREATE' and remove CREATEd .
+; 1995. 7. 6.
+;       Move "'init-i/o @ EXECUTE" from QUIT to THROW according
+;       to the suggestion from Mr. Chris Jakeman.
+; 1995. 6. 14.
+;       Revise $ENVIR for portability.
+;       'CR' is a system dependent definition.
+; 1995. 6. 9.
+;       Rename '.ok' and '.OKay' as '.prompt' and '.ok' respectively.
+; 1995. 6. 5.
+;       Fix SOURCE-ID .
+;
+;; NAC removed Korean text
 ;;
 ;       hForth ROM model is designed for small embedded system.
 ;       Especially it is designed for a minimal development system which
@@ -119,9 +232,9 @@ dsp             RN r12                          ; DATA stack pointer
 ; - for metacompilation it will be necessary to re-order some words to remove
 ;   forward references.
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Assembly Constants
-;***************
+;;;;;;;;;;;;;;;;
 
 TRUEE           EQU     -1
 FALSEE          EQU     0
@@ -148,8 +261,6 @@ MaxWLISTS       EQU     20              ;maximum number of wordlists
 
 NumTHROWMsgs    EQU     58              ;Number of throw messages
 
-;NAC: might need something better for MASKK.. I did before, and I think I
-;made it platform-independent.
 COMPO           EQU     020h            ;lexicon compile only bit
 IMMED           EQU     040h            ;lexicon immediate bit
 MASKK           EQU     1Fh             ;lexicon bit mask
@@ -363,6 +474,7 @@ _ENVLINK        SETA 0                          ;force a null link
 _NAME           SETA ROMEnd                     ;initialize name pointer
 ;NAC: don't think that _CODE needs to be initialised.. it is always used as
 ;temporary storage in macro expansions. This is a bug in eForth, too.
+;furthermore, the macros always 'restore' _CODE at the end, which is unecessary
 _CODE           SETA CODEE                      ;initialize code pointer
 _VAR            SETA RAM0                       ;variable space pointer
 
@@ -389,9 +501,9 @@ $label          popR $reg
 $label          ldr     $reg, [rsp], #CELLL
 		MEND
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Assembly macros
-;***************
+;;;;;;;;;;;;;;;;
 
 ;       Adjust an address to the next cell boundary.
 
@@ -444,7 +556,7 @@ LABEL:                                          ;assembly label
 	_NAME   = _NAME-((_LEN+3)*CELLL)        ;new header on cell boundary
 ORG     _NAME                                   ;set name pointer
 	DW      _CODE,LINK                      ;token pointer and link
-	LINK   = $                              ;link points to a name string
+	LINK    = $                             ;link points to a name string
 	DB      LEX,NAME                        ;name string
 ORG     _CODE                                   ;restore code pointer
 	ENDM
@@ -497,13 +609,15 @@ $USER   MACRO   LEX,NAME,LABEL,OFFSET,LINK
 
 ;       Compile an inline string.
 
-D$      MACRO   FUNCT,STRNG
-	DW      FUNCT                           ;function
-	_LEN    = $                             ;save address of count byte
-	DB      0,STRNG                         ;count byte and string
+$INSTR  MACRO   STRNG
+	DW      DoLIT
+	_LEN    = $                             ;save address of count
+	DW      0                               ;count
+	DW      DoSQuote                        ;doS"
+	DB      STRNG                           ;store string
 	_CODE   = $                             ;save code pointer
 ORG     _LEN                                    ;point to count byte
-	DB      _CODE-_LEN-1                    ;set count
+	DW      _CODE-_LEN-2*CELLL              ;set count
 ORG     _CODE                                   ;restore code pointer
 	$ALIGN
 	ENDM
@@ -534,9 +648,9 @@ $NEXT   MACRO
 
 ;===============================================================
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Main entry points and COLD start data
-;***************
+;;;;;;;;;;;;;;;;
 
 
 		AREA myprog,ABS,CODE,DATA
@@ -651,7 +765,8 @@ UZERO:          DW      RXQ                     ;'ekey?
 		DW      NTOP                    ;ROMT
 		DW      VTOP                    ;RAMB
 		DW      RAMT0                   ;RAMT
-		DW      0                       ;lastXT
+		DW      0                       ;bal
+		DW      0                       ;notNONAME?
 		DW      0                       ;rakeVar
 NOrder0:        DW      2                       ;#order
 		DW      FORTH_WORDLISTAddr      ;search order stack
@@ -695,7 +810,7 @@ ULAST:
 	$THROWTABLE AddrTHROWMsgTbl,NumTHROWMsgs
 
 	$STR        SystemIDStr,'hForth ARM ROM Model'
-	$STR        VersionStr,'0.9.7'
+	$STR        VersionStr,'1.0'
 	$STR        NullString,''
 	$THROWSTR   THROWMsg_01,'ABORT'
 	$THROWSTR   THROWMsg_02,'ABORT"'
@@ -764,9 +879,9 @@ ULAST:
 ;;;ORG     CODEE                                   ;start code dictionary
 
 
-;***************
+;;;;;;;;;;;;;;;;
 ; System dependent words -- Must be re-definded for each system.
-;***************
+;;;;;;;;;;;;;;;;
 ; I/O words must be redefined if serial communication is used instead of
 ; keyboard. Following words are for MS-DOS system.
 
@@ -1022,7 +1137,6 @@ QGetChar
 
 		$CONST  3,'TX?',TXQ,TRUEE,_SLINK   ;always true for UART
 
-
 ;   TX!         ( u -- )
 ;               Send char to the output device.
 
@@ -1082,8 +1196,8 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 		$ALIGN
 	ELSE
 		bl      DoLIST                  ;fake a colon definition
-		D$      DoDotQuote,' Sorry - nowhere to go! '
-		DW      CR,EXIT
+		$INSTR  ' Sorry - nowhere to go!'
+		DW      TYPEE,CR,EXIT
 	ENDIF
 
 ;   Iflushline  ( -- )
@@ -1102,25 +1216,25 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 ;
 ;   : hi        CR S" systemID" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
 ;                  S" version"  ENVIRONMENT? DROP TYPE
-;               ."  by Wonyong Koh, 1995" CR
+;               ."  by Wonyong Koh, 1996" CR
 ;               ." ALL noncommercial and commercial uses are granted." CR
 ;               ." Please send comment, bug report and suggestions to:" CR
-;               ."   wykoh@pado.krict.re.kr or 82-42-861-4245 (FAX)" CR ;
+;               ."   wykoh@pado.krict.re.kr" CR ;
 
 		$COLON  2,'hi',HI,_SLINK
 		DW      CR
-		D$      DoSQuote,'systemID'
+		$INSTR  'systemID'
 		DW      ENVIRONMENTQuery,DROP,TYPEE,SPACE,DoLIT,'v',EMIT
-		D$      DoSQuote,'version'
+		$INSTR  'version'
 		DW      ENVIRONMENTQuery,DROP,TYPEE
-		D$      DoDotQuote,' by Wonyong Koh, 1995'
-		DW      CR
-		D$      DoDotQuote,'All noncommercial and commercial uses are granted.'
-		DW      CR
-		D$      DoDotQuote,'Please send comment, bug report and suggestions to:'
-		DW      CR
-		D$      DoDotQuote,'  wykoh@pado.krict.re.kr or 82-42-861-4245 (FAX)'
-		DW      CR,EXIT
+		$INSTR  ' by Wonyong Koh, 1996'
+		DW      TYPEE,CR
+		$INSTR  'All noncommercial and commercial uses are granted.'
+		DW      TYPEE,CR
+		$INSTR  'Please send comment, bug report and suggestions to:'
+		DW      TYPEE,CR
+		$INSTR  '  wykoh@pado.krict.re.kr'
+		DW      TYPEE,CR,EXIT
 
 ;   COLD        ( -- )
 ;               The cold start sequence execution word.
@@ -1218,16 +1332,16 @@ STDIN1:         DW      EXIT
 		$COLON  IMMED+2,'<<',FROM,_SLINK
 		DW      STATE,Fetch,ZBranch,FROM1
 		DW      CR
-		D$      DoDotQuote,'Do not use << in a definition.'
-		DW      ABORT
+		$INSTR  'Do not use << in a definition.'
+		DW      TYPEE,ABORT
 FROM1:          DW      PARSE_WORD,STDIN,SOURCE,ToIN,Store,DROP,EXIT
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Non-Standard words - Processor-dependent definitions
 ;       32-bit Forth for ARM RISC
-;***************
+;;;;;;;;;;;;;;;;
 
-;***************
+;;;;;;;;;;;;;;;;
 ; microdebugger for debugging hForth ports
 ;
 ; The major problem with debugging Forth code at the assembler level is that
@@ -1288,7 +1402,7 @@ trapfpc		DW 0
 ;   inline literal
 ; Clearly, you could overcome these limitations by making udebug more
 ; complex -- but then you run the risk of introducing bugs in that code.
-;***************
+;;;;;;;;;;;;;;;;
 
 
 ;   same?       ( c-addr1 c-addr2 u -- -1|0|1 )
@@ -1645,10 +1759,10 @@ QCALL1:         DW      Zero,EXIT
 		pushD   r1                      ;store sum
 		$NEXT
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Standard words - Processor-dependent definitions
 ;       32-bit Forth for ARM RISC
-;***************
+;;;;;;;;;;;;;;;;
 
 ;   ALIGN       ( -- )                          \ CORE
 ;               Align the data space pointer.
@@ -1887,9 +2001,9 @@ QCALL1:         DW      Zero,EXIT
 		eor     tos, tos, r1
 		$NEXT
 
-;***************
+;;;;;;;;;;;;;;;;
 ; System constants and variables
-;***************
+;;;;;;;;;;;;;;;;
 
 ;   var0        ( -- a-addr )
 ;               Start of system variable area.
@@ -2006,11 +2120,17 @@ AddrRAMB        EQU     _VAR -CELLL
 		$VAR    4,'RAMT',RAMT,_SLINK
 AddrRAMT        EQU     _VAR -CELLL
 
-;   lastXT      ( -- xt )
-;               Return xt of the last definition.
+;   bal         ( -- n )
+;               Return the depth of control-flow stack.
 
-		$VALUE  6,'lastXT',LastXT,_SLINK
-AddrLastXT      EQU     _VAR -CELLL
+		$VALUE  3,'bal',Bal,_SLINK
+AddrBal         EQU     _VAR -CELLL
+
+;   notNONAME?  ( -- f )
+;               Used by ';' whether to do 'linkLast' or not
+
+		$VALUE  10,'notNONAME?',NotNONAMEQ,_SLINK
+AddrNotNONAMEQ  EQU     _VAR -CELLL
 
 ;   rakeVar     ( -- a-addr )
 ;               Used by 'rake' to gather LEAVE.
@@ -2185,20 +2305,20 @@ _VAR            SETA _VAR + CELLL             ;RP0 for system task
 		$ENVIR  9,'WORDLISTS'
 		DW      DoLIT,OrderDepth,EXIT
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Non-Standard words - Colon definitions
-;***************
+;;;;;;;;;;;;;;;;
 
 ;   (')         ( "<spaces>name" -- xt 1 | xt -1 )
 ;               Parse a name, find it and return execution token and
 ;               -1 or 1 ( IMMEDIATE) if found
 ;
-;   : (')       PARSE-WORD search ?DUP IF NIP EXIT THEN
+;   : (')       PARSE-WORD search-word ?DUP IF NIP EXIT THEN
 ;               errWord 2!      \ if not found error
 ;               -13 THROW ;     \ undefined word
 
 		$COLON  3,"(')",ParenTick,_SLINK
-		DW      PARSE_WORD,Search,QuestionDUP,ZBranch,PTICK1
+		DW      PARSE_WORD,Search_word,QuestionDUP,ZBranch,PTICK1
 		DW      NIP,EXIT
 PTICK1:         DW      ErrWord,TwoStore,DoLIT,-13,THROW
 
@@ -2220,8 +2340,8 @@ PARDD1:         DW      LessNumberSign,NumberSignS,ROT
 ;   : .ok       ." ok" ;
 
 		$COLON  3,'.ok',DotOK,_SLINK
-		D$      DoDotQuote,'ok'
-		DW      EXIT
+		$INSTR  'ok'
+		DW      TYPEE,EXIT
 
 ;   .prompt         ( -- )
 ;               Disply Forth prompt. This word is vectored.
@@ -2252,62 +2372,21 @@ PARDD1:         DW      LessNumberSign,NumberSignS,ROT
 		$VAR    9,'abort"msg',AbortQMsg,_SLINK
 _VAR            SETA _VAR +CELLL
 
-;   bal         ( -- a-addr )
-;               Check for match of contol structure. bal must be zero at the
-;               end of colon definition. Otherwise -22 THROW . From least
-;               significant bit, 4 bits are reserved for 'orig'; 4 bits for
-;               'dest'; 4 bits for 'do-sys'. Most significant 4 bits are free
-;               which may be used for 'case-sys'.
-
-		$VAR    3,'bal',Balance,_SLINK
-
-;   orig+       ( -- )
+;   bal+        ( -- )
 ;               Increase bal by 1.
 ;
-;   : orig+     1 bal +! ;
+;   : bal+      bal 1+ TO bal ;
 
-		$COLON  5,'orig+',OrigPlus,_SLINK
-		DW      One,Balance,PlusStore,EXIT
+		$COLON  4,'bal+',BalPlus,_SLINK
+		DW      Bal,OnePlus,DoTO,AddrBal,EXIT
 
-;   orig-       ( -- )
+;   bal-        ( -- )
 ;               Decrease bal by 1.
 ;
-;   : orig-     -1 bal +! ;
+;   : bal-      bal 1- TO bal ;
 
-		$COLON  5,'orig-',OrigMinus,_SLINK
-		DW      MinusOne,Balance,PlusStore,EXIT
-
-;   dest+       ( -- )
-;               Increase bal by 16.
-;
-;   : dest+     16 bal +! ;
-
-		$COLON  5,'dest+',DestPlus,_SLINK
-		DW      DoLIT,16,Balance,PlusStore,EXIT
-
-;   dest-       ( -- )
-;               Decrease bal by 16.
-;
-;   : dest-     -16 bal +! ;
-
-		$COLON  5,'dest-',DestMinus,_SLINK
-		DW      DoLIT,-16,Balance,PlusStore,EXIT
-
-;   dosys+       ( -- )
-;               Increase bal by 256.
-;
-;   : dosys+    256 bal +! ;
-
-		$COLON  6,'dosys+',DoSysPlus,_SLINK
-		DW      DoLIT,256,Balance,PlusStore,EXIT
-
-;   dosys-       ( -- )
-;               Decrease bal by 256.
-;
-;   : dosys-    -256 bal +! ;
-
-		$COLON  6,'dosys-',DoSysMinus,_SLINK
-		DW      DoLIT,-256,Balance,PlusStore,EXIT
+		$COLON  4,'bal-',BalMinus,_SLINK
+		DW      Bal,OneMinus,DoTO,AddrBal,EXIT
 
 ;   cell-       ( a-addr1 -- a-addr2 )
 ;               Return previous aligned cell address.
@@ -2325,22 +2404,14 @@ _VAR            SETA _VAR +CELLL
 		$COLON  12,'COMPILE-ONLY',COMPILE_ONLY,_SLINK
 		DW      LastName,DoLIT,COMPO,OVER,Fetch,ORR,SWAP,Store,EXIT
 
-;   do."        ( -- )
-;               Run time routine of ." . Display a compiled string.
-;
-;   : do."      R> COUNT 2DUP TYPE + ALIGNED >R ; COMPILE-ONLY
-
-		$COLON  COMPO+4,'do."',DoDotQuote,_SLINK
-		DW      RFrom,COUNT,TwoDUP,TYPEE,Plus,ALIGNED,ToR,EXIT
-
-;NAC documentation bug: stack-action is actually ( -- c-addr u)
-;   doS"        ( -- c-addr )
+;NAC starts with something on stack??
+;   doS"        ( -- c-addr u )
 ;               Run-time function of S" .
 ;
-;   : doS"      R> COUNT 2DUP + ALIGNED >R ; COMPILE-ONLY
+;   : doS"      R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
 
 		$COLON  COMPO+4,'doS"',DoSQuote,_SLINK
-		DW      RFrom,COUNT,TwoDUP,Plus,ALIGNED,ToR,EXIT
+		DW      RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
 
 ;   doDO        ( n1 n2 -- ) ( R: -- n1 n2-n1-max_negative )
 ;               Run-time funtion of DO.
@@ -2360,37 +2431,36 @@ _VAR            SETA _VAR +CELLL
 ;   head,       ( xt "<spaces>name" -- )
 ;               Parse a word and build a dictionary entry using xt and name.
 ;
-;   : head,     DUP TO lastXT
-;               PARSE-WORD DUP 0=
+;   : head,     PARSE-WORD DUP 0=
 ;               IF errWord 2! -16 THROW THEN
 ;                               \ attempt to use zero-length string as a name
 ;               DUP =mask > IF -19 THROW THEN   \ definition name too long
+;               2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
+;               IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
 ;               npVar @ OVER CELL+ - ALIGNED
 ;               DUP >R pack" DROP R>            \ pack the name in dictionary
-;               DUP FIND NIP                    \ name exist?
-;               IF ." redefine " DUP COUNT TYPE THEN    \ warn if redefined
 ;               cell- GET-CURRENT @ OVER !      \ build wordlist link
-;               cell- DUP npVar !  ! ;        \ adjust name space pointer
+;               cell- DUP npVar !  ! ;          \ adjust name space pointer
 ;                                               \ and store xt at code field
 
 		$COLON  5,'head,',HeadComma,_SLINK
-		DW      DUPP,DoTO,AddrLastXT
 		DW      PARSE_WORD,DUPP,ZBranch,HEADC1
 		DW      DUPP,DoLIT,MASKK,GreaterThan,ZBranch,HEADC3
 		DW      DoLIT,-19,THROW
-HEADC3:         DW      NPVar,Fetch,OVER,CELLPlus,Minus,ALIGNED
+HEADC3:         DW      TwoDUP,GET_CURRENT,SEARCH_WORDLIST,ZBranch,HEADC2
+		DW      DROP
+		$INSTR  'redefine '
+		DW      TYPEE,TwoDUP,TYPEE,SPACE
+HEADC2:         DW      NPVar,Fetch,OVER,CELLPlus,Minus,ALIGNED
 		DW      DUPP,ToR,PackQuote,DROP,RFrom
-		DW      DUPP,FIND,NIP,ZBranch,HEADC2
-		D$      DoDotQuote,'redefine '
-		DW      DUPP,COUNT,TYPEE
-HEADC2:         DW      CellMinus,GET_CURRENT,Fetch,OVER,Store
+		DW      CellMinus,GET_CURRENT,Fetch,OVER,Store
 		DW      CellMinus,DUPP,NPVar,Store,Store,EXIT
 HEADC1:         DW      ErrWord,TwoStore,DoLIT,-16,THROW
 
 ;   hld         ( -- a-addr )
 ;               Hold a pointer in building a numeric output string.
 
-		$VAR   3,'hld',HLD,_SLINK
+		$VAR    3,'hld',HLD,_SLINK
 
 ;   interpret   ( i*x -- j*x )
 ;               Intrepret input string.
@@ -2398,7 +2468,7 @@ HEADC1:         DW      ErrWord,TwoStore,DoLIT,-16,THROW
 ;   : interpret BEGIN  DEPTH 0< IF -4 THROW THEN        \ stack underflow
 ;                      PARSE-WORD DUP
 ;               WHILE  2DUP errWord 2!
-;                      search               \ ca u 0 | xt f -1 | xt f 1
+;                      search-word          \ ca u 0 | xt f -1 | xt f 1
 ;                      DUP IF
 ;                        SWAP STATE @ OR 0= \ compile-only in interpretation
 ;                        IF -14 THROW THEN  \ interpreting a compile-only word
@@ -2411,7 +2481,7 @@ INTERP1:        DW      DEPTH,ZeroLess,ZBranch,INTERP2
 		DW      DoLIT,-4,THROW
 INTERP2:        DW      PARSE_WORD,DUPP,ZBranch,INTERP3
 		DW      TwoDUP,ErrWord,TwoStore
-		DW      Search,DUPP,ZBranch,INTERP5
+		DW      Search_word,DUPP,ZBranch,INTERP5
 		DW      SWAP,STATE,Fetch,ORR,ZBranch,INTERP4
 INTERP5:        DW      OnePlus,TwoStar,STATE,Fetch,OnePlus,Plus,CELLS
 		DW      TickDoWord,Plus,Fetch,EXECUTE
@@ -2548,13 +2618,10 @@ DOUBC1:         DW      LITERAL,EXIT
 ;               Link the word being defined to the current wordlist.
 ;               Do nothing if the last definition is made by :NONAME .
 ;
-;   : linkLast  lastXT lastName name>xt =
-;               IF lastName GET-CURRENT !  0 TO lastXT THEN ;
+;   : linkLast  lastName GET-CURRENT ! ;
 
 		$COLON  8,'linkLast',LinkLast,_SLINK
-		DW      LastXT,LastName,NameToXT,Equals,ZBranch,LINKL1
-		DW      LastName,GET_CURRENT,Store,Zero,DoTO,AddrLastXT
-LINKL1:         DW      EXIT
+		DW      LastName,GET_CURRENT,Store,EXIT
 
 ;   name>xt     ( c-addr -- xt )
 ;               Return execution token using counted string at c-addr.
@@ -2569,13 +2636,16 @@ LINKL1:         DW      EXIT
 ;               cell-aligned address. Fill the rest of the last cell with
 ;               null character.
 ;
-;   : pack"     2DUP SWAP CHARS + CHAR+ ALIGNED DUP >R  \ ca u aa aa+u+1
+;   : pack"     OVER max-char > IF -18 THROW THEN  \ parsed string overflow
+;               2DUP SWAP CHARS + CHAR+ ALIGNED DUP >R  \ ca u aa aa+u+1
 ;               cell- 0 SWAP !                  \ fill 0 at the end of string
 ;               2DUP C! CHAR+ SWAP              \ c-addr a-addr+1 u
 ;               CHARS MOVE R> ; COMPILE-ONLY
 
 		$COLON  5,'pack"',PackQuote,_SLINK
-		DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
+		DW      OVER,DoLIT,MaxChar,GreaterThan,ZBranch,PACKQ1
+		DW      DoLIT,-18,THROW
+PACKQ1:         DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
 		DW      CellMinus,Zero,SWAP,Store
 		DW      TwoDUP,CStore,CHARPlus,SWAP
 		DW      CHARS,MOVE,RFrom,EXIT
@@ -2602,10 +2672,10 @@ LINKL1:         DW      EXIT
 ;               ; COMPILE-ONLY
 
 		$COLON  COMPO+4,'pipe',Pipe,_SLINK
-		DW      LastName,NameToXT,QCall,DUPP,ZBranch,PIPE2
-		DW      DoLIT,DoCREATE,Equals,ZBranch,PIPE2
+		DW      LastName,NameToXT,QCall,DUPP,ZBranch,PIPE1
+		DW      DoLIT,DoCREATE,Equals,ZBranch,PIPE1
 		DW      RFrom,SWAP,Store,EXIT
-PIPE2:          DW      DoLIT,-32,THROW
+PIPE1:          DW      DoLIT,-32,THROW
 
 ;   skipPARSE   ( char "<chars>ccc<char>" -- c-addr u )
 ;               Skip leading chars and parse a word using char as a
@@ -2639,16 +2709,18 @@ SKPAR1:         DW      RFrom,DROP,EXIT
 ;               BEGIN  2DUP U<
 ;               WHILE  DUP @ xhere ROT !
 ;               REPEAT rakeVar ! DROP
-;               ?DUP IF POSTPONE THEN THEN ;    \ check for ?DO
+;               ?DUP IF                 \ check for ?DO
+;                  1 bal+ POSTPONE THEN \ orig type is 1
+;               THEN bal- ;
 
 		$COLON  COMPO+4,'rake',rake,_SLINK
 		DW      DUPP,CodeComma,RakeVar,Fetch
-rake1:          DW      TwoDUP,ULess,ZBranch,rake2
-		DW      DUPP,Fetch,XHere,ROT,Store,Branch,rake1
-rake2:          DW      RakeVar,Store,DROP
-		DW      QuestionDUP,ZBranch,rake3
-		DW      THENN
-rake3:          DW      EXIT
+RAKE1:          DW      TwoDUP,ULess,ZBranch,RAKE2
+		DW      DUPP,Fetch,XHere,ROT,Store,Branch,RAKE1
+RAKE2:          DW      RakeVar,Store,DROP
+		DW      QuestionDUP,ZBranch,RAKE3
+		DW      One,BalPlus,THENN
+RAKE3:          DW      BalMinus,EXIT
 
 ;   rp0         ( -- a-addr )
 ;               Pointer to bottom of the return stack.
@@ -2658,12 +2730,13 @@ rake3:          DW      EXIT
 		$COLON  3,'rp0',RPZero,_SLINK
 		DW      UserP,Fetch,CELLPlus,CELLPlus,Fetch,EXIT
 
-;   search      ( c-addr u -- c-addr u 0 | xt f 1 | xt f -1)
+;   search-word ( c-addr u -- c-addr u 0 | xt f 1 | xt f -1)
 ;               Search dictionary for a match with the given name. Return
 ;               execution token, not-compile-only flag and -1 or 1
 ;               ( IMMEDIATE) if found; c-addr u 0 if not.
 ;
-;   : search    #order @ DUP                    \ not found if #order is 0
+;   : search-word
+;               #order @ DUP                    \ not found if #order is 0
 ;               IF 0
 ;                  DO 2DUP                      \ ca u ca u
 ;                     I CELLS #order CELL+ + @  \ ca u ca u wid
@@ -2674,7 +2747,7 @@ rake3:          DW      EXIT
 ;                  LOOP 0                       \ ca u 0
 ;               THEN ;
 
-		$COLON  6,'search',Search,_SLINK
+		$COLON  11,'search-word',Search_word,_SLINK
 		DW      NumberOrder,Fetch,DUPP,ZBranch,SEARCH1
 		DW      Zero,DoDO
 SEARCH2:        DW      TwoDUP,I,CELLS,NumberOrder,CELLPlus,Plus,Fetch
@@ -2746,13 +2819,14 @@ _VAR            SETA _VAR +CELLL
 		$COLON  COMPO+4,'wake',Wake,_SLINK
 		DW      RFrom,UserP,Store,StackTop,Fetch,SPStore,RPStore,EXIT
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Essential Standard words - Colon definitions
-;***************
+;;;;;;;;;;;;;;;;
 
+;NAC typo numeric
 ;   #           ( ud1 -- ud2 )                  \ CORE
 ;               Extract one digit from ud1 and append the digit to
-;               pictured numeric output string. ( ud2 = ud1 / BASE )
+;               pictured nemeric output string. ( ud2 = ud1 / BASE )
 ;
 ;   : #         0 BASE @ UM/MOD >R BASE @ UM/MOD SWAP
 ;               9 OVER < [ CHAR A CHAR 9 1 + - ] LITERAL AND +
@@ -2853,11 +2927,10 @@ NUMSS1:         DW      NumberSign,TwoDUP,ORR
 ;   /STRING     ( c-addr1 u1 n -- c-addr2 u2 )  \ STRING
 ;               Adjust the char string at c-addr1 by n chars.
 ;
-;   : /STRING   CHARS DUP >R - SWAP R> CHARS + SWAP ;
+;   : /STRING   DUP >R - SWAP R> CHARS + SWAP ;
 
 		$COLON  7,'/STRING',SlashSTRING,_FLINK
-		DW      CHARS,DUPP,ToR,Minus
-		DW      SWAP,RFrom,CHARS,Plus,SWAP,EXIT
+		DW      DUPP,ToR,Minus,SWAP,RFrom,CHARS,Plus,SWAP,EXIT
 
 ;   1+          ( n1|u1 -- n2|u2 )              \ CORE
 ;               Increase top of the stack item by 1.
@@ -2913,40 +2986,49 @@ NUMSS1:         DW      NumberSign,TwoDUP,ORR
 		$COLON  5,'2SWAP',TwoSWAP,_FLINK
 		DW      ROT,ToR,ROT,RFrom,EXIT
 
-;   :           ( -- ; <string> )               \ CORE
+;   :           ( "<spaces>name" -- colon-sys ) \ CORE
 ;               Start a new colon definition using next word as its name.
 ;
-;   : :         :NONAME head, ;
+;   : :         :NONAME ROT head,  -1 TO notNONAME? ;
 
 		$COLON  1,':',COLON,_FLINK
-		DW      ColonNONAME,HeadComma,EXIT
+		DW      ColonNONAME,ROT,HeadComma
+		DW      DoLIT,-1,DoTO,AddrNotNONAMEQ,EXIT
 
-;   :NONAME     ( -- xt )                       \ CORE EXT
+;   :NONAME     ( -- xt colon-sys )             \ CORE EXT
 ;               Create an execution token xt, enter compilation state and
 ;               start the current definition.
 ;
-;   : :NONAME   STATE @ IF -29 THROW THEN
-;               ['] doLIST xt,  0 bal ! ] ;
+;   : :NONAME   bal IF -29 THROW THEN           \ compiler nesting
+;               ['] doLIST xt, DUP -1
+;               0 TO notNONAME?  1 TO bal  ] ;
 
 		$COLON  7,':NONAME',ColonNONAME,_FLINK
-		DW      STATE,Fetch,ZBranch,NONAME1
+		DW      Bal,ZBranch,NONAME1
 		DW      DoLIT,-29,THROW
-NONAME1:        DW      DoLIT,DoLIST,xtComma,Zero,Balance,Store
-		DW      RightBracket,EXIT
+NONAME1:        DW      DoLIT,DoLIST,xtComma,DUPP,DoLIT,-1
+		DW      Zero,DoTO,AddrNotNONAMEQ
+		DW      One,DoTO,AddrBal,RightBracket,EXIT
 
-;   ;           ( -- )                          \ CORE
+;   ;           ( colon-sys -- )                \ CORE
 ;               Terminate a colon definition.
 ;
-;   : ;         bal @ IF -22 THROW THEN         \ control structure mismatch
-;               POSTPONE EXIT linkLast          \ add EXIT at the end of the
-;                               \ definition and link the word to wordlist
-;               [ ; COMPILE-ONLY IMMEDIATE
+;   : ;         bal 1- IF -22 THROW THEN        \ control structure mismatch
+;               NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
+;               notNONAME? IF   \ if the last definition is not created by ':'
+;                 linkLast  0 TO notNONAME?     \ link the word to wordlist
+;               THEN  POSTPONE EXIT     \ add EXIT at the end of the definition
+;               0 TO bal  POSTPONE [ ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+1,';',Semicolon,_FLINK
-		DW      Balance,Fetch,ZBranch,SEMI1
+		DW      Bal,OneMinus,ZBranch,SEMI1
 		DW      DoLIT,-22,THROW
-SEMI1:          DW      DoLIT,EXIT,COMPILEComma
-		DW      LinkLast,LeftBracket,EXIT
+SEMI1:          DW      NIP,OnePlus,ZBranch,SEMI2
+		DW      DoLIT,-22,THROW
+SEMI2:          DW      NotNONAMEQ,ZBranch,SEMI3
+		DW      LinkLast,Zero,DoTO,AddrNotNONAMEQ
+SEMI3:          DW      DoLIT,EXIT,COMPILEComma
+		DW      Zero,DoTO,AddrBal,LeftBracket,EXIT
 
 ;   <           ( n1 n2 -- flag )               \ CORE
 ;               Returns true if n1 is less than n2.
@@ -3082,20 +3164,25 @@ ACCPT5:         DW      SWAP,RFrom,TwoDROP,EXIT
 ;               BEGIN ... AGAIN . Move control to the location specified by
 ;               dest on execution.
 ;
-;   : AGAIN     POSTPONE branch code, dest- ; COMPILE-ONLY IMMEDIATE
+;   : AGAIN     IF -22 THROW THEN  \ control structure mismatch; dest type is 0
+;               POSTPONE branch code, bal- ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+5,'AGAIN',AGAIN,_FLINK
-		DW      DoLIT,Branch,COMPILEComma,CodeComma,DestMinus,EXIT
+		DW      ZBranch,AGAIN1
+		DW      DoLIT,-22,THROW
+AGAIN1:         DW      DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 
 ;   AHEAD       ( C: -- orig )                  \ TOOLS EXT
 ;               Put the location of a new unresolved forward reference onto
 ;               control-flow stack.
 ;
-;   : AHEAD     POSTPONE branch xhere 0 code, orig+ ; COMPILE-ONLY IMMEDIATE
+;   : AHEAD     POSTPONE branch xhere 0 code,
+;               1 bal+          \ orig type is 1
+;               ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+5,'AHEAD',AHEAD,_FLINK
-		DW      DoLIT,Branch,COMPILEComma
-		DW      XHere,Zero,CodeComma,OrigPlus,EXIT
+		DW      DoLIT,Branch,COMPILEComma,XHere,Zero,CodeComma
+		DW      One,BalPlus,EXIT
 
 ;NAC: this was processed incorrectly by makesrc - fixed by defining SPC
 ;instead of using ' '
@@ -3153,10 +3240,13 @@ ACCPT5:         DW      SWAP,RFrom,TwoDROP,EXIT
 ;               Create a definition for name which pushes x on the stack on
 ;               execution.
 ;
-;   : CONSTANT  ['] doCONST xt, head, code, linkLast ;
+;   : CONSTANT  bal IF -29 THROW THEN           \ compiler nesting
+;               ['] doCONST xt, head, code, linkLast ;
 
 		$COLON  8,'CONSTANT',CONSTANT,_FLINK
-		DW      DoLIT,DoCONST,xtComma,HeadComma,CodeComma,LinkLast,EXIT
+		DW      Bal,ZBranch,CONST1
+		DW      DoLIT,-29,THROW
+CONST1:         DW      DoLIT,DoCONST,xtComma,HeadComma,CodeComma,LinkLast,EXIT
 
 ;   COUNT       ( c-addr1 -- c-addr2 u )        \ CORE
 ;               Convert counted string to string specification. c-addr2 is
@@ -3173,14 +3263,17 @@ ACCPT5:         DW      SWAP,RFrom,TwoDROP,EXIT
 ;               Create a data object in RAM/ROM data space, which return
 ;               data object address on execution
 ;
-;   : CREATE    ['] doCREATE xt, head,
+;   : CREATE    bal IF -29 THROW THEN           \ compiler nesting
+;               ['] doCREATE xt, head,
 ;               xhere DUP CELL+ CELL+ TOxhere   \ reserve two cells
 ;               0 OVER !                \ no DOES> code yet
 ;               ALIGN HERE SWAP CELL+ ! \ >BODY returns this address
 ;               linkLast ;              \ link CREATEd word to current wordlist
 
 		$COLON  6,'CREATE',CREATE,_FLINK
-		DW      DoLIT,DoCREATE,xtComma,HeadComma
+		DW      Bal,ZBranch,CREAT1
+		DW      DoLIT,-29,THROW
+CREAT1:         DW      DoLIT,DoCREATE,xtComma,HeadComma
 		DW      XHere,DUPP,CELLPlus,CELLPlus,TOXHere
 		DW      Zero,OVER,Store
 		DW      ALIGNN,HERE,SWAP,CELLPlus,Store
@@ -3247,44 +3340,36 @@ EKEY1:          DW      PAUSE,EKEYQuestion,ZBranch,EKEY1
 		$COLON  4,'EMIT',EMIT,_FLINK
 		DW      TickEMIT,EXECUTE,EXIT
 
-;   FIND        ( c-addr -- c-addr 0 | xt 1 | xt -1)     \ SEARCH
-;               Search dictionary for a match with the given counted name.
-;               Return execution token and -1 or 1 ( IMMEDIATE) if found;
-;               c-addr 0 if not found.
-;
-;   : FIND      DUP COUNT search ?DUP IF NIP ROT DROP EXIT THEN
-;               2DROP 0 ;
-
-		$COLON  4,'FIND',FIND,_FLINK
-		DW      DUPP,COUNT,Search,QuestionDUP,ZBranch,FIND1
-		DW      NIP,ROT,DROP,EXIT
-FIND1:          DW      TwoDROP,Zero,EXIT
-
 ;   FM/MOD      ( d n1 -- n2 n3 )               \ CORE
 ;               Signed floored divide of double by single. Return mod n2
 ;               and quotient n3.
 ;
 ;   : FM/MOD    DUP >R 2DUP XOR >R >R DUP 0< IF DNEGATE THEN
-;               R@ ABS UM/MOD DUP 0<
-;               IF DUP 08000h XOR IF -11 THROW THEN THEN \ result out of range
-;               SWAP R> 0< IF NEGATE THEN
-;               SWAP R> 0< IF NEGATE OVER IF R@ ROT - SWAP 1- THEN THEN
-;               R> DROP ;
+;               R@ ABS UM/MOD
+;               R> 0< IF SWAP NEGATE SWAP THEN
+;               R> 0< IF NEGATE         \ negative quotient
+;                   OVER IF R@ ROT - SWAP 1- THEN
+;                   R> DROP
+;                   0 OVER < IF -11 THROW THEN          \ result out of range
+;                   EXIT                        THEN
+;               R> DROP  DUP 0< IF -11 THROW THEN ;     \ result out of range
 
 		$COLON  6,'FM/MOD',FMSlashMOD,_FLINK
 		DW      DUPP,ToR,TwoDUP,XORR,ToR,ToR,DUPP,ZeroLess
 		DW      ZBranch,FMMOD1
 		DW      DNEGATE
-FMMOD1:         DW      RFetch,ABSS,UMSlashMOD,DUPP,ZeroLess,ZBranch,FMMOD2
-;NAC: Was architecture-dependent. Changed 08000h to MaxNegative
-		DW      DUPP,DoLIT,MaxNegative,XORR,ZBranch,FMMOD2
-		DW      DoLIT,-11,THROW
-FMMOD2:         DW      SWAP,RFrom,ZeroLess,ZBranch,FMMOD3
-		DW      NEGATE
-FMMOD3:         DW      SWAP,RFrom,ZeroLess,ZBranch,FMMOD4
+FMMOD1:         DW      RFetch,ABSS,UMSlashMOD
+		DW      RFrom,ZeroLess,ZBranch,FMMOD2
+		DW      SWAP,NEGATE,SWAP
+FMMOD2:         DW      RFrom,ZeroLess,ZBranch,FMMOD3
 		DW      NEGATE,OVER,ZBranch,FMMOD4
 		DW      RFetch,ROT,Minus,SWAP,OneMinus
-FMMOD4:         DW      RFrom,DROP,EXIT
+FMMOD4:         DW      RFrom,DROP
+		DW      DoLIT,0,OVER,LessThan,ZBranch,FMMOD6
+		DW      DoLIT,-11,THROW
+FMMOD6:         DW      EXIT
+FMMOD3:         DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
+		DW      DoLIT,-11,THROW
 
 ;   GET-CURRENT   ( -- wid )                    \ SEARCH
 ;               Return the indentifier of the compilation wordlist.
@@ -3327,12 +3412,13 @@ FMMOD4:         DW      RFrom,DROP,EXIT
 ;               onto the control flow stack. On execution jump to location
 ;               specified by the resolution of orig if x is zero.
 ;
-;   : IF        POSTPONE 0branch xhere 0 code, orig+
+;   : IF        POSTPONE 0branch xhere 0 code,
+;               1 bal+          \ orig type is 1
 ;               ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+2,'IF',IFF,_FLINK
-		DW      DoLIT,ZBranch,COMPILEComma,XHere
-		DW      Zero,CodeComma,OrigPlus,EXIT
+		DW      DoLIT,ZBranch,COMPILEComma,XHere,Zero,CodeComma
+		DW      One,BalPlus,EXIT
 
 ;   INVERT      ( x1 -- x2 )                    \ CORE
 ;               Return one's complement of x1.
@@ -3405,7 +3491,7 @@ PARSE4:         DW      RFrom,DROP,EXIT
 ;               input device the input source, and start text interpreter.
 ;
 ;   : QUIT      BEGIN
-;                 rp0 rp!  0 TO SOURCE-ID  POSTPONE [
+;                 rp0 rp!  0 TO SOURCE-ID  0 TO bal  POSTPONE [
 ;                 BEGIN CR REFILL DROP SPACE    \ REFILL returns always true
 ;                       ['] interpret CATCH ?DUP 0=
 ;                 WHILE STATE @ 0= IF .prompt THEN
@@ -3414,13 +3500,14 @@ PARSE4:         DW      RFrom,DROP,EXIT
 ;                 DUP -2 = IF SPACE abort"msg 2@ TYPE    ELSE   \ ABORT"
 ;                 SPACE errWord 2@ TYPE
 ;                 SPACE [CHAR] ? EMIT SPACE
-;                 DUP -1 -NumTHROWMsgs WITHIN IF ." Exception # " . ELSE \ undefined exeption
+;                 DUP -1 -58 WITHIN IF ." Exeption # " . ELSE \ undefined exeption
 ;                 CELLS THROWMsgTbl + @ COUNT TYPE       THEN THEN THEN
 ;                 sp0 sp!
 ;               AGAIN ;
 
 		$COLON  4,'QUIT',QUIT,_FLINK
-QUIT1:          DW      RPZero,RPStore,Zero,DoTO,AddrSOURCE_ID,LeftBracket
+QUIT1:          DW      RPZero,RPStore,Zero,DoTO,AddrSOURCE_ID
+		DW      Zero,DoTO,AddrBal,LeftBracket
 QUIT2:          DW      CR,REFILL,DROP,SPACE
 		DW      DoLIT,Interpret,CATCH,QuestionDUP,ZeroEquals
 		DW      ZBranch,QUIT3
@@ -3431,9 +3518,10 @@ QUIT3:          DW      DUPP,MinusOne,XORR,ZBranch,QUIT5
 		DW      SPACE,AbortQMsg,TwoFetch,TYPEE,Branch,QUIT5
 QUIT4:          DW      SPACE,ErrWord,TwoFetch,TYPEE
 		DW      SPACE,DoLIT,'?',EMIT,SPACE
-		DW      DUPP,MinusOne,DoLIT,-1*NumTHROWMsgs,WITHIN,ZBranch,QUIT7
-		D$      DoDotQuote,' Exception # '
-		DW      Dot,Branch,QUIT5
+		DW      DUPP,MinusOne,DoLIT,-58,WITHIN,ZBranch,QUIT7
+;NAC:	 typo
+		$INSTR  ' Exeption # '
+		DW      TYPEE,Dot,Branch,QUIT5
 QUIT7:          DW      CELLS,THROWMsgTbl,Plus,Fetch,COUNT,TYPEE
 QUIT5:          DW      SPZero,SPStore,Branch,QUIT1
 
@@ -3520,10 +3608,14 @@ SIGN1:          DW      EXIT
 ;               Run-time: ( -- )
 ;               Resolve the forward reference orig.
 ;
-;   : THEN      xhere SWAP ! orig- ; COMPILE-ONLY IMMEDIATE
+;   : THEN      1- IF -22 THROW THEN    \ control structure mismatch
+;                                       \ orig type is 1
+;               xhere SWAP ! bal- ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+4,'THEN',THENN,_FLINK
-		DW      XHere,SWAP,Store,OrigMinus,EXIT
+		DW      OneMinus,ZBranch,THEN1
+		DW      DoLIT,-22,THROW
+THEN1:          DW      XHere,SWAP,Store,BalMinus,EXIT
 
 ;   THROW       ( k*x n -- k*x | i*x n )        \ EXCEPTION
 ;               If n is not zero, pop the topmost exception frame from the
@@ -3620,7 +3712,7 @@ UMM4:           DW      DoLIT,-11,THROW
 ;               An UNLOOP is required for each nesting level before the
 ;               definition may be EXITed.
 ;
-;   : UNLOOP    R> R> R> 2DROP >R EXIT ;
+;   : UNLOOP    R> R> R> 2DROP >R ;
 
 		$COLON  COMPO+6,'UNLOOP',UNLOOP,_FLINK
 		DW      RFrom,RFrom,RFrom,TwoDROP,ToR,EXIT
@@ -3651,9 +3743,9 @@ UMM4:           DW      DoLIT,-11,THROW
 		$COLON  1,']',RightBracket,_FLINK
 		DW      MinusOne,STATE,Store,EXIT
 
-;***************
+;;;;;;;;;;;;;;;;
 ; Rest of CORE words and two facility words, EKEY? and EMIT?
-;***************
+;;;;;;;;;;;;;;;;
 ;       Following definitions can be removed from assembler source and
 ;       can be colon-defined later.
 
@@ -3701,21 +3793,19 @@ UMM4:           DW      DoLIT,-11,THROW
 ;               continue execution at the beginning of the loop. Otherwise,
 ;               finish the loop.
 ;
-;   : +LOOP     POSTPONE do+LOOP rake dosys- ; COMPILE-ONLY IMMEDIATE
+;   : +LOOP     POSTPONE do+LOOP  rake ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+5,'+LOOP',PlusLOOP,_FLINK
-		DW      DoLIT,DoPLOOP,COMPILEComma,rake,DoSysMinus,EXIT
+		DW      DoLIT,DoPLOOP,COMPILEComma,rake,EXIT
 
 ;   ."          ( "ccc<">" -- )                 \ CORE
 ;               Run-time ( -- )
 ;               Compile an inline string literal to be typed out at run time.
 ;
-;   : ."        POSTPONE do." [CHAR] " PARSE
-;               xhere pack" TOxhere ; COMPILE-ONLY IMMEDIATE
+;   : ."        POSTPONE S" POSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+2,'."',DotQuote,_FLINK
-		DW      DoLIT,DoDotQuote,COMPILEComma
-		DW      DoLIT,'"',PARSE,XHere,PackQuote,TOXHere,EXIT
+		DW      SQuote,DoLIT,TYPEE,COMPILEComma,EXIT
 
 ;   2OVER       ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )      \ CORE
 ;               Copy cell pair x1 x2 to the top of the stack.
@@ -3784,10 +3874,11 @@ ABS1:           DW      EXIT
 ;               location for a transfer of control, dest, onto the data
 ;               control stack.
 ;
-;   : BEGIN     xhere dest+ ; COMPILE-ONLY IMMDEDIATE
+;   : BEGIN     xhere 0 bal+            \ dest type is 0
+;               ; COMPILE-ONLY IMMDEDIATE
 
 		$COLON  IMMED+COMPO+5,'BEGIN',BEGIN,_FLINK
-		DW      XHere,DestPlus,EXIT
+		DW      XHere,Zero,BalPlus,EXIT
 
 ;   C,          ( char -- )                     \ CORE
 ;               Compile a character into data space.
@@ -3810,25 +3901,28 @@ ABS1:           DW      EXIT
 ;               Start a DO-LOOP structure in a colon definition. Place do-sys
 ;               on control-flow stack, which will be resolved by LOOP or +LOOP.
 ;
-;   : DO        0  POSTPONE doDO xhere dosys+   \ 0 for rake
+;   : DO        0 rakeVar !  0                  \ ?DO-orig is 0 for DO
+;               POSTPONE doDO xhere  bal+       \ DO-dest
 ;               ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+2,'DO',DO,_FLINK
-		DW      Zero,DoLIT,DoDO,COMPILEComma,XHere,DoSysPlus,EXIT
+		DW      Zero,RakeVar,Store,Zero
+		DW      DoLIT,DoDO,COMPILEComma,XHere,BalPlus,EXIT
 
 ;   DOES>       ( C: colon-sys1 -- colon-sys2 ) \ CORE
 ;               Build run time code of the data object CREATEd.
 ;
-;   : DOES>     bal @ IF -22 THROW THEN         \ control structure mismatch
-;               0 bal !
-;               POSTPONE pipe ['] doLIST xt, DROP ; COMPILE-ONLY IMMEDIATE
+;   : DOES>     bal 1- IF -22 THROW THEN        \ control structure mismatch
+;               NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
+;               POSTPONE pipe ['] doLIST xt, -1 ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+5,'DOES>',DOESGreater,_FLINK
-		DW      Balance,Fetch,ZBranch,DOES1
+		DW      Bal,OneMinus,ZBranch,DOES1
 		DW      DoLIT,-22,THROW
-DOES1:          DW      Zero,Balance,Store
-		DW      DoLIT,Pipe,COMPILEComma
-		DW      DoLIT,DoLIST,xtComma,DROP,EXIT
+DOES1:          DW      NIP,OnePlus,ZBranch,DOES2
+		DW      DoLIT,-22,THROW
+DOES2:          DW      DoLIT,Pipe,COMPILEComma
+		DW      DoLIT,DoLIST,xtComma,DoLIT,-1,EXIT
 
 ;   ELSE        Compilation: ( C: orig1 -- orig2 )      \ CORE
 ;               Run-time: ( -- )
@@ -3836,10 +3930,10 @@ DOES1:          DW      Zero,Balance,Store
 ;               Put the location of new unresolved forward reference orig2
 ;               onto control-flow stack.
 ;
-;   : ELSE      POSTPONE AHEAD SWAP POSTPONE THEN ; COMPILE-ONLY IMMDEDIATE
+;   : ELSE      POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMDEDIATE
 
 		$COLON  IMMED+COMPO+4,'ELSE',ELSEE,_FLINK
-		DW      AHEAD,SWAP,THENN,EXIT
+		DW      AHEAD,TwoSWAP,THENN,EXIT
 
 ;   ENVIRONMENT?   ( c-addr u -- false | i*x true )     \ CORE
 ;               Environment query.
@@ -3883,6 +3977,19 @@ ENVRN1:         DW      RFrom,EXIT
 FILL1:          DW      TwoDUP,CStore,CHARPlus,DoLOOP,FILL1
 FILL2:          DW      TwoDROP,EXIT
 
+;   FIND        ( c-addr -- c-addr 0 | xt 1 | xt -1)     \ SEARCH
+;               Search dictionary for a match with the given counted name.
+;               Return execution token and -1 or 1 ( IMMEDIATE) if found;
+;               c-addr 0 if not found.
+;
+;   : FIND      DUP COUNT search-word ?DUP IF NIP ROT DROP EXIT THEN
+;               2DROP 0 ;
+
+		$COLON  4,'FIND',FIND,_FLINK
+		DW      DUPP,COUNT,Search_word,QuestionDUP,ZBranch,FIND1
+		DW      NIP,ROT,DROP,EXIT
+FIND1:          DW      TwoDROP,Zero,EXIT
+
 ;   IMMEDIATE   ( -- )                          \ CORE
 ;               Make the most recent definition an immediate word.
 ;
@@ -3916,10 +4023,10 @@ FILL2:          DW      TwoDROP,EXIT
 ;               Terminate a DO|?DO ... LOOP structure. Resolve the destination
 ;               of all unresolved occurences of LEAVE.
 ;
-;   : LOOP      POSTPONE doLOOP rake dosys- ; COMPILE-ONLY IMMEDIATE
+;   : LOOP      POSTPONE doLOOP  rake ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+4,'LOOP',LOOPP,_FLINK
-		DW      DoLIT,DoLOOP,COMPILEComma,rake,DoSysMinus,EXIT
+		DW      DoLIT,DoLOOP,COMPILEComma,rake,EXIT
 
 ;   LSHIFT      ( x1 u -- x2 )                  \ CORE
 ;               Perform a logical left shift of u bit-places on x1, giving x2.
@@ -3973,6 +4080,22 @@ MIN1:           DW      DROP,EXIT
 		$COLON  3,'MOD',MODD,_FLINK
 		DW      SlashMOD,DROP,EXIT
 
+;   PICK        ( x_u ... x1 x0 u -- x_u ... x1 x0 x_u )        \ CORE EXT
+;               Remove u and copy the uth stack item to top of the stack. An
+;               ambiguous condition exists if there are less than u+2 items
+;               on the stack before PICK is executed.
+;
+;   : PICK      DEPTH DUP 2 < IF -4 THROW THEN    \ stack underflow
+;               2 - OVER U< IF -4 THROW THEN
+;               1+ CELLS sp@ + @ ;
+
+		$COLON  4,'PICK',PICK,_FLINK
+		DW      DEPTH,DUPP,DoLIT,2,LessThan,ZBranch,PICK1
+		DW      DoLIT,-4,THROW
+PICK1:          DW      DoLIT,2,Minus,OVER,ULess,ZBranch,PICK2
+		DW      DoLIT,-4,THROW
+PICK2:          DW      OnePlus,CELLS,SPFetch,Plus,Fetch,EXIT
+
 ;   POSTPONE    ( "<spaces>name" -- )           \ CORE
 ;               Parse name and find it. Append compilation semantics of name
 ;               to current definition.
@@ -3990,10 +4113,16 @@ POSTP1:         DW      COMPILEComma,EXIT
 ;               Append the execution semactics of the current definition to
 ;               the current definition.
 ;
-;   : RECURSE   lastXT COMPILE, ; COMPILE-ONLY IMMEDIATE
+;   : RECURSE   bal 1- 2* PICK 1+ IF -22 THROW THEN
+;                       \ control structure mismatch; colon-sys type is -1
+;               bal 1- 2* 1+ PICK       \ xt of current definition
+;               COMPILE, ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+7,'RECURSE',RECURSE,_FLINK
-		DW      LastXT,COMPILEComma,EXIT
+		DW      Bal,OneMinus,TwoStar,PICK,OnePlus,ZBranch,RECUR1
+		DW      DoLIT,-22,THROW
+RECUR1:         DW      Bal,OneMinus,TwoStar,OnePlus,PICK
+		DW      COMPILEComma,EXIT
 
 ;   REPEAT      ( C: orig dest -- )             \ CORE
 ;               Terminate a BEGIN-WHILE-REPEAT indefinite loop. Resolve
@@ -4025,54 +4154,49 @@ RSHIFT2:        DW      EXIT
 ;               Run-time ( -- c-addr2 u )
 ;               Compile a string literal. Return the string on execution.
 ;
-;   : SLITERAL   POSTPONE doS" xhere pack" TOxhere ; COMPILE-ONLY IMMEDIATE
+;   : SLITERAL  DUP LITERAL POSTPONE doS"
+;               CHARS xhere 2DUP + ALIGNED TOxhere
+;               SWAP MOVE ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+8,'SLITERAL',SLITERAL,_FLINK
-		DW      DoLIT,DoSQuote,COMPILEComma
-		DW      XHere,PackQuote,TOXHere,EXIT
+		DW      DUPP,LITERAL,DoLIT,DoSQuote,COMPILEComma
+		DW      CHARS,XHere,TwoDUP,Plus,ALIGNED,TOXHere
+		DW      SWAP,MOVE,EXIT
 
 ;   S"          Compilation: ( "ccc<">" -- )    \ CORE
 ;               Run-time: ( -- c-addr u )
 ;               Parse ccc delimetered by " . Return the string specification
 ;               c-addr u on execution.
 ;
-;   : S"        [CHAR] " PARSE
-;               STATE @ IF POSTPONE SLITERAL EXIT THEN
-;               CR ." Use of S" in interpretation state is non-portable."
-;               CR ." Use  CHAR " PARSE string" or BL PARSE word  instead."
-;               ; IMMEDIATE
+;   : S"        [CHAR] " PARSE POSTPONE SLITERAL ; COMPILE-ONLY IMMEDIATE
 
-		$COLON  IMMED+2,'S"',SQuote,_FLINK
-		DW      DoLIT,'"',PARSE,STATE,Fetch,ZBranch,SQUOT1
-		DW      SLITERAL,EXIT
-SQUOT1:         DW      CR
-		D$      DoDotQuote,'Use of S" in interpretation state is non-portable.'
-		DW      CR
-		D$      DoDotQuote,'Use instead  CHAR " PARSE word" or BL PARSE word .'
-		DW      EXIT
+		$COLON  IMMED+COMPO+2,'S"',SQuote,_FLINK
+		DW      DoLIT,'"',PARSE,SLITERAL,EXIT
 
 ;   SM/REM      ( d n1 -- n2 n3 )               \ CORE
 ;               Symmetric divide of double by single. Return remainder n2
 ;               and quotient n3.
 ;
-;   : SM/REM    OVER >R >R DUP 0< IF DNEGATE THEN
-;               R@ ABS UM/MOD DUP 0<
-;               IF DUP 08000h XOR IF -11 THROW THEN THEN \ result out of range
-;               R> R@ XOR 0< IF NEGATE THEN
-;               R> 0< IF SWAP NEGATE SWAP THEN ;
+;   : SM/REM    2DUP XOR >R OVER >R >R DUP 0< IF DNEGATE THEN
+;               R> ABS UM/MOD
+;               R> 0< IF SWAP NEGATE SWAP THEN
+;               R> 0< IF        \ negative quotient
+;                   NEGATE 0 OVER < 0= IF EXIT THEN
+;                   -11 THROW                   THEN    \ result out of range
+;               DUP 0< IF -11 THROW THEN ;              \ result out of range
 
 		$COLON  6,'SM/REM',SMSlashREM,_FLINK
-		DW      OVER,ToR,ToR,DUPP,ZeroLess,ZBranch,SMREM1
+		DW      TwoDUP,XORR,ToR,OVER,ToR,ToR,DUPP,ZeroLess
+		DW      ZBranch,SMREM1
 		DW      DNEGATE
-SMREM1:         DW      RFetch,ABSS,UMSlashMOD,DUPP,ZeroLess,ZBranch,SMREM4
-;NAC: Was architecture-dependent. Changed 08000h to MaxNegative
-		DW      DUPP,DoLIT,MaxNegative,XORR,ZBranch,SMREM4
-		DW      DoLIT,-11,THROW
-SMREM4:         DW      RFrom,RFetch,XORR,ZeroLess,ZBranch,SMREM2
-		DW      NEGATE
-SMREM2:         DW      RFrom,ZeroLess,ZBranch,SMREM3
+SMREM1:         DW      RFrom,ABSS,UMSlashMOD
+		DW      RFrom,ZeroLess,ZBranch,SMREM2
 		DW      SWAP,NEGATE,SWAP
-SMREM3:         DW      EXIT
+SMREM2:         DW      RFrom,ZeroLess,ZBranch,SMREM3
+		DW      NEGATE,DoLIT,0,OVER,LessThan,ZeroEquals,ZBranch,SMREM4
+SMREM5:         DW      EXIT
+SMREM3:         DW      DUPP,ZeroLess,ZBranch,SMREM5
+SMREM4:         DW      DoLIT,-11,THROW
 
 ;   SPACES      ( n -- )                        \ CORE
 ;               Send n spaces to the output device if n is greater than zero.
@@ -4099,12 +4223,8 @@ SPACES2:        DW      EXIT
 ;               -32 THROW ; IMMEDIATE   \ invalid name argument (e.g. TO xxx)
 
 		$COLON  IMMED+2,'TO',TO,_FLINK
-
-;;NAC don't think this checking is correct for ARM.. same bug is in pipe
 		DW      Tick,QCall,DUPP,ZBranch,TO1
 		DW      DoLIT,DoVALUE,Equals,ZBranch,TO1
-
-
 		DW      Fetch,STATE,Fetch,ZBranch,TO2
 		DW      DoLIT,DoTO,COMPILEComma,CodeComma,EXIT
 TO2:            DW      Store,EXIT
@@ -4121,22 +4241,28 @@ TO1:            DW      DoLIT,-32,THROW
 ;   UNTIL       ( C: dest -- )                  \ CORE
 ;               Terminate a BEGIN-UNTIL indefinite loop structure.
 ;
-;   : UNTIL     POSTPONE 0branch code, dest- ; COMPILE-ONLY IMMEDIATE
+;   : UNTIL     IF -22 THROW THEN  \ control structure mismatch; dest type is 0
+;               POSTPONE 0branch code, bal- ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+5,'UNTIL',UNTIL,_FLINK
-		DW      DoLIT,ZBranch,COMPILEComma,CodeComma,DestMinus,EXIT
+		DW      ZBranch,UNTIL1
+		DW      DoLIT,-22,THROW
+UNTIL1:         DW      DoLIT,ZBranch,COMPILEComma,CodeComma,BalMinus,EXIT
 
 ;   VALUE       ( x "<spaces>name" -- )         \ CORE EXT
 ;               name Execution: ( -- x )
 ;               Create a value object with initial value x.
 ;
-;   : VALUE     ['] doVALUE xt, head,
+;   : VALUE     bal IF -29 THROW THEN           \ compiler nesting
+;               ['] doVALUE xt, head,
 ;               xhere DUP CELL+ TOxhere
 ;               RAMB @ SWAP !
 ;               , linkLast ; \ store x and link VALUE word to current wordlist
 
 		$COLON  5,'VALUE',VALUE,_FLINK
-		DW      DoLIT,DoVALUE,xtComma,HeadComma
+		DW      Bal,ZBranch,VALUE1
+		DW      DoLIT,-29,THROW
+VALUE1:         DW      DoLIT,DoVALUE,xtComma,HeadComma
 		DW      XHere,DUPP,CELLPlus,TOXHere,RAMB,Fetch,SWAP,Store
 		DW      Comma,LinkLast,EXIT
 
@@ -4146,13 +4272,16 @@ TO1:            DW      DoLIT,-32,THROW
 ;               Resolve one cell of data space at an aligned address.
 ;               Return the address on execution.
 ;
-;   : VARIABLE  ['] doCONST xt, head,
+;   : VARIABLE  bal IF -29 THROW THEN           \ compiler nesting
+;               ['] doCONST xt, head,
 ;               xhere DUP CELL+ TOxhere
 ;               RAMB @ DUP CELL+ RAMB ! \ allocate one cell in RAM area
 ;               SWAP ! linkLast ;
 
 		$COLON  8,'VARIABLE',VARIABLE,_FLINK
-		DW      DoLIT,DoCONST,xtComma,HeadComma
+		DW      Bal,ZBranch,VARIA1
+		DW      DoLIT,-29,THROW
+VARIA1:         DW      DoLIT,DoCONST,xtComma,HeadComma
 		DW      XHere,DUPP,CELLPlus,TOXHere
 		DW      RAMB,Fetch,DUPP,CELLPlus,RAMB,Store
 		DW      SWAP,Store,LinkLast,EXIT
@@ -4162,10 +4291,10 @@ TO1:            DW      DoLIT,-32,THROW
 ;               onto the control flow stack under the existing dest. Typically
 ;               used in BEGIN ... WHILE ... REPEAT structure.
 ;
-;   : WHILE     POSTPONE IF SWAP ; COMPILE-ONLY IMMEDIATE
+;   : WHILE     POSTPONE IF 2SWAP ; COMPILE-ONLY IMMEDIATE
 
 		$COLON  IMMED+COMPO+5,'WHILE',WHILE,_FLINK
-		DW      IFF,SWAP,EXIT
+		DW      IFF,TwoSWAP,EXIT
 
 ;   WORD        ( char "<chars>ccc<char>" -- c-addr )   \ CORE
 ;               Skip leading delimeters and parse a word. Return the address
@@ -4224,9 +4353,9 @@ TO1:            DW      DoLIT,-32,THROW
 		$COLON  5,'EMIT?',EMITQuestion,_FLINK
 		DW      TickEMITQ,EXECUTE,EXIT
 
-;***************
+;;;;;;;;;;;;;;;;
 ; RAM/ROM System Only
-;***************
+;;;;;;;;;;;;;;;;
 
 ;   RESET-SYSTEM   ( -- )
 ;               Reset the system. Restore initialization values of system
@@ -4239,17 +4368,17 @@ TO1:            DW      DoLIT,-32,THROW
 		DW      DoLIT,UZERO0,SysVar0,DoLIT,ULAST-UZERO
 		DW      MOVE,COLD,EXIT
 
-UZERO0:         DW      RXQ                     ;'ekey?
-		DW      RXFetch                 ;'ekey
-		DW      TXQ                     ;'emit?
-		DW      TXStore                 ;'emit
-		DW      Set_IO                  ;'init-i/o
-		DW      DotOK                   ;'prompt
-		DW      HI                      ;'boot
-		DW      0                       ;SOURCE-ID
-		DW      AddrROMB                ;CPVar
-		DW      AddrROMT                ;NPVar
-		DW      AddrRAMB                ;HereVar points RAM space.
+UZERO0:         DW      RXQ
+		DW      RXFetch
+		DW      TXQ
+		DW      TXStore
+		DW      Set_IO
+		DW      DotOK
+		DW      HI
+		DW      0
+		DW      AddrROMB
+		DW      AddrROMT
+		DW      AddrRAMB
 		DW      OptiCOMPILEComma
 		DW      EXECUTE
 		DW      DoubleAlsoComma
@@ -4261,6 +4390,7 @@ UZERO0:         DW      RXQ                     ;'ekey?
 		DW      NTOP
 		DW      VTOP
 		DW      RAMT0
+		DW      0
 		DW      0
 		DW      0
 		DW      2
@@ -4302,9 +4432,3 @@ VTOP            EQU     _VAR-0          ;next available memory in variable area
 ;nEND     ORIG
 
 ;===============================================================
-
-
-
-
-
-
