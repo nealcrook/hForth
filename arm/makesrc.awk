@@ -12,6 +12,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.1  1997/01/13 09:41:28  crook
+# Initial revision
+#
 
 BEGIN {
   quot = "\""
@@ -196,7 +199,8 @@ function do_envir_header() {
   else
   if ($1 == "$NEXT") {
     #print ("Compile an end-of-definition")
-    print ("\t\tldr\tpc, [fpc], #CELLL\t;goto FPC, incr FPC to nxt word") > codefile
+#    print ("\t\tldr\tpc, [fpc], #CELLL\t;goto FPC, incr FPC to nxt word") > codefile
+    print ("\t\tb\tudebug\t;micro-debug routine") > codefile
   }
   else
   if ($1 == "$THROWSTR") {
