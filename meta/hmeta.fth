@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.2  1998/06/14 18:31:33  crook
+\ minor tweaks
+\
 \ Revision 1.1  1998/06/07 22:50:48  crook
 \ Initial revision
 \
@@ -193,6 +196,17 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 \ TARGET-IMAGE VALUE			cpVar
 \ TARGET-IMAGE ROMEnd ROM0 - + VALUE	npVar 
 \ RAM0 VALUE				hereVar
+
+
+
+\ Definitions to control the flavour of compilation
+\ Force high-level definitions where possible
+TRUE hCONSTANT META-HI
+\ Force unproven definitions where available
+TRUE hCONSTANT META-EXPERIMENTAL
+\ Force code endings to branch through micro-debugger
+FALSE hCONSTANT MICRO-DEBUG
+
 
 
 \ in the normal hForth assembler source:

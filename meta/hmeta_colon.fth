@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.3  1998/06/30 20:35:34  crook
+\ add ability to save and restore search order
+\
 \ Revision 1.2  1998/06/14 18:30:54  crook
 \ meta compilation debug. tPOSTPONE still not working, literals not
 \ implemented.
@@ -111,6 +114,15 @@ HEX
 \ must also be defined in it-words. The only ones I can think of are
 \ IMMEDIATE and COMPILE-ONLY.
 
+\ TODO: make target : search wordlist and only add *new* definitions
+\ (no redefines) -- or have a flag that switches this behaviour. Then
+\ can load all defn that must be low-level then load all optionally
+\ low-level primitives then load full set of colon definitions. The
+\ existence of a low-level defn will prevent the high-level one from
+\ being defined.. might be able to just omit the linklast stage.. saves
+\ parsing the comments to look for ";"
+
+
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ Preserve search order
 GET-CURRENT  \ wid of compilation word list
@@ -131,6 +143,9 @@ WORDLIST WORDLIST-NAME its-words-WORDLIST
 : it-words GET-ORDER NIP it-words-WORDLIST SWAP SET-ORDER ;
 : its-words GET-ORDER NIP its-words-WORDLIST SWAP SET-ORDER ;
 
+: htPOSTPONE ALSO it-words hPOSTPONE hPOSTPONE PREVIOUS ; IMMEDIATE
+
+
 \ TODO - ought to use this for CODE words, too?
 CREATE order-! 5 CELLS ALLOT
 : save-order
@@ -146,7 +161,7 @@ CREATE order-! 5 CELLS ALLOT
 	order-! DUP DUP @ CELLS + \ last-a first-a to be stacked
 	DO I @ 1 CELLS NEGATE +LOOP SET-ORDER ;
 
-: tc-order t-words-WORDLIST it-words-WORDLIST 2 SET-ORDER ;
+: tc-order save-order t-words-WORDLIST it-words-WORDLIST 2 SET-ORDER ;
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ Support words required by the immediate words for the target system.
@@ -162,6 +177,7 @@ CREATE order-! 5 CELLS ALLOT
 400020A8 hCONSTANT xtLITERAL
 40001DB0 hCONSTANT xtCOMPILE,
 40000C4C hCONSTANT xtEXIT
+400009Ec hCONSTANT xtdoLIT
 
 ALSO t-words ALSO its-words DEFINITIONS
 
@@ -189,15 +205,17 @@ CREATE errWord 2 CELLS ALLOT	\ last found word. Used for error reporting
 : name>xt  cell- cell- @ ;
 : lastName _NAME CELL+ CELL+ ;
 : IDflushline DROP ;
-: call_code CALLL ;
 : [']-doLIST xtdoLIST ; \ TODO could do these three properly now..
 : [']-doVALUE xtdoVALUE ;
 : [']-doCREATE xtdoCREATE ;
 
+
 \   code,       ( x -- )
 \               Reserve one cell in code space and store x in it.
 \
-: code,     xhere DUP CELL+ TOxhere t! ;
+: code,     
+\ \		DUP ." (code,:" U. ." )"
+		xhere DUP CELL+ TOxhere t! ;
 
 
 \ TODO may need to have t versions of these to avoid name-space clashes
@@ -248,18 +266,20 @@ THEN 0 ;
 \ so that the $FCODE (etc) get far simpler
 : mFORTH-WORDLIST _FLINK ;
 : NONSTANDARD-WORDLIST _SLINK ;
+: ENVIRONMENT-WORDLIST _ENVLINK ;
 : F-DEF mFORTH-WORDLIST current ! ;
 : S-DEF NONSTANDARD-WORDLIST current ! ;
+: ENV-DEF ENVIRONMENT-WORDLIST current ! ;
 : mGET-CURRENT current @ ;
 F-DEF
 
+DECIMAL
 
 \   pipe        ( -- ) ( R: xt -- )
 \               Connect most recently defined word to code following DOES>.
 \               Structure of CREATEd word:
 \                       | call-doCREATE | 0 or DOES> code addr | a-addr |
 \
-BASE @ DECIMAL \ THROW value
 : pipe      lastName name>xt ?call DUP IF   \ code-addr xt2
                    [']-doCREATE = IF
                    R> SWAP !           \ change DOES> code of CREATEd word
@@ -267,19 +287,19 @@ BASE @ DECIMAL \ THROW value
                THEN THEN
                -32 THROW       \ invalid name argument, no-CREATEd last name
                ; COMPILE-ONLY
-BASE !
 
 \   xt,		( xt1 -- xt2 )
 \		Take a run-time word xt1 for :NONAME , CONSTANT , VARIABLE and
 \		CREATE . Return xt2 of current definition.
 \
+BASE @ HEX
 : xt,       xhere ALIGNED DUP TOxhere SWAP
                xhere - CELL- CELL- 2 RSHIFT    \ get signed offset
                00FFFFFF AND                   \ mask off high-order sign bits
-               call_code OR                    \ make the opcode 
+               CALLL OR                       \ make the opcode 
                xhere swap                      \ remember where it will go
                code, IDflushline ;             \ emit it and purge the block
-
+BASE !
 
 \   same?	( c-addr1 c-addr2 u -- -1|0|1 )
 \		Return 0 if two strings, ca1 u and ca2 u, are same\ -1 if
@@ -316,7 +336,6 @@ BASE !
 \		(oldest entry). a=0 indicates an empty wordlist.
 \		xt is the xt of the word. aabbccddeedd etc. is the name of
 \		the word, packed into cells.
-BASE @ DECIMAL \ THROW value
 : (search-wordlist)
 		ROT >R SWAP DUP 0= IF -16 THROW THEN
 				\ attempt to use zero-length string as a name
@@ -336,7 +355,6 @@ BASE @ DECIMAL \ THROW value
 		R> R> 2DROP DUP name>xt SWAP            \ xt ca2
 		C@ DUP [ =COMP ] LITERAL AND 0= SWAP
 		[ =IMED ] LITERAL AND 0= 2* 1+ ;
-BASE !
 
 \   search-word ( c-addr u -- c-addr u 0 | xt f 1 | xt f -1)
 \		Search dictionary for a match with the given name. Return
@@ -394,7 +412,6 @@ BASE !
 \   head,       ( xt "<spaces>name" -- )
 \		Parse a word and build a dictionary entry using xt and name.
 \
-BASE @ DECIMAL \ THROW value
 : head,	PARSE-WORD DUP 0=
 	IF errWord 2! -16 THROW THEN
 		\ attempt to use zero-length string as a name
@@ -406,18 +423,19 @@ BASE @ DECIMAL \ THROW value
 	cell- mGET-CURRENT @ OVER t!      \ build wordlist link
 	cell- DUP TO _NAME t! ;          \ adjust name space pointer
 			                  \ and store xt at code field
-BASE !
 
 \   (')		( "<spaces>name" -- xt 1 | xt -1 )
 \		Parse a name, find it and return execution token and
 \		-1 or 1 ( IMMEDIATE) if found
 \
+BASE @ HEX
 : (')	PARSE-WORD search-word ?DUP IF NIP EXIT THEN
 \ not found so assumed to be a forward reference; leave dummy xt
 	2DROP 1 TUNRESOLVED +! DEADBEEF -1 ;
-
+BASE !
 \	errWord 2!      \ if not found error
 \ 	-13 THROW ;     \ undefined word
+
 
 \   linkLast	( -- )
 \		Link the word being defined to the current wordlist.
@@ -430,6 +448,7 @@ BASE !
 \		Parse a name, find it and return xt.
 \
 : '         (') DROP ;
+: t'         (') DROP ;
 
 
 \   [']         Compilation: ( "<spaces>name" -- )      \ CORE
@@ -458,7 +477,7 @@ BASE !
 \ current definition. The compilation semantics of fred are to execute
 \ (because it is immediate) therefore, in the definition of bill, POSTPONE
 \ emits the xt of fred so that the run-time behaviour of bill is to execute
-\ fred (and print the text hello). The compilation semantics of jim In the definition of dave, the compilation
+\ fred (and print the text hello). In the definition of dave, the compilation
 \ semantics of jim is to  is itself immediate; what it does
 \ is parse the subsequent word and determine its xt. It then compiles code
 \ (in the definition of bill) to make the run-time action of bill be to
@@ -471,11 +490,27 @@ BASE !
 \ : POSTPONE  (') 0< IF POSTPONE LITERAL
 \	POSTPONE COMPILE, EXIT THEN   \ non-IMMEDIATE
 \	COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
-: tPOSTPONE  CR ." tpostpone"
-	(') 0< IF
-	." non-imm" .S [ xtLITERAL ] LITERAL COMPILE, COMPILE,
+
+\ tPOSTPONE fred
+\ When executed, parse a word in the input stream (eg, fred).
+\ Generate, in the host dictionary, (by appending the the current definition)
+\ a code sequence that has the run-time effect of emitting a code sequence
+\ in target space. The code sequence in the host depends upon whether fred is
+\ immediate or non-immediate. For an immediate word, the code sequence is:
+\ dolit fred code,
+\ so that the sequence generated on the target is:
+\ fred
+\ For a non-immediate word, the code sequence is:
+\ dolit dolit code, dolit fred code, dolit code, code,
+\ so that the sequence generated on the target is:
+\ dolit fred code,
+\ xtLITERAL and xtCOMPILE, are *target* xts; LITERAL and COMPILE,
+\ run on the *host*
+: tPOSTPONE  CR ." tP>"
+	ALSO t-words (') PREVIOUS 0< IF
+	." non-imm" [ xtLITERAL ] LITERAL COMPILE, COMPILE,
 	[ xtCOMPILE, ] LITERAL THEN   \ non-IMMEDIATE
-	COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
+	COMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
 \   rake        ( C: do-sys -- )
 \		Gathers LEAVEs.
@@ -514,6 +549,7 @@ PREVIOUS PREVIOUS FORTH DEFINITIONS PREVIOUS \ back to FORTH
 \ and the additional space that the strings take up in the host space.
 ALSO its-words
 \ FORTDEF consumes a name from the input stream
+BASE @ HEX
 : FORTDEF ( ccc -- )
 	>IN @ CREATE >IN ! BL PARSE \ parse non-destructively
 	\ copy string from input buffer to data area as counted string
@@ -536,6 +572,7 @@ ALSO its-words
 		DROP 1 TUNRESOLVED +!
 		2DROP DEADBEEF meta-asm,32 \ drop string and compile dummy xt
 	THEN ;
+BASE !
 
 \ TDEF leaves the input stream unchanged: the calling word (t:) will parse
 \ again to create the dictionary entry in the target
@@ -576,47 +613,27 @@ PREVIOUS
 \ other forward references to them later in the forth source.
 ALSO t-words DEFINITIONS
 
-FORTDEF EXIT
-FORTDEF LITERAL
-FORTDEF COMPILE,
-FORTDEF branch
-FORTDEF 0branch
-FORTDEF doLIT
-FORTDEF doLOOP
-FORTDEF do+LOOP
-FORTDEF doDO
-FORTDEF doTO
-FORTDEF doS"
-FORTDEF TYPE
-FORTDEF pipe
-FORTDEF UNLOOP
-FORTDEF ROT
-FORTDEF abort"msg
-FORTDEF 2!
-FORTDEF THROW \ TODO name space clash?
-FORTDEF 2DROP
-FORTDEF [
-FORTDEF SLITERAL
-FORTDEF S"
-FORTDEF IF
-FORTDEF AHEAD
-FORTDEF THEN
-FORTDEF ELSE
-FORTDEF AGAIN
+: h.S .S ;
+: hSEE SEE ;
+: hGET-ORDER GET-ORDER ;
+: hWORDS WORDS ;
+: h. . ;
+: hCOMPILE, ." (hc,)" COMPILE, ;
+: hCREATE CREATE ;
+: hIMMEDIATE IMMEDIATE ;
+: hDOES> DOES> ;
+
 \ from hForth definitions
-FORTDEF (doubleAlso)
-FORTDEF EMIT
-FORTDEF (')
-FORTDEF /MOD
-FORTDEF NIP
-FORTDEF S>D
-FORTDEF FM/MOD
-FORTDEF :NONAME
-FORTDEF head,
-FORTDEF TO \ TODO -- this should need to be here, when I fix the immediates
-FORTDEF [']
-FORTDEF xt,
-FORTDEF <
+FORTDEF TO \ TODO -- this should not need to be here, when I fix the immediates
+FORTDEF +
+FORTDEF - \ bug in PFE?? For some reason it does not detect the absence of
+	  \ the definition of - but instead stacks the number 0.
+FORTDEF *
+FORTDEF sourceVar
+FORTDEF hereVar
+FORTDEF CELLL \ TODO - this should be a findable constant
+FORTDEF CHARS \ ditto
+FORTDEF /             \ used by 1chars/
 
 PREVIOUS DEFINITIONS
 
@@ -638,12 +655,7 @@ PREVIOUS DEFINITIONS
 \ searching t-words) or fulfilled by host words.
 ALSO it-words DEFINITIONS PREVIOUS
 ALSO its-words
-
-: hSEE SEE ;
-: hGET-ORDER GET-ORDER ;
-: hWORDS WORDS ;
-: h. . ;
-
+DECIMAL
 
 \ TODO avoid name clash
 \ : IMMEDIATE  lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
@@ -653,9 +665,7 @@ ALSO its-words
 \ of compile-only.. need to rationalise
 : COMPILE-ONLY ; \ doesn't mean anything to pfe
 
-BASE @ DECIMAL \ THROW value
 : -. -13 THROW ; IMMEDIATE
-BASE !
 
 : [         0 STATE ! restore-order ; IMMEDIATE COMPILE-ONLY
 
@@ -664,12 +674,11 @@ BASE !
 \ TODO could define it at the end to avoid this problem..
 \ TODO the two POSTPONEs want target xts. For now, I mimic the POSTPONE
 \ TODO behaviour explicitly.
-BASE @ DECIMAL \ THROW value
 
 \   ;           ( colon-sys -- )		 \ CORE
 \		Terminate a colon definition.
 \
-: nit;    ." <-hFdefn)" restore-order
+: nit;  restore-order
 	bal 1- IF -22 THROW THEN        \ control structure mismatch
 	NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
 	notNONAME? IF   \ if the last definition is not created by ':'
@@ -679,7 +688,7 @@ BASE @ DECIMAL \ THROW value
 \ TODO	0 TO bal POSTPONE [  ; COMPILE-ONLY IMMEDIATE
         0 TO bal 0 STATE ! ;
 
-: t;    ." <-hFdefn)" restore-order
+: t;    restore-order
 	bal 1- IF -22 THROW THEN        \ control structure mismatch
 	NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
 	notNONAME? IF   \ if the last definition is not created by ':'
@@ -688,7 +697,6 @@ BASE @ DECIMAL \ THROW value
         THEN [ xtEXIT ] LITERAL ASM,32
 \ TODO	0 TO bal POSTPONE [  ; COMPILE-ONLY IMMEDIATE
         0 TO bal 0 STATE ! ; COMPILE-ONLY IMMEDIATE
-BASE !
 
 \ TODO mods to run on host but apply to target
 \ For words like IF we run the host's version within these definitions.
@@ -698,22 +706,6 @@ BASE !
 \ definition
 \ TODO this also applies to ['] and maybe to some others
 
-BASE @ DECIMAL \ THROW value
-: AGAIN     IF -22 THROW THEN  \ control structure mismatch; dest type is 0
-	tPOSTPONE branch code, bal- ; COMPILE-ONLY IMMEDIATE
-BASE !
-
-: AHEAD     tPOSTPONE branch xhere 0 code,
-	    1 bal+          \ orig type is 1
-	    ; COMPILE-ONLY IMMEDIATE
-
-: LITERAL   tPOSTPONE doLIT code, ; COMPILE-ONLY IMMEDIATE
-
-: (         [CHAR] ) PARSE 2DROP ; IMMEDIATE
-
-: LOOP      tPOSTPONE doLOOP  rake ; COMPILE-ONLY IMMEDIATE
-
-: +LOOP     tPOSTPONE do+LOOP  rake ; COMPILE-ONLY IMMEDIATE
 
 : BEGIN     xhere 0 bal+            \ dest type is 0
 	    ; COMPILE-ONLY IMMEDIATE
@@ -722,23 +714,80 @@ BASE !
 	    tPOSTPONE doDO xhere  bal+       \ DO-dest
 	    ; COMPILE-ONLY IMMEDIATE
 
+: .bal bal ." [bal=" . ." ]" ; IMMEDIATE
+
+: LOOP      tPOSTPONE doLOOP  rake ; COMPILE-ONLY IMMEDIATE
+
+: +LOOP     tPOSTPONE do+LOOP  rake ; COMPILE-ONLY IMMEDIATE
+
+: UNTIL     IF -22 THROW THEN  \ control structure mismatch; dest type is 0
+	    tPOSTPONE 0branch code, bal- ; COMPILE-ONLY IMMEDIATE
+
+
 \ TODO what's the difference between POSTPONE doLIST and ['] doLIST xt, ??
-BASE @ DECIMAL \ THROW value
 : DOES>     bal 1- IF -22 THROW THEN        \ control structure mismatch
 	    NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
 	    tPOSTPONE pipe [']-doLIST xt, -1 ; COMPILE-ONLY IMMEDIATE
-BASE !
 
-: LEAVE     tPOSTPONE UNLOOP POSTPONE branch
+
+: LEAVE     tPOSTPONE UNLOOP tPOSTPONE branch
 	    xhere rakeVar DUP @ code, ! ; COMPILE-ONLY IMMEDIATE
 
+
 \ TODO not sure if this needs modification..
-BASE @ DECIMAL \ THROW value
 : RECURSE   bal 1- 2* PICK 1+ IF -22 THROW THEN
 	    \ control structure mismatch; colon-sys type is -1
 	    bal 1- 2* 1+ PICK       \ xt of current definition
 	    COMPILE, ; COMPILE-ONLY IMMEDIATE
-BASE !
+
+: IF	    tPOSTPONE 0branch xhere 0 code,
+	    1 bal+          \ orig type is 1
+	    ; COMPILE-ONLY IMMEDIATE
+
+: THEN	    1- IF -22 THROW THEN	\ control structure mismatch
+				\ .. check that orig type was 1
+	    xhere SWAP t! bal- ; COMPILE-ONLY IMMEDIATE
+
+
+: AHEAD tPOSTPONE branch xhere 0 code,
+	1 bal+          \ orig type is 1
+	; COMPILE-ONLY IMMEDIATE
+
+\ ..better way of doing this would be to have non-immediate tELSE etc. in
+\ normal word list then build immediate versions in the it-wordlist
+\ .. would save all these convolutions.
+\ htPOSTPONE must find this target 'AHEAD' and 'THEN'
+: ELSE	   htPOSTPONE AHEAD 2SWAP htPOSTPONE THEN ; COMPILE-ONLY IMMEDIATE
+
+: AGAIN	IF -22 THROW THEN  \ control structure mismatch; dest type is 0
+	tPOSTPONE branch code, bal- ; COMPILE-ONLY IMMEDIATE
+
+\ htPOSTPONE must find this target AGAIN and THEN
+: REPEAT   htPOSTPONE AGAIN htPOSTPONE THEN ; COMPILE-ONLY IMMEDIATE
+
+\ htPOSTPONE must find this target IF
+: WHILE     htPOSTPONE IF 2SWAP ; COMPILE-ONLY IMMEDIATE
+
+
+\ generate, in the host dictionary, the code that has the run-time effect
+\ of emitting a code sequence in target space. The code sequence is:
+\ <dolit> <value from stack>
+: LITERAL
+	[ xtdoLIT ] LITERAL COMPILE, COMPILE, ; COMPILE-ONLY IMMEDIATE
+
+\ non-immediate version
+: niLITERAL
+	[ xtdoLIT ] LITERAL COMPILE, COMPILE, ; COMPILE-ONLY
+
+PREVIOUS DEFINITIONS \ back to FORTH
+ALSO it-words
+: xxLITERAL niLITERAL ;
+PREVIOUS
+ALSO it-words DEFINITIONS PREVIOUS
+ALSO its-words
+
+
+: (         [CHAR] ) PARSE 2DROP ; IMMEDIATE
 
 
 META-TODO [IF]
@@ -752,7 +801,6 @@ META-TODO [IF]
 : ."        tPOSTPONE S" tPOSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
 
 META-TODO [IF]
-BASE @ DECIMAL \ THROW value
 : TO        ' ?call DUP IF          \ should be call-doVALUE
 		[']-doVALUE =         \ verify VALUE marker
 	  	IF @ STATE @
@@ -760,40 +808,33 @@ BASE @ DECIMAL \ THROW value
 		     ! EXIT
 		THEN
             THEN -32 THROW ; IMMEDIATE   \ invalid name argument (e.g. TO xxx)
-BASE !
-
 [THEN]
 
+\ parse the next word, and look in the target dictionary to find its xt.
+\ push the xt onto the stack then emit it in the code stream
+: [']  t' xxLITERAL ; COMPILE-ONLY IMMEDIATE
 
-BASE @ DECIMAL \ THROW value
-: UNTIL     IF -22 THROW THEN  \ control structure mismatch; dest type is 0
-	    tPOSTPONE 0branch code, bal- ; COMPILE-ONLY IMMEDIATE
-BASE !
-
-: [']       ' tPOSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
-
-: [CHAR]    CHAR tPOSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
-
-CR .(  If)
-: IF	." IF"    tPOSTPONE 0branch ." ..IF" xhere 0 code,
-	    1 bal+          \ orig type is 1
-	    ; COMPILE-ONLY IMMEDIATE
-
-: WHILE     tPOSTPONE IF 2SWAP ; COMPILE-ONLY IMMEDIATE
-
-BASE @ DECIMAL \ THROW value
-: THEN      1- IF -22 THROW THEN	\ control structure mismatch
-					\ orig type is 1
-	    xhere SWAP t! bal- ; COMPILE-ONLY IMMEDIATE
-BASE !
+\ parse the next word and push the character code for its first character
+\ onto the stack, then emit the character code in the code stream
+: [CHAR]    CHAR xxLITERAL ; COMPILE-ONLY IMMEDIATE
 
 
-: ELSE      tPOSTPONE AHEAD 2SWAP tPOSTPONE THEN ; COMPILE-ONLY IMMEDIATE
+\ " force the compilation of a word that would normally be executed"
+\ " postpone the compile action of the word"
+\ parse the next word in the input stream and look for it in the target
+\ dictionary. It needs to be found, since a forward reference cannot save
+\ us. When found, determine whether it is immediate or non-immediate and
+\ based on this knowledge, emit the code sequence that will have the run-time
+\ effect of executing the word.
+\ : POSTPONE  (') 0< IF POSTPONE LITERAL
+\	POSTPONE COMPILE, EXIT THEN   \ non-IMMEDIATE
+\	COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
+: POSTPONE CR ." P>"
+	ALSO t-words (') PREVIOUS 0< IF
+	." non-imm" [ xtLITERAL ] LITERAL COMPILE, COMPILE,
+	[ xtCOMPILE, ] LITERAL THEN   \ non-IMMEDIATE
+	COMPILE, ." <tP" ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
-
-META-TODO [IF] \ TODO needs to find the AGAIN and THEN here
-: REPEAT    AGAIN THEN ; COMPILE-ONLY IMMEDIATE
-[THEN]
 
 : ABORT"    S" tPOSTPONE ROT
 	    tPOSTPONE IF tPOSTPONE abort"msg tPOSTPONE 2!
@@ -806,6 +847,24 @@ META-TODO [IF] \ TODO needs to find the AGAIN and THEN here
 
 \ (End of immediate words)
 PREVIOUS DEFINITIONS \ back to FORTH
+
+\ take a number off the stack and create an immediate word whose action is to
+\ parse the input buffer and extract a number. The word D# n has the same
+\ effect as [ n ] LITERAL - which is normally redundant, but is needed when
+\ using the interpreter to target compile.
+: N#	CREATE , IMMEDIATE DOES>
+	BASE @ >R @ BASE !
+	0 0 \ >NUMBER accumulates a DOUBLE
+	BL PARSE >NUMBER R> BASE ! 2DROP DROP
+	xxLITERAL ;
+
+ALSO it-words DEFINITIONS
+BASE @ DECIMAL
+16 N# H#
+10 N# D#
+BASE !
+PREVIOUS DEFINITIONS
+
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ START of definitions that meta-compiler : depends upon,
@@ -821,20 +880,16 @@ ALSO its-words
 \		Create an execution token xt, enter compilation state and
 \		start the current definition.
 \
-BASE @ DECIMAL \ THROW value
 : :NONAME   bal IF -29 THROW THEN           \ compiler nesting
 	[']-doLIST xt, DUP -1
 	0 TO notNONAME?  1 TO bal ] ;
-BASE !
 
 \   :           ( "<spaces>name" -- colon-sys ) \ CORE
 \		Start a new colon definition using next word as its name.
 \
-: t:	CR ." (hFdefn->"
-	TDEF
-	:NONAME ROT
-	head, -1 TO notNONAME?
-	tc-order ;
+: t:	TDEF
+	:NONAME ROT \ :NONAME sets the compilation order
+	head, -1 TO notNONAME? ;
 
 \ (END of meta-compiler : definition and its dependencies)
 PREVIOUS \ back to FORTH
@@ -848,4 +903,7 @@ PREVIOUS SET-ORDER SET-CURRENT
 ALSO its-words
 : xF-DEF F-DEF ;
 : xS-DEF S-DEF ;
+: xENV-DEF ENV-DEF ;
 PREVIOUS
+
+HEX
