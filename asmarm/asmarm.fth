@@ -4,6 +4,9 @@
 
 \ $Id$
 \ $Log$
+\ Revision 1.1  1998/06/07 22:55:01  crook
+\ Initial revision
+\
 
 \ Instruction groups TODO:
 \ ========================
@@ -798,7 +801,7 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ defined. A reference to such a label is stored in the forward references
 \ table. When the label is ultimately resolved, the structure of the table
 \ allows the code to be back-patched to resolve the reference. As soon as
-\ a label has been resolved, and associated entries in the forward references
+\ a label has been resolved, associated entries in the forward references
 \ table are deleted (the space is available for reuse). Within the forward
 \ references table, global labels are distinguished from local labels by
 \ setting the msb of the label number of global labels. When the global
@@ -806,7 +809,7 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ masked off.
 
 \ take an address of the label field, and clear all the associated labels to
-\ undefined. The undefined value is 0xDEADFEED which is ODD, so is unlikely
+\ undefined. The undefined value is 0xDEADFEED which is *odd*, so is unlikely
 \ to coincide with a real value. If it does coincide with a real value the
 \ impact will be that the label with that value can never be resolved and
 \ this will lead to an error
@@ -881,14 +884,14 @@ VARIABLE SYM-TABLE
 	WITHIN R> SWAP INVERT IF 1C huh THEN ;
 
 \ create an entry in the unresolved table for label n. The patch address
-\ for the label is . (dot)
+\ for the label is the . (dot) address in target space.
 : newunres ( n -- )
 	SYM-TABLE @ DUP CELL+ @ SWAP @ \ n address-of-1st #entries 
-	2 CELLS * OVER + SWAP DO \ n
-		\ for each entry in the unresolved labels table..
+	2 CELLS * OVER + SWAP DO \ n .. search unresolved labels table
+		\ check this entry..
 		I @ FFFFFFFF = IF
 			\ empty entry so assign n to it
-			I ! ASM. I CELL+ ! UNLOOP EXIT
+			I ! ASM. I CELL+ ." newunres:" .S ! UNLOOP EXIT
 		THEN
 	2 CELLS +LOOP 1D huh ;
 
@@ -900,9 +903,9 @@ VARIABLE SYM-TABLE
 	SYM-TABLE @ + leglab \ label a-of-number-of-labels
 	CELL+ @ OVER 7FFFFFFF AND CELLS + @ \ label label-value
 	DUP DEADFEED = IF 
-		DROP newunres this-op @ 800000 OR this-op ! \ undefined
+		DROP newunres this-op @ 800000 OR this-op ! \ unresolved
 	ELSE
-		SWAP DROP \ defined
+		SWAP DROP \ resolved
 	THEN ;
 
 2 00000000 label# L#		4 80000000 label# G#
@@ -924,7 +927,7 @@ VARIABLE SYM-TABLE
 			\ resolve this label
 			DUP 80000000 AND IF I @ G# ELSE I @ L# THEN \ get value
 			I CELL+ @ DUP ASM@
-			\ label value patch-address cur-value
+\ ." Resolve:" .S			\ label value patch-address cur-value
 			0A000000 AND 0A000000 = IF
 				\ it's a branch
 				OVER OVER - 8 - 2 RSHIFT DUP FF000000 AND
@@ -932,10 +935,11 @@ VARIABLE SYM-TABLE
 					4 huh
 				THEN
 				\ label value patch-address offset
-				FFFFFF AND OVER @ OR SWAP ASM! DROP
+				FFFFFF AND OVER ASM@ OR SWAP ASM! DROP
 			ELSE
+\ ." Literal ref" .S
 				\ change patch address to address of literal
-				DUP @ 0FFF OR - 8 +
+				DUP ASM@ 0FFF AND - 8 +
 				ASM! \ and patch it
 			THEN
 			FFFFFFFF I ! \ it's resolved so clear the entry
@@ -971,11 +975,10 @@ VARIABLE SYM-TABLE
 \ initialised to 0 to prevent sharing of invalid literals.
 \ The literal pool is in TARGET space so all accesses to it are indirected
 \ through ASM@ and ASM!. The puddle is created at ASM. and onwards. From the
-\ From the target processor's point of view, the pool is in *data* space,
-\ since a d-stream read will access the pool in operation. However, from
-\ Forth's point of view, this is *code* space, since it is accessed by an
-\ offset from the current value of the PC and it is stored in-line with the
-\ i-stream storage.
+\ target processor's point of view, the pool is in *data* space, since a
+\ d-stream read will access the pool in operation. However, from Forth's point
+\ of view, this is *code* space, since it is accessed by an offset from the
+\ current value of the PC and it is stored in-line with the i-stream storage.
 \ In comparison with the literal pool that the ARM assembler would generate,
 \ there are two differences; firstly, there is some overhead in each puddle:
 \ a longword to store the number of literals in the puddle and another to store
