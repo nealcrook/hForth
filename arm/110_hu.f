@@ -1,22 +1,26 @@
-\ ebsa_hu.fth
-\ ebsa-110 hForth utility words
-\
 \ $Id$
 \ $Log$
+\ Revision 1.1  1997/03/30 21:20:18  crook
+\ Initial revision
 \
+\
+\ ebsa-110 hForth utility words
 \ these utilities expect coreext and optional to be loaded; they require
 \ definitions of HEX MARKER SAVE-SYSTEM ROM RAM
+\
 \ TODO: check SOFTSTAT refers to pass-2 jumpers and change the message to
 \ report which image number is selected
 \ TODO: fix Ethernet code to work with cache on; delay loops?
-\ TODO: fix Flash programming with cache on; cache flushing and (maybe)
-\ delay after programming each byte
+\ TODO: fix Flash programming with cache on; delay after byte programming?
 \ TODO: what wordlist should these go into?
 \ TODO: should Flash moves be DATA or CODE space? 
-\ TODO: test simpler XAMCDUMP (XAMCDUMPx)
-\ TODO: in FLASHFORTH make sure DRAM is working first, and don't splat low
-\ memory OR (better) don't copy it; blow the checksum later, once it's in
-\ flash.
+\ TODO: in FLASHFORTH make sure DRAM is working first, OR (better) don't
+\ copy it; blow the checksum later, once it's in Flash.
+\ TODO: revamp error codes for Flash words to make abort" more sensible
+\ TODO: in FLASHFORTH I doen't need to check the bitmap -- already have the
+\ address. BUT do want to set bitmap to only allocate 1 block, in case of
+\ FMU bug. Note that you cannot program the Flash whilst running from DEMON
+\ with my code.
 
 HEX
 MARKER STARTOF-UTILS
@@ -163,7 +167,7 @@ VARIABLE OLDBASE
 : BEEP \ ( -- )
 \ Make a short beep
  750 TONE NOISE
- 200 0 DO
+ 20000 0 DO
    1 1 * DROP \ waste some time
  LOOP
  QUIET
@@ -263,7 +267,7 @@ VARIABLE FLBASE
    IF
      ." non-Flash ROM found in high position"
    THEN
- THEN
+ THEN CR
 ;
 
 : FLSTAT \ ( -- n)
@@ -315,21 +319,25 @@ VARIABLE FLBASE
    OVER @	\ get 32-bits of data
    DUP		\ froma toa dat dat
    2 PICK !	\ program 1st byte
+   FLBUSY
    8 RSHIFT	\ get 2nd data ready
    SWAP 400000 + \ 2nd address froma dat toa
    40 OVER !	\ prime for 2nd byte
    SWAP DUP	\ froma toa dat dat
    2 PICK !	\ program 2nd
+   FLBUSY
    8 RSHIFT
    SWAP 400000 +
    40 OVER !
    SWAP DUP
    2 PICK !	\ program 3rd
+   FLBUSY
    8 RSHIFT
    SWAP 400000 +
    40 OVER !	\ prime for final byte
    SWAP		\ froma toa dat
    OVER !	\ program 4th
+   FLBUSY
    BFFFFC -	\ next location
    SWAP 4 + SWAP
    DUP R@ - 0=	\ reached end address?
@@ -357,9 +365,7 @@ VARIABLE FLBASE
 ;
 
 : QCSUM \ ( n1 n2 -- n)
-\ compute quadword 2s complement checksum
-\ starting at n1, of n2 quadwords
- 1 -
+\ compute quadword 2s complement checksum starting at n1, of n2 quadwords
  0 SWAP \ start_addr sum #quadwords
  0 DO
    OVER I 2 LSHIFT + \ calculate address
@@ -374,21 +380,21 @@ VARIABLE FLBASE
  \ 65536 bytes. If the map and length allocate 2 blocks, the effect of
  \ FLASHFORTH is to re-use the lower of the two blocks and liberate the
  \ second, whilst fixing up the image length.
- SAVE-SYSTEM 
- FLFIND ABORT" Fatal: Couldn't find the flash"
+ CR SAVE-SYSTEM
+ FLFIND INVERT ABORT" Fatal: Couldn't find the flash"
  HFHDR DUP 10 = ABORT" Fatal: couldn't find Flash image 'hForth'"
  FLB2A DUP ." Found image " 14 + 10 TYPE
- \ copy image to DRAM - need this so we can calculate the C'sum
+ \ copy image to DRAM @ 10000-1FFFF - need this so we can calculate the C'sum
  40000000
- 10000 0 DO
+ 20000 10000 DO
    DUP @ I ! 4 +
  4 +LOOP DROP
- DUP 0 C0 MOVE		\ copy header from Flash to DRAM image
- 0 C !			\ clear out the checksum
- 10000 10 !		\ set the length to a full block
- 0 4000 QCSUM  C !	\ update checksum
- 8 + @ 			\ get bitmap of used blocks
- 0= ABORT" Fatal: no blocks allocated in this image's block map"
+ DUP 10000 C0 MOVE	\ copy header from Flash to DRAM image
+ 0 1000C !		\ clear out the checksum in the DRAM image
+ 10000 10010 !		\ set the length to a full block in the DRAM image
+ 10000 4000 QCSUM  1000C !	\ update checksum in the DRAM image
+ 10008 @ 		\ get bitmap of used blocks
+ DUP 0= ABORT" Fatal: no blocks allocated in this image's block map"
  20 0 DO \ 32 bits to check; bits 31:0
    DUP 1 AND
    IF
@@ -398,8 +404,8 @@ VARIABLE FLBASE
  LOOP			\ loop always LEAVEs without completion
  \ stack now holds block number. Erase and program it
  DUP
- ." erasing.." FLBERASE ABORT" Fatal: Flash erase failed"
- ." programming.." 0 SWAP FLPROG ABORT" Fatal: Flash program failed"
+ ." erasing.." FLBERASE INVERT ABORT" Fatal: Flash erase failed"
+ ." programming.." 10000 SWAP FLPROG INVERT ABORT" Fatal: Flash program failed"
  ." done. Flash updated successfully."
  CR
 ;
@@ -516,19 +522,7 @@ MARKER STARTOF-ETHER
  \ dump contents of array $$
  \ works for SAM and MAM arrays
  ' DUP >BODY @			\ ca limit
- DUP 0 DO			\ ca limit
-   I				\ ca limit offset
-   2 PICK			\ ca limit offset ca
-   EXECUTE SWAP CR . .		\ ca limit
- LOOP DROP DROP
-;
-
-\ does this simpler version work now I'm using DO-LOOP?
-: XAMCDUMPx \ ( $$ -- )
- \ dump contents of array $$
- \ works for SAM and MAM arrays
- ' DUP >BODY @			\ ca limit
- 0 DO				\ ca
+ 1+ 0 DO			\ ca
    I				\ ca offset
    OVER				\ ca offset ca
    EXECUTE			\ ca data address
@@ -648,12 +642,12 @@ RAM \ end of ethernet config sequence
  \ initialise the Ethernet controller.
  ." Send the initiation key... "
  LIMIT ETHERKEY LITERAL		\ elements from 0 -> tos
- 0 DO				\ loop for 0 to limit-1
+ 1+ 0 DO			\ loop for 0 to limit
    I ETHERKEY !			\ get address and data and send it
  LOOP
   ." Configure... "
   LIMIT ETHERCONF LITERAL
-  0 DO
+  1+ 0 DO
     I ETHERCONF F00004F0 ! F00014F0 !
   LOOP
   02 F00004F1 C!
@@ -664,7 +658,7 @@ RAM \ end of ethernet config sequence
 : .UID \ ( -- )
  \ Print the Ethernet unique ID (aka Ethernet address)
  6 0 DO
-  F0000440 I 2 LSHIFT + C@
+  F0000440 I 2 LSHIFT + C@ S>D
   <# # # #> TYPE
   I 5 = IF
    CR
