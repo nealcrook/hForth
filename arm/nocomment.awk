@@ -1,6 +1,13 @@
 # nocomment.awk
 # remove comments from file
 
+# $Id$
+#
+# $Log$
+# Revision 1.1  1997/01/13 09:41:28  crook
+# Initial revision
+#
+
 BEGIN {
   print ("\\ comments autoremoved by nocomment.awk")
 }
