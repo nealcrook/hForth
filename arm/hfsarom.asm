@@ -88,6 +88,9 @@
 ;; build time.
 
 ;; $Log$
+;; Revision 1.18  1998/10/03 15:08:22  crook
+;; Updates from Wonyong's version of 05-Jan-1998
+;;
 ;; Revision 1.17  1997/08/18 10:23:34  crook
 ;; tidy up for first release
 ;;
@@ -1311,12 +1314,12 @@ COLD1		DW	SPZero,SPStore,RPZero,RPStore
 ;		them
 ;
 ;   : set-i/ov  sysVar0 var0 4 CELLS MOVE       \ set i/o vectors
-;	        AddrIOBYTES @ FF AND FF =
+;	        IOBYTES FF AND FF =
 ;	        IF
-;	                ' DTX! TO 'emit
-;	                ' DRX@ TO 'ekey
-;	                ' TRUE TO 'emit?
-;	                ' TRUE TO 'ekey?
+;	                ['] TRUE TO 'ekey?
+;	                ['] DRX@ TO 'ekey
+;	                ['] TRUE TO 'emit?
+;	                ['] DTX! TO 'emit
 ;	        THEN ;
 
 		$COLON  8,'set-i/ov',Set_IOV,_SLINK
@@ -1349,7 +1352,7 @@ SETIOV2         DW	EXIT
 
 ;   FLOW-ON     ( -- )
 ;	        Send an XON character for the file downloading process.
-;   : FLOW-ON   XON# EMIT ;
+;   : FLOW-ON   [ XON ] LITERAL EMIT ;
 
 		$COLON  7,'FLOW-ON',FLOW_ON,_SLINK
 		DW	DoLIT,XON,EMIT,EXIT
@@ -1357,7 +1360,7 @@ SETIOV2         DW	EXIT
 ;   FLOW-OFF    ( -- )
 ;	        Send an XOFF character for the file downloading process; ONLY
 ;	        if FILE bit is set
-;   : FLOW-OFF  IOBYTES 10000000 AND IF XOFF EMIT THEN ;
+;   : FLOW-OFF  IOBYTES 10000000 AND IF [ XOFF ] LITERAL EMIT THEN ;
 
 		$COLON  8,'FLOW-OFF',FLOW_OFF,_SLINK
 		DW	DoLIT,AddrIOBYTES,Fetch,DoLIT,010000000h,ANDD
@@ -1422,7 +1425,7 @@ FLOF1           DW	EXIT
 ; Clearly, you could overcome these limitations by making udebug more
 ; complex -- but then you run the risk of introducing bugs in that code.
 
-uDebug          ldr r0,=RAM0            ; where UZERO table will go to
+uDebug          ldr r0,=AddrTrapfpc
 		ldr r1,[r0]
 		cmps r1,fpc             ; compare the stored address with
 					; the address we're about to get the
@@ -1788,7 +1791,7 @@ QCALL1		DW	Zero,EXIT
 ; ARM version: call is one cell and contains a signed 24-bit relative
 ; offset. The offset must be fixed up for pipeline prefetch:
 ;   : xt,       xhere ALIGNED DUP TOxhere SWAP
-;		xhere - CELL- CELL- 2 RSHIFT    \ get signed offset
+;		xhere - cell- cell- 2 RSHIFT    \ get signed offset
 ;		00ffffffh AND                   \ mask off high-order sign bits
 ;		call_code OR                    \ make the opcode 
 ;		xhere swap                      \ remember where it will go
@@ -3988,17 +3991,14 @@ EMIT01          ldr     r0,=AddrTEMIT
 		ldr     r1,[r0]
 		mov     pc,r1
 
-;NAC added for file handshake. TODO should it be slink instead?
 ;   EMITE       ( x -- )
 ;		Send a character to the output device unless FILE bit
 ;		is set in IOBYTES
 ;
 ;   : EMITE     IOBYTES 10000000 AND 
-;		IF 'emit EXECUTE THEN DROP ;
+;		IF DROP EXIT THEN 'emit EXECUTE ;
 
-;TODO test that high-level definition
-
-		$CODE	5,'EMITE',EMITE,_FLINK
+		$CODE	5,'EMITE',EMITE,_SLINK
 		ldr     r0,=AddrIOBYTES         ;find out whether to emit it
 		ldr     r1,[r0]
 		ands    r1,r1,#&10000000
