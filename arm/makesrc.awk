@@ -16,6 +16,10 @@
 # $Id$
 #
 # $Log$
+# Revision 1.5  1997/03/01 17:05:27  crook
+# merge Carey's changes for building in DOS environment and make it
+# easier to invoke udebug routine (can now do it from the build file)
+#
 # Revision 1.4  1997/01/24 19:48:20  crook
 # mods for V1 source -- change D$ to INSTR$
 #
@@ -49,6 +53,7 @@ BEGIN {
   throwoffset = celll
 # the throw parameters will get extracted from the source
   throwmsgs = ""         # number of throw messages
+  tmsgcnt = 1            # count throw messages to generate unique label
 
   foffset = " "
   soffset = " "
@@ -209,7 +214,7 @@ function do_envir_header() {
   else
   if ($1 == "$NEXT") {
     #print ("Compile an end-of-definition")
-    if (udebug=0) {
+    if (udebug==0) {
       print ("\t\tldr\tpc, [fpc], #CELLL\t;goto FPC, incr FPC to nxt word") > codefile
     }
     else {
@@ -219,25 +224,25 @@ function do_envir_header() {
   else
   if ($1 == "$THROWMSG") {
     #print ("expansion of $THROWMSG")
-    # format of line is: $THROWMSG   label,' some text'  ; comment
-    # $2 is of the form label,' - strip off comma and everything after
-    param[1] = substr($2,1,index($2,",") - 1)
+    # format of line is: $THROWMSG   'some text'  ; comment
+    # $2 is of the form 'some text'
     # find a substring delimited by single quotes
     match($0,/'[^'][^']*'/)
-    param[2] = substr($0, RSTART+1, RLENGTH-2)
-    calc_length = length(param[2])
+    param[1] = substr($0, RSTART+1, RLENGTH-2)
+    calc_length = length(param[1])
     # Double quote and dollar characters must be escaped by being doubled up
-    gsub(/"/,doubquot,param[2])
-    gsub(/\$/,"$$",param[2])
-    #print("label = " param[1] " string = >" param[2] "<, length = " calc_length )
+    gsub(/"/,doubquot,param[1])
+    gsub(/\$/,"$$",param[1])
+    # print("label = THROWMsg_" tmsgcnt " string = >" param[1] "<, length = " calc_length )
     # no need to align. Need length+1 bytes to hold to counted string
     dict_pc -= (calc_length + 1)
     printf(";--- org 0x%x %s = 0x%x.. may be 1,2,3 less\n", dict_pc, nameoffset, dict_pc - 232) > datafile
-    printf(param[1] "\tDCB\t" calc_length "," quot param[2] quot "\n\n") > datafile
+    printf("THROWMsg_" tmsgcnt "\tDCB\t" calc_length "," quot param[1] quot "\n\n") > datafile
     printf (";--- org 0x%x\n",init_dict_pc - throwoffset) > throwfile
-    printf ("\t\tDCD\t%s\n\n",param[1]) > throwfile
+    printf ("\t\tDCD\tTHROWMsg_%d\n\n",tmsgcnt) > throwfile
     throwoffset += celll
-    print (";Expansion of $THROWMSG for " param[1]) > codefile
+    print (";Expansion of $THROWMSG for message " tmsgcnt) > codefile
+    tmsgcnt = tmsgcnt + 1
   }
   else
   if ($1 == "$STR") {
