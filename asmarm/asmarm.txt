@@ -1,0 +1,337 @@
+$Id$
+
+Documentation for the Forth ARM assembler
+=========================================
+
+1. Background - how it works
+----------------------------
+
+Usually, you make new definitions in Forth using the : ; words. This
+produces new definitions that call sequences of existing (predefined)
+definitions. Sometimes, it can be useful to produce new definitions in
+the native machine language of the target machine. This Forth
+assembler allows words to be defined using ARM assembly language. New
+definitions created using the assembler can be used in exactly the
+same way as definitions created using : ; .
+
+The core of the assembler is a set of words that generate ARM
+op-codes. In common with most other Forth assemblers, this assembler
+works by using the normal Forth interpreter. This has some important
+ramifications. Consider the following line of ARM assembly language:
+
+ldr r6,[r5 #5]
+
+A conventional assembler will parse this line of text and break it down
+into tokens. It will analyse the mnemonic and its arguments and generate an
+op-code. By using the Forth command-line interpreter we are forced to
+break the input language into a space-delimited input stream (otherwise,
+we'd need too many words; for the example above we'd need words
+"ldr" "r6,[r5" and "#5[" and all the associated permutations). However, there
+are some major compensations with using this approach:
+
+-- it's sympathetic to the rest of the Forth environment
+-- it allows other Forth constructs to be mixed in with assembler code (for
+   example, immediate words and immediate conditionals like [IF] ) thereby
+   giving all the power of a macro assembler.
+-- it makes the whole assembler quite small
+
+Once the assembler language has been broken down into the largest convenient
+pieces, the equivalent syntax for the line quoted above is:
+
+[ 5 # R5 ] R7 LDR,
+
+The first thing that you notice about this is that it is a left-to-right
+reversal of the original; it's in reverse polish notation. The second
+thing you notice is that there are a number of extra spaces inserted; in
+the original, spaces could have been added. In this version, they are
+required. 
+
+With the spaces inserted, you can see that this section of the assembler
+requires word definitions for "[", "#", "R5", "]", "R7" and "LDR,". All of
+these assembler definitions are compiled into a separate word list and are
+only placed in the search list when the assembler is in use. The number "5"
+requires no special treatment; it is parsed as normal and placed on the
+stack. The standard syntax of the ARM assembler requires the use of "[", "#"
+and "]" which are already standard words in Forth. The assembler's word list
+defines "[[" to act as the standard word "[" etc.
+
+The syntax for the assembler requires that all operands occur before the
+mnemonic. Each mnemonic ends in a comma, to reflect the fact that the
+execution behviour of these words is to emit an op-code into the code
+stream.
+
+
+2. Assembler syntax - introduction
+----------------------------------
+
+- a simple example
+
+3. Avoiding conflict with existing words
+----------------------------------------
+
+One of the fascinating things about assemblers in Forth is that you
+can still use the other facilities of Forth within your programming
+environment. Typically this includes defining and using variables and
+constants and switching into immediate mode in order to perform a
+calculation that can be done at compile-time. However, the syntax of
+ARM assembly language requires the use of several words that already
+have significance within Forth. For this reason, certain words are
+redefined whilst you are using the vocabulary of the assembler. These
+words are listed below:
+
+Usual	Within Assembler
+[	[[
+]	]]
+#	##
+
+
+4. Assembler syntax -details
+----------------------------
+
+5. Starting and finishing definitions
+-------------------------------------
+
+The ANS standard specifies CODE and ;CODE as standard words for starting
+code definitions. It states that the method of ending definitions is
+implementation-defined.
+
+In this assembler the word END-CODE is used to end a code
+definition. If you want the Forth program to continue to execute at the
+the end of the definition, it is necessary to execute some other
+implementation-dependent word. In this assembler, for hForth, the word
+NEXT, performs this function; it passes control back to the calling word.
+
+Examples:
+
+CODE myword
+	R0 R4 ADD,
+	NEXT,
+END-CODE
+
+: makeit CREATE , DOES> ;CODE	\ run-time actions are in code..
+	TOS R3 ADD,
+	NEXT,
+END-CODE
+
+6. Accessing the stacks from within assembler code
+--------------------------------------------------
+
+This is implementation-dependent.
+
+7. Labels
+---------
+
+Labels are symbols intoduced into the assembler source to identify the
+targets of branches and calls. Even when writing in assembler, it is
+expected that you will still use the Forth programming technique
+"factoring" that generally results in relatively small code sequences
+withing a single definition. Therefore, this assembler places
+restrictions on the number of labels that are available at any time,
+and on the names of the labels.
+
+
+8. Equates
+----------
+
+In a conventional assembler, there is a facility for defining symbols that
+equate to strings or numbers. The definition and use of these symbols helps
+the readability and maintainability of the code. The use of symbols has no
+impact on the code size or performance; they only exist within the source
+code for the program.
+
+There is no way of having an equivalent function in Forth (unfortunately).
+The closest equivalents is to use CONSTANT or VARIABLE declarations. These
+have the same benefits as the use of symbols in a conventional assembler and
+have no impact on the size of the code being assembled but, unfortunately,
+they are retained in the dictionary, code and data space once the program
+has been assembled (at which point they are of no use). The only time where
+CONSTANT or VARIABLE declarations do not cause an overhead is when the
+assembler is used to generate code for a target system (for example, a
+meta-compiler). In this case, the CONSTANTs and VARIABLEs occupy space in the
+host dictionary and are used to facilitate the generation of the code for
+the target system; they do not take up space on the target system.
+
+9. Pseudo-ops
+-------------
+
+Pseudo-ops are instructions to the assembler that are not part of the
+ARM processors assembly language but are useful tools when writing
+code.
+
+We've already introduced four pseudo-ops:
+
+CODE  ;CODE  END-CODE  NEXT,
+
+These are used as linkages to allow assembly code to be mixed with colon
+definitions. We'll briefly consider the behaviour of each of them in turn.
+
+CODE parses a definition name and creates a dictionary entry for it. It
+changes the search-order to include the word list of assembler words and
+initialises the assembler. It does not generate any code; the first
+user-defined op-code is emitted at the location associated with the xt
+(execution token) for the definition.
+
+;CODE is used following DOES> so that the DOES> actions can be expressed
+in assembler. It does not need to parse a definition name; that's already
+been done. As before, it changes the search-order and initialises the
+assembler, but does not emit any code. [Need to review this is the light
+of the NOTE below].
+
+END-CODE is used following CODE or ;CODE. It completes links in the
+dictionary entry, so that the new definition can be found. It will also restore
+the search order. As before, it does not emit any code; it does NOT cause the
+thread of program execution to return to the calling word.
+[it will also attempt to resolve any forward references; and generate an
+error if any remain unresolved. How is this done in 8086 asm?]
+
+NEXT, is used immediately prior to CODE or ;CODE. It emits the appropriate
+code to cause the thread of program execution to return to the calling word.
+It can be used multiple times within a single definition, if necessary.
+
+[NOTE: *this* is legal
+: FRED CREATE , DOES> ;CODE {machine code} NEXT, END-CODE
+is *this* legal:
+: FRED CREATE , DOES> ABS 4 AND ;CODE {machine code} NEXT, END-CODE
+I *think* it is.. means that DOES> starts off with a call dolist and the
+;CODE emits the xt for a word whose run-time action is to branch to its
+return address. If that's the case, need to understand how the 8086
+version works. If the second is *not* legal then ;CODE just has to
+back-up the code pointer to gobble the call dolist, then emit code from
+that point]
+
+TODO: pseudo-ops for push/pop in hForth
+
+The remaining pseudo-ops supported by the assembler are used for handling
+the literal pool:
+
+LTORG-HEAD LTORG ,=  LTORG-STATS
+
+These pseudo-ops are described in section 10.
+
+
+10. The Literal Pool
+--------------------
+
+The literal pool is a method for getting literal values into registers.
+If a literal value is present on the top of stack, the syntax:
+
+R6 =,
+
+Generates an op-code through which the value on the top of stack is
+loaded into the specified register. The literal value can be put on
+the top of the stack in all the usual ways. Loading a literal value
+into a register can be achieved in one of two ways. The preferred
+method is to generate a MOV or MVN op-code, with the literal value
+encoded in the immediate field of the op-code. This method produces
+the smallest, fastest code but it can only be used for a sub-set of
+all possible immediate values.
+
+The alternative method, which is used if the first method is not possible,
+is to emit the immediate value into data space (the nomenclature gets
+confusing here.. not necessarily the same as the Forth data space) and
+emit an LDR instruction with an immediate operand - the immediate operand
+is a displacement from the current address and references the location where
+the immediate value is stored.
+
+As with all ARM instructions, the op-code generated by =, can be made to
+execute conditionally. Here is an example of the syntax:
+
+R6 NE =,
+
+Before a value can be emitted into data space, you need to define an area
+(called a literal pool) for storing the value. You define the literal
+pool using LTORG, and this word takes a parameter from the tos which determines
+how many entries can be accommodated by the pool.
+
+When an LDR is generated, its immediate operand is a signed 12-bit value. A
+limitation of my implementation is that the assembler only allows backwards
+references to the literal pool, so half the potential range of the operand is
+wasted. When a literal needs to be emitted to the literal pool, the pool is
+searched to see if the value has already been created by some earlier piece
+of code. If it has, it is reused and no new entry is generated.
+
+The literal pool can be extended by using LTORG repeatedly. All of the
+separate parts of the pool ("puddles") are connected together as a linked list.
+When trying to share a literal pool entry, multiple puddles are searched.
+
+You don't need to understand all this. All you need to do is to use 20 LTORG
+(or somesuch) before your first CODE definition, then use the =,
+notation whenever you want to load an immediate value into a register. The
+assembler will always work out the most efficient method and will generate
+an error if:
+
+-- the literal pool becomes full (solution is to make it bigger or to
+   define a new one just before the start of the CODE definition where the
+   error occurred)
+-- the literal pool becomes inaccessible (because the largest offset than
+   can be generated as an immediate operand to the LDR instruction cannot
+   reach the address of the literal pool. Solution is to define a new one
+   just before the start of the CODE definition where the error occurred) 
+
+At the end of all your CODE definitions you can use LTORG-STATS to find out
+how efficiently your literal pools have been used. You can use this information
+to tune the size of your literal pools.
+
+So far, this discussion has only considered literals that are already resolved
+at compile time (ie the value is known when =, is executed). If this was a
+restriction then it would prevent forward references. 
+
+To avoid this restriction, labels are also legal arguments for the =,
+pseudo-op. An example of the syntax for this is:
+
+45 L# R7 =,
+
+Which causes R7 to be loaded with the literal value represented by label 45.
+[NOTE: As always when using labels, ensure that the number base is the same
+when you define a label and when you use it].
+If the value of the label is resolved at the time that =, executes, then
+the process for generating the op-code is identical to the process where an
+immediate value is supplied on the stack.
+
+If the value of the label is not resolved at the time that =, executes, an
+entry is allocated in the literal pool. The entry is preset to 0 [NOTE: this
+is safe - no other search of the literal pool will attempt to share this
+value since a literal of 0 would always be created using a MOV instruction].
+In addition, an entry is made in the ?? unresolved labels table. At the
+end of the current definition, the call to ???RESOLVE will fill in the
+entry in the literal pool.
+
+References to unresolved labels will always cause an LDR op-code to be
+generated, and the literals will never share some earlier entry in the
+literal pool (though the literal may itself be shared by some subsequent
+definition).
+
+The remainder of this section contains implementation notes.
+
+The variable LTORG-HEAD is initialised to 0.
+n LTORG allocates a region of data space with this structure:
+
+xxxxxxxx - pointer (more below)
+yyyyyyyy - number of literals used
+zzzzzzzz - maximum number of literals in this pool (n)
+aaaaaaaa - literal
+.
+.
+qqqqqqqq
+
+When the structure is defined, it looks in LTORG-HEAD. If that variable is
+set to 0, then this is the leaf literal pool and the pointer will be set to
+0. Otherwise, the pointer will be set to the current value of LTORG-HEAD,
+and LTORG-HEAD will be updated to hold the xt for this new LTORG.
+
+The label-forward-reference syntax requires a new bit in the data structure
+to signal that a label has been used and to force =, to behave accordingly.
+
+
+11. Error-handling
+------------------
+
+12. List of errors
+------------------
+
+13. Compile-time and run-time options
+-------------------------------------
+
+14. ARM Assembler data structures
+---------------------------------
+
