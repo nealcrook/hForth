@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.5  1998/09/01 22:26:19  crook
+\ minor tweaks.
+\
 \ Revision 1.6  1998/08/23 23:10:33  crook
 \ change way that values are generates for InitIOBYTES
 \
@@ -100,8 +103,8 @@ FF  hCONSTANT IO_DEFIO
 \ 7    - 56K
 4     hCONSTANT IO_DEFBAUD 
 
-TRUE hCONSTANT MM_DEMON \ MEMMAP 
-FALSE hCONSTANT MM_BOOT
+( TRUE) FALSE hCONSTANT MM_DEMON \ MEMMAP 
+( FALSE) TRUE hCONSTANT MM_BOOT
 FALSE hCONSTANT MM_PBLOADED
 
 
