@@ -2,9 +2,77 @@
 
 ;;PAGE 62,132     ;62 lines per page, 132 characters per line
 
+;; TODO ----- this doesn't have the memory map or io equates from
+;; Carey's cogent port.
+
+;; TODO ----- For cogent, only support MEMMAP=DEMON at the moment
+
+;; TODO ----- currently IOBYTE allows switch between DEMON and a COM port and
+;; allows the baud rate to be changed on the COM port, but doesn't allow the
+;; COM port to be changed. The most efficient way of doing this is to
+;; use the vectors to point to the correct I/O routines and to store the base
+;; port address in a resgister.
+
+;; TODO ------ I marked up a whole load of coing optimisation on my HK listing
+;; but it makes sense to debug the build-option changes first.
+
 ;; $Id$
 ;;
+;; This port supports a number of targets and target options that
+;; are controlled by parameters passed to this file and the AWK
+;; files through the build procedures.
+;;
+;; The AWK files allow builds from either DOS or Unix and allow
+;; the microdebugger herein to be activated.
+;;
+;; The following values of TARGET are supported:
+;; EBSA - EBSA-110, SA-110 StrongARM Evaluation Board
+;; EBFB - StrongARM/Footbridge PCI Evaluation Board
+;; COGENT - StrongARM PCI Evaluation Board.
+;; note that the ARM PIE card is no longer supported.
+;;
+;; At startup, the default I/O and baud rate are set as
+;; build-time options. At run-time they can be changed to
+;; use any method available on the target. The following values
+;; of DEFIO are supported:
+;; COMDSWI    - serial I/O through the ARM debugger terminal using
+;;	      DEMON SWI calls. This is rather crude since the SWI
+;;            don't handle backspace or other control characters
+;;            and insist on echoing everything before you get a
+;;            chance to parse it. Useful for initial debugging but
+;;            no more than that.
+;; COM0       - Footbridge internal UART
+;; COM1, COM2 - on-board UART on EBSA, COGENT and (some) EBFB
+;;
+;; For all com ports except COMDSWI, the following values of
+;; DEFBAUD are supported:
+;; 4	- 9600 baud
+;; 5	- 19K2
+;; 6	- 38K4
+;; 7	- 56K
+;;
+;; The memory-map is a build-time option. In general, the image
+;; is set up so that all its resources fit into a 128Kbyte block
+;; but it could be cut down below that. For ROM-type targets,
+;; 64Kbytes of ROM is required and the image gets copied to RAM
+;; where it occupies 64K for ROM and the next 64K for data and
+;; for building memory-management page tables. The following
+;; values of MEMMAP are supported:
+;; DEMON      - image loaded at 0x8000 and executes in place
+;; BOOT       - designed to be blown into ROM and executed from
+;;              reset; sets up memory and copies itself to RAM
+;; PBLOADED   - designed to be blown into Flash and loaded
+;;              by the PBL; the PBL will initialise RAM, copy the
+;;              image to RAM and jump to it.
+;;
+;; Not all permutations of target/io/memory-map are supported
+;; and/or tested. Some illegal permutations are set up to
+;; generate a fatal error at build time.
+
 ;; $Log$
+;; Revision 1.9  1997/02/03 21:15:00  crook
+;; some words coded, cache stuff added
+;;
 ;; Revision 1.8  1997/01/28 20:41:21  crook
 ;; Native same? (search-wordlist), complete cache support
 ;; multitasker works, optional.f loads and at least some of it works.
@@ -31,7 +99,6 @@
 ;;
 ;; Revision 1.1  1997/01/13 09:44:59  crook
 ;; Initial revision
-;;
 
 
 ;;; NAC things-to-do
@@ -41,16 +108,36 @@
 ;;; 8. write porting guide
 ;;; - On error, the serial I/O gets re-initialised. That's a problem if
 ;;;   SETBAUD has been used. Need a variable for storing it.
+;;; 9. Bugfix for MMU stuff; turning OFF cache requires
+;;;    cache clean/flush/disable to be an atomic operation.
+;;; 10. Recast _NAME calculations relatively, in terms of ROMend. This would
+;;; save the need to pass dict_pc into the awk script
 ;;; Issues
 ;;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
+
+;; BIG things to do: make the whole code position independent; self-determining
+;; at startup. Define an API at the front-end to allow any target IO routines to
+;; be bolted on. This would also make it possible to plop the code in memory
+;; in any system and have some OS provide the IO -- hForth would become an
+;; application that would take whatever CPU cycles you chose to give it. The
+;; API would have to deal with IO, cache control and turn-the-tables in the
+;; sense that it would 'own' all the CPU cycles. Currently, hForth expects to
+;; own spare CPU cycles; it burns them in the getchar routines and the
+;; multitasker.
 	
 ;===============================================================
 ;
 ;	ARM RISC port of Wonyong Koh's hForth.
 ;	Starting point was:
-;       hForth 8086 ROM model v1.0 by Wonyong Koh, 1996
+;	hForth 8086 ROM model v1.0 by Wonyong Koh, 1997
 ;
 ;
+; 1997. 2. 6.
+;       Add Neal Crook's comment on assembly definitions.
+; 1997. 1. 25.
+;       Add $THROWMSG macro and revise accordingly.
+; 1997. 1. 18.
+;       Remove 'NullString' from assembly source.
 ; 1996. 12. 18.
 ;       Revise 'head,'.
 ; 1996. 12. 3.
@@ -222,8 +309,9 @@ rsp             RN r11                          ; RETURN stack pointer
 dsp             RN r12                          ; DATA stack pointer
 ;
 ;       r14, as usual, is used for the link address in subroutine calls
-;       r??? are used as scratch registers during calculation.
+;       r0-r7 are used as scratch registers during calculation.
 ;       All other registers are free.
+;	?? use r8 as IO port address??
 ;
 ;       Structure of a task
 ;       userP points follower.
@@ -249,7 +337,6 @@ CHARR           EQU     1               ;byte size of a character
 CELLL           EQU     4               ;byte size of a cell
 MaxChar         EQU     07Fh            ;Extended character set
 					;  Use 07Fh for ASCII only
-;NAC: make these generic using shift etc.
 MaxSigned       EQU     07FFFFFFFh      ;max value of signed integer
 MaxUnsigned     EQU     0FFFFFFFFh      ;max value of unsigned integer
 MaxNegative     EQU     080000000h      ;max value of negative integer
@@ -300,29 +387,79 @@ CALLL           EQU     0eb000000h      ;for ARM
 ;first 16Kbytes of the RAM section is reserved for the memory-management page
 ;tables.
 ;
+
+	IF (TARGET = "EBSA")
+		; load into SSRAM, 128Kbytes maximum (faster than DRAM)
 MMU0		EQU	040010000h		;start of page tables
 RAM0            EQU     040014000h              ;bottom of RAM memory ******
 RAMEnd          EQU     040020000h              ;top of RAM memory ******
-						;RAM size = 64KB
+						;RAM size = 48KB
+		IF (MEMMAP = "BOOT")
+		; code in EPROM is linked to run at the start of SSRAM
+		; the initial piece of code copies the image to SSRAM.
 ROM0            EQU     040000000h              ;bottom of ROM memory ******
+		ELSE
+		; code in Flash is linked to run at start of
+		; SSRAM plus c0. The PBL copies the image to
+		; SSRAM. The gap of c0 leaves room to form a
+		; formated AIF/Flash header for programming
+		; an updated image back to Flash.
+		; This arrangement is also suita
+ROM0            EQU     0400000c0h              ;bottom of ROM memory ******
+		ENDIF
 ROMEnd          EQU     040010000h              ;end of ROM memory ******
 						;ROM size = 64KB
+	;For EBSA DEMON, the memory map will be the same as for PBLOADED (ie
+	;Flash).
+
+	ELSE
+
+
+		IF (MEMMAP = "DEMON")
+MMU0		EQU	00018000h		;start of page tables
+RAM0            EQU     0001C000h               ;bottom of RAM memory ******
+RAMEnd          EQU     0002C000h               ;top of RAM memory ******
+						;RAM size = 64KB
+ROM0            EQU     00008000h               ;bottom of ROM memory ******
+ROMEnd          EQU     00018000h               ;end of ROM memory ******
+						;ROM size = 64KB
+		ENDIF
+	ENDIF
+
+
 COLDD           EQU     ROM0                    ;cold start vector ******
-;NAC we ignore CODEE for now, which is fine.. We'd need to use it if we blew
-;NAC a ROM to start at 0.. would need to leave room for the vectors.
-CODEE           EQU     ROM0+200h               ;initial code space ******
 RPP             EQU     RAMEnd                  ;start of return stack (RP0)
 SPP             EQU     RPP-RTCells*CELLL       ;start of data stack (SP0)
 RAMT0           EQU     SPP-DTCells*CELLL       ;top of free RAM area
 
-
-;NAC added equates for host I/O
 ;*******************************************************************
+;
+;Default IOBYTE value
+;Byte 3, 2 are undefined.
+;Byte 1 holds the DEFBAUD value
+;Byte 0 holds the com port value (FF=COMDSWI)
+	IF (DEFIO = "COM0")
+IOBYTE		EQU (DEFBAUD * 256)
+	ENDIF
+	IF (DEFIO = "COM1")
+IOBYTE		EQU (DEFBAUD * 256) + 1
+	ENDIF
+	IF (DEFIO = "COM2")
+IOBYTE		EQU (DEFBAUD * 256) + 2
+	ENDIF
+	IF (DEFIO = "COMDSWI")
+IOBYTE		EQU (DEFBAUD * 256) + &ff
+	ENDIF
+
+AddrIOBYTE	EQU RAM0 + CELLL
+
+
 ; Equates for host I/O
 
-ledport         EQU     &f2400000
 
-	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
+	IF (TARGET = "EBSA")
+
+ledport         EQU     &f2400000
 
 ; Real I/O for EBSA-110
 
@@ -341,7 +478,7 @@ COM2Port        EQU     &2f8
 
 ;;; UART registers
 	
-	;; Receive, Transmit, Interupt enable, Interrupt Identitication and
+	;; Receive, Transmit, Interupt enable, Interrupt Identification and
 	;; FIFO are only 
 	;; accessable when the Divisor latch access bit in the line control
 	;; register is 0
@@ -381,89 +518,8 @@ Baud19200high   EQU     0
 Baud38400low    EQU     3
 Baud38400high   EQU     0
 
-	ENDIF
-
-	IF (TARGET = "PIE")
-;this serial code is derived from ~berent/arm/ebsarm/demon/pie/driver.s
-;which is
-;Copyright (C) 1991 Advanced RISC Machines Limited. All rights reserved.
-;Written by Dave Jaggar.
-
-SerialChipBase  EQU     &80000000
-MR1             EQU     &0
-MR2             EQU     &0
-SR              EQU     &4
-CSR             EQU     &4
-CMDR            EQU     &8
-RHR             EQU     &c
-THR             EQU     &c
-ACR             EQU     &10
-ISR             EQU     &14
-IMR             EQU     &14
-CTUR            EQU     &18
-CTLR            EQU     &1c
-
-; Values for the fields in MR1
-
-BitsPerChar     EQU     3 ; 0 for 5, 1 for 6, 2 for 7, 3 for 8
-ParityType      EQU     4 ; 0 for Even, 4 for Odd
-ParityMode      EQU     16 ; 0 for on, 8 for force, 16 for off
-ErrorMode       EQU     0 ; 0 for char, 32 for block
-RxInterrupt     EQU     0 ; 0 for char ready, 64 for FIFO full
-RxAutoRTS       EQU     0 ; 0 for off, 128 for on
-
-MR1Value        EQU     BitsPerChar + ParityType + ParityMode + ErrorMode + RxInterrupt + RxAutoRTS
-
-; Values for the fields in MR2
-
-StopBits        EQU     7 ; 7 for 1, 15 for 2 (others in the data sheet)
-AutoCTS         EQU     0 ; 0 for off, 16 for on
-TxAutoRTS       EQU     0 ; 0 for off, 32 for on
-
-MR2Value        EQU     StopBits + AutoCTS + TxAutoRTS
-
-; Values for the fields in the CSR
-
-; The baud rates are defined both here, and in the top bit of the ACR
-; called (the BRG bit). Most useful values are
-; BRG = 0, 9 for 4K8, 11 for 9K6, 12 for 38K4
-; BRG = 1, 12 for 19K2
-
-Baud9600        EQU     &0000000b
-Baud19200       EQU     &8000000c
-Baud38400       EQU     &0000000c
-
-; Values for the CMDR
-
-ResetMR1        EQU     &10 ; Reset MR1
-ResetRx         EQU     &20 ; Reset Receiver
-ResetTx         EQU     &30 ; Reset Transmitter
-ResetError      EQU     &40 ; Reset Error Status
-ResetBreak      EQU     &50 ; Reset Break Status
-ResetMPI        EQU     &c0 ; Reset MPI
-DisableRxTx     EQU     &0A ; Disable the receiver and the transmitter
-EnableRxTx      EQU     &05 ; Enable the receiver and the transmitter
-
-; Values in the SR
-
-SRRxReady       EQU     1 ; a character has been received
-SRRxFull        EQU     2 ; Rx FIFO is full
-SRTxReady       EQU     4 ; space in the Tx FIFO
-SRTxEmpty       EQU     8 ; Tx FIFO is empty
-SROverrunError  EQU     16
-SRParityError   EQU     32
-SRFrameError    EQU     64
-SRReceivedBreak EQU     128
-
-SRNastyError    EQU     SROverrunError + SRParityError + SRFrameError + SRReceivedBreak
-
-; Values for ACR, the BaudRateGroup (BRG) bit is set at run time
-
-MPOOutput       EQU     0 ; see data sheet
-PowerDown       EQU     8 ; 0 for on, 8 for off
-TimerSource     EQU     &70 ; see data sheet
-
-ACRValue        EQU     MPOOutput + PowerDown + TimerSource
+Baud56000low    EQU     2
+Baud56000high   EQU     0
 
 	ENDIF
 
@@ -479,18 +535,23 @@ ACRValue        EQU     MPOOutput + PowerDown + TimerSource
 		GBLA _VAR
 		GBLA _THROW
 
-_THROW          SETA (-1*NumTHROWMsgs)          ;current throw string
+;NAC the _NAME value is not used in the ARM port.. instead, makesrc.awk
+;keeps track of an equivalent value, which is initialised by passing the
+;parameter dict_pc into makesrc.awk with the value _NAME would have had.
+;Everywhere that _NAME appears herein, special treatment is required.
+;The other globals; _THROW, _SLINK, _FLINK, _ENVLINK and _VAR are tracked
+;correctly, so no special treatment is required for them.
+
+_THROW          SETA 0                          ;current throw string
 _SLINK          SETA 0                          ;force a null link
 _FLINK          SETA 0                          ;force a null link
 _ENVLINK        SETA 0                          ;force a null link
-;NAC the _NAME value is not used in the ARM port.. instead, need to set the
-;NAC dict_pc parameter to makesrc.awk to the value _NAME would have had
 _NAME           SETA ROMEnd                     ;initialize name pointer
-;NAC: don't think that _CODE needs to be initialised.. it is always used as
-;temporary storage in macro expansions. This is a bug in eForth, too.
-_CODE           SETA CODEE                      ;initialize code pointer
-_VAR            SETA RAM0                       ;variable space pointer
+_VAR            SETA RAM0 + CELLL               ;variable space pointer
+						;save a celll for microdebugger
 
+;TODO: should this be a *proper* variable.. not a cheat one like this?
+_VAR		SETA _VAR + CELLL		;save a cell for IOBYTE
 
 ;; ARM Macros for push and pop
 
@@ -524,15 +585,15 @@ $ALIGN  MACRO
 	EVEN                                    ;for 16 bit systems
 	ENDM
 
-;       Add a name to name space of dictionary. To be used to store THROW
-;       message in name space. THROW messages won't be needed if target
-;       system do not need names of Forth words.
+;       Add a name to name space of dictionary.
 
 $STR    MACRO   LABEL,STRING
 	_CODE   = $
 	DB      STRING
 	_LEN    = $ - _CODE
-	_NAME   = _NAME - _LEN + 1              ;packed string -not aligned
+;NAC: original used aligned strings but I pack on any boundary cos ARM allows it
+;	_NAME   = _NAME-(_LEN/CELLL+1)*CELLL
+	_NAME   = _NAME - _LEN + 1
 ORG     _NAME
 LABEL:
 	DB      _LEN,STRING
@@ -541,21 +602,21 @@ ORG     _CODE                                   ;restore code pointer
 
 ;NAC need to add $THROWTABLE macro for back-portability to x86
 
-;       Add a name to name space of dictionary. To be used to store THROW
-;       message in name space. THROW messages won't be needed if target
-;       system do not need names of Forth words.
+;       Add a THROW message in name space. THROW messages won't be
+;       needed if target system do not need names of Forth words.
 
-$THROWSTR MACRO   LABEL,STRING
+$THROWMSG MACRO   STRING
 	_CODE   = $
 	DB      STRING
 	_LEN    = $ - _CODE
-	_NAME   = _NAME - _LEN + 1              ;packed string - not aligned
+;NAC: original used aligned strings but I pack on any boundary cos ARM allows it
+;	_NAME   = _NAME-(_LEN/CELLL+1)*CELLL
+	_NAME   = _NAME - _LEN + 1
 ORG     _NAME
-LABEL:
 	DB      _LEN,STRING
-ORG     AddrTHROWMsgTbl - _THROW
 	_THROW  = _THROW + CELLL
-	DW      LABEL
+ORG     AddrTHROWMsgTbl - _THROW
+	DW      _NAME
 ORG     _CODE                                   ;restore code pointer
 	ENDM
 
@@ -649,6 +710,7 @@ ORG     _CODE
 ;       Assemble inline direct threaded code ending.
 
 $NEXT   MACRO
+;	b	udebug			; when using micro-debug 
 	mov	pc,[fpc], #CELLL	; get next xt and go there,
 					; incrementing fpc to next cell
 	$ALIGN
@@ -660,75 +722,45 @@ $NEXT   MACRO
 ; Main entry points and COLD start data
 ;;;;;;;;;;;;;;;;
 
-
 		AREA myprog,ABS,CODE,DATA
 
-	IF      (TARGET = "EBSABOOT")
-		; code in EPROM is linked to run at the start of SSRAM
-		; the initial piece of code copies the image to SSRAM.
-		ORG     &40000000
-	ELSE
-		IF      (TARGET = "EBSAFLASH")
-			; code in Flash is linked to run at start of
-			; SSRAM plus c0. The PBL copies the image to
-			; SSRAM. The gap of c0 leaves room to form a
-			; formated AIF/Flash header for programming
-			; an updated image back to Flash.
-			ORG &400000c0
-		ELSE
-			; all other targets are loaded by DEMON and
-			; live at low memory just beyond DEMON's
-			; workspace area
-			ORG &8000
-		ENDIF
+		ORG	COLDD
+
+	IF	(MEMMAP = "DEMON")
+		swi	0x16                    ; go into Supervisor mode
+		; should turn off all interrupts, too?
 	ENDIF
 
+	IF (TARGET = "EBSA") :LAND: (MEMMAP = "BOOT")
 
-;NAC COLDD is where the 1st code byte is generated. Don't want to hard-code
-;it because the linker can take care of that
-;;ORG           COLDD
-
-	IF ((TARGET = "EBSADEMON") :LOR: (TARGET = "PIEDEMON"))
-		swi     0x16                    ; go into Supervisor mode
-; should turn off all interrupts, too
-
-	ENDIF
-
-	IF (TARGET = "EBSABOOT")
-
-; Image is programmed into EPROM and we have to take the 
-; responsibility of copying ourself into RAM.
-; The code is built to run at &40000000
-; and is running at 0, but after the first WRITE we will be
-; magically running at &8000.00XX
+; Image is programmed into EPROM and we have to take the responsibility of
+; copying ourself into RAM. The code is built to run at &40000000 and is running
+; at 0, but after the first WRITE we will be magically running at &8000.00XX
 
 ; ROM equivalent of whereabouts we are
 hialias         EQU     ((herefar1 :AND: &0fffffff) :OR: &80000000)
 ; SSRAM equivalent of whereabouts we are
 loalias         EQU     ((herefar2 :AND: &0fffffff) :OR: &40000000)
 
-;;;debug                ldr     pc,=hialias             ;jump to to high ROM alias
-herefar1
-;;;debug                mov     r0, #0
-;;;debug                str     r0, [r1]                ;switch memory map
+		ldr     pc,=hialias             ;jump to to high ROM alias
+herefar1	mov     r0, #0
+		str     r0, [r1]                ;switch memory map
 
-; now we're running at &8000.00xx
-;copy image from ROM to SSRAM at &4000.0000
+; now running in ROM alias at &8000.00xx copy image from ROM to SSRAM
 		mov     r0, #&40000000          ;destination
 		mov     r1, #&80000000          ;source
-		mov     r2, #(&10000/4)         ;length (64Kbytes)
+		mov     r2, #(&10000/4)         ;number of Dwords (64Kbytes)
 
-;;;debug movit          ldr     r3,[r1],#4
-;;;             str     r3,[r0],#4
-;;;             subs    r2,r2,#1
-;;;             bne     movit
+movit		ldr     r3,[r1],#4
+		str     r3,[r0],#4
+		subs    r2,r2,#1
+		bne     movit
 
-; jump to the RAM copy
-;;;debug                ldr     pc,=loalias
+		ldr     pc,=loalias		;jump to the RAM copy
 herefar2
 	ENDIF
 
-	IF      (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSADEMON") :LOR: (TARGET = "EBSAFLASH")
+	IF      (TARGET = "EBSA")
 
 	; turn off the DEBUG LED to prove we got here.
 		ldr     r0,=ledport
@@ -737,6 +769,7 @@ herefar2
 		str     r1,[r0]
 	ENDIF
 
+	; common startup code for every TARGET and every MEMMAP
 		ldr     rsp, =RPP               ;init return stack pointer
 		ldr     dsp, =SPP               ;init data stack pointer
 
@@ -751,7 +784,9 @@ herefar2
 ; MUST BE IN SAME ORDER AS SYSTEM VARIABLES.
 
 		$ALIGN                          ;align to cell boundary
-UZERO:          DW      RXQ                     ;'ekey?
+UZERO           DW	0			;trapfpc for udebug routine
+		DW	IOBYTE			;I/O port and speed definition
+		DW      RXQ                     ;'ekey?
 		DW      RXFetch                 ;'ekey
 		DW      TXQ                     ;'emit?
 		DW      TXStore                 ;'emit
@@ -776,7 +811,7 @@ UZERO:          DW      RXQ                     ;'ekey?
 		DW      0                       ;bal
 		DW      0                       ;notNONAME?
 		DW      0                       ;rakeVar
-NOrder0:        DW      2                       ;#order
+NOrder0         DW      2                       ;#order
 		DW      FORTH_WORDLISTAddr      ;search order stack
 		DW      NONSTANDARD_WORDLISTAddr
 		DS      (OrderDepth-2) * CELLL
@@ -799,9 +834,8 @@ NOrder0:        DW      2                       ;#order
 		DW      SysStatus               ;follower
 		DW      SPP                     ;system task's sp0
 		DW      RPP                     ;system task's rp0
-ULAST:
+ULAST
 
-;NAC: what is NullString for?
 
 ; THROW code messages resides in top of name space. Messages must be
 ; placed before any Forth words were defined.
@@ -819,76 +853,73 @@ ULAST:
 
 	$STR        SystemIDStr,'hForth ARM ROM Model'
 	$STR        VersionStr,'1.0'
-	$STR        NullString,''
-	$THROWSTR   THROWMsg_01,'ABORT'
-	$THROWSTR   THROWMsg_02,'ABORT"'
-	$THROWSTR   THROWMsg_03,'stack overflow'
-	$THROWSTR   THROWMsg_04,'stack underflow'
-	$THROWSTR   THROWMsg_05,'return stack overflow'
-	$THROWSTR   THROWMsg_06,'return stack underflow'
-	$THROWSTR   THROWMsg_07,'do-loops nested too deeply during execution'
-	$THROWSTR   THROWMsg_08,'dictionary overflow'
-	$THROWSTR   THROWMsg_09,'invalid memory address'
-	$THROWSTR   THROWMsg_10,'division by zero'
-	$THROWSTR   THROWMsg_11,'result out of range'
-	$THROWSTR   THROWMsg_12,'argument type mismatch'
-	$THROWSTR   THROWMsg_13,'undefined word'
-	$THROWSTR   THROWMsg_14,'interpreting a compile-only word'
-	$THROWSTR   THROWMsg_15,'invalid FORGET'
-	$THROWSTR   THROWMsg_16,'attempt to use zero-length string as a name'
-	$THROWSTR   THROWMsg_17,'pictured numeric output string overflow'
-	$THROWSTR   THROWMsg_18,'parsed string overflow'
-	$THROWSTR   THROWMsg_19,'definition name too long'
-	$THROWSTR   THROWMsg_20,'write to a read-only location'
-	$THROWSTR   THROWMsg_21,'unsupported operation (e.g., AT-XY on a too-dumb terminal)'
-	$THROWSTR   THROWMsg_22,'control structure mismatch'
-	$THROWSTR   THROWMsg_23,'address alignment exception'
-	$THROWSTR   THROWMsg_24,'invalid numeric argument'
-	$THROWSTR   THROWMsg_25,'return stack imbalance'
-	$THROWSTR   THROWMsg_26,'loop parameters unavailable'
-	$THROWSTR   THROWMsg_27,'invalid recursion'
-	$THROWSTR   THROWMsg_28,'user interrupt'
-	$THROWSTR   THROWMsg_29,'compiler nesting'
-	$THROWSTR   THROWMsg_30,'obsolescent feature'
-	$THROWSTR   THROWMsg_31,'>BODY used on non-CREATEd definition'
-	$THROWSTR   THROWMsg_32,'invalid name argument (e.g., TO xxx)'
-	$THROWSTR   THROWMsg_33,'block read exception'
-	$THROWSTR   THROWMsg_34,'block write exception'
-	$THROWSTR   THROWMsg_35,'invalid block number'
-	$THROWSTR   THROWMsg_36,'invalid file position'
-	$THROWSTR   THROWMsg_37,'file I/O exception'
-	$THROWSTR   THROWMsg_38,'non-existent file'
-	$THROWSTR   THROWMsg_39,'unexpected end of file'
-	$THROWSTR   THROWMsg_40,'invalid BASE for floating point conversion'
-	$THROWSTR   THROWMsg_41,'loss of precision'
-	$THROWSTR   THROWMsg_42,'floating-point divide by zero'
-	$THROWSTR   THROWMsg_43,'floating-point result out of range'
-	$THROWSTR   THROWMsg_44,'floating-point stack overflow'
-	$THROWSTR   THROWMsg_45,'floating-point stack underflow'
-	$THROWSTR   THROWMsg_46,'floating-point invalid argument'
-	$THROWSTR   THROWMsg_47,'compilation word list deleted'
-	$THROWSTR   THROWMsg_48,'invalid POSTPONE'
-	$THROWSTR   THROWMsg_49,'search-order overflow'
-	$THROWSTR   THROWMsg_50,'search-order underflow'
-	$THROWSTR   THROWMsg_51,'compilation word list changed'
-	$THROWSTR   THROWMsg_52,'control-flow stack overflow'
-	$THROWSTR   THROWMsg_53,'exception stack overflow'
-	$THROWSTR   THROWMsg_54,'floating-point underflow'
-	$THROWSTR   THROWMsg_55,'floating-point unidentified fault'
-	$THROWSTR   THROWMsg_56,'QUIT'
-	$THROWSTR   THROWMsg_57,'exception in sending or receiving a character'
-	$THROWSTR   THROWMsg_58,'[IF], [ELSE], or [THEN] exception'
+								    ;THROW code
+	$THROWMSG       'ABORT'                                         ;-01
+	$THROWMSG       'ABORT"'                                        ;-02
+	$THROWMSG       'stack overflow'                                ;-03
+	$THROWMSG       'stack underflow'                               ;-04
+	$THROWMSG       'return stack overflow'                         ;-05
+	$THROWMSG       'return stack underflow'                        ;-06
+	$THROWMSG       'do-loops nested too deeply during execution'   ;-07
+	$THROWMSG       'dictionary overflow'                           ;-08
+	$THROWMSG       'invalid memory address'                        ;-09
+	$THROWMSG       'division by zero'                              ;-10
+	$THROWMSG       'result out of range'                           ;-11
+	$THROWMSG       'argument type mismatch'                        ;-12
+	$THROWMSG       'undefined word'                                ;-13
+	$THROWMSG       'interpreting a compile-only word'              ;-14
+	$THROWMSG       'invalid FORGET'                                ;-15
+	$THROWMSG       'attempt to use zero-length string as a name'   ;-16
+	$THROWMSG       'pictured numeric output string overflow'       ;-17
+	$THROWMSG       'parsed string overflow'                        ;-18
+	$THROWMSG       'definition name too long'                      ;-19
+	$THROWMSG       'write to a read-only location'                 ;-20
+	$THROWMSG       'unsupported operation (e.g., AT-XY on a too-dumb terminal)' ;-21
+	$THROWMSG       'control structure mismatch'                    ;-22
+	$THROWMSG       'address alignment exception'                   ;-23
+	$THROWMSG       'invalid numeric argument'                      ;-24
+	$THROWMSG       'return stack imbalance'                        ;-25
+	$THROWMSG       'loop parameters unavailable'                   ;-26
+	$THROWMSG       'invalid recursion'                             ;-27
+	$THROWMSG       'user interrupt'                                ;-28
+	$THROWMSG       'compiler nesting'                              ;-29
+	$THROWMSG       'obsolescent feature'                           ;-30
+	$THROWMSG       '>BODY used on non-CREATEd definition'          ;-31
+	$THROWMSG       'invalid name argument (e.g., TO xxx)'          ;-32
+	$THROWMSG       'block read exception'                          ;-33
+	$THROWMSG       'block write exception'                         ;-34
+	$THROWMSG       'invalid block number'                          ;-35
+	$THROWMSG       'invalid file position'                         ;-36
+	$THROWMSG       'file I/O exception'                            ;-37
+	$THROWMSG       'non-existent file'                             ;-38
+	$THROWMSG       'unexpected end of file'                        ;-39
+	$THROWMSG       'invalid BASE for floating point conversion'    ;-40
+	$THROWMSG       'loss of precision'                             ;-41
+	$THROWMSG       'floating-point divide by zero'                 ;-42
+	$THROWMSG       'floating-point result out of range'            ;-43
+	$THROWMSG       'floating-point stack overflow'                 ;-44
+	$THROWMSG       'floating-point stack underflow'                ;-45
+	$THROWMSG       'floating-point invalid argument'               ;-46
+	$THROWMSG       'compilation word list deleted'                 ;-47
+	$THROWMSG       'invalid POSTPONE'                              ;-48
+	$THROWMSG       'search-order overflow'                         ;-49
+	$THROWMSG       'search-order underflow'                        ;-50
+	$THROWMSG       'compilation word list changed'                 ;-51
+	$THROWMSG       'control-flow stack overflow'                   ;-52
+	$THROWMSG       'exception stack overflow'                      ;-53
+	$THROWMSG       'floating-point underflow'                      ;-54
+	$THROWMSG       'floating-point unidentified fault'             ;-55
+	$THROWMSG       'QUIT'                                          ;-56
+	$THROWMSG       'exception in sending or receiving a character' ;-57
+	$THROWMSG       '[IF], [ELSE], or [THEN] exception'             ;-58
 
 ;;;NAC at this point need to ALIGN the value of _NAME, since we packed
 ;;;the strings of the throw table but  $CODE assumes that NAME is aligned.
 	$ALIGN_NAME
 
-;;;NAC this allows a gap between the start of rom and the start of code..
-;;;ORG     CODEE                                   ;start code dictionary
-
 
 ;;;;;;;;;;;;;;;;
-; System dependent words -- Must be re-definded for each system.
+; System dependent words -- Must be re-defined for each system.
 ;;;;;;;;;;;;;;;;
 ; I/O words must be redefined if serial communication is used instead of
 ; keyboard. Following words are for MS-DOS system.
@@ -900,214 +931,114 @@ ULAST:
 ;               Initialize the serial devices for terminal I/O
 
 		$CODE   3,'!IO',STOIO,_SLINK
-	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
+	IF ((TARGET = "EBSA") :LOR: (TARGET = "COGENT"))
 
-; This is a general purpose Reset for the serial chip, restoring
-; everything to the defaults, and cancelling the current transmission
-; and reception.  This routine doesn't touch r0, and other code
-; depends on this.
+; This is a general purpose Reset for the serial chip, cancelling the current
+; transmission and reception and setting the baudrate according to IOBYTE
 
-ResetDriver
-	;; Set the default line speed
-		LDR     r1,=WordLen8+DLABMsk    ; Set divisor access
+;TODO this is only coded for SuperIO uarts, and it isn't exactly *efficient*!
+
+		ldr	r0,=AddrIOBYTE
+		ldr	r1,[r0]
+		ands	r2,r1,#&ff
+		cmp	r2,#&ff
+		beq	STOdone		;DEMON SWI in use so don't touch the
+					;UART
+		subs	r1,r1,#5
+		beq	Set19200	;value of 5
+		subs	r1,r1,#1
+		beq	Set38400	;value of 6
+		subs	r1,r1,#1
+		beq	Set56000	;value of 7
+		; not recognised or 9600 selected
+Set9600         ldr     r0,=Baud9600low
+		ldr     r1,=Baud9600high
+		b	SetRate
+Set19200        ldr	r0,=Baud19200low
+		ldr	r1,=Baud19200high
+		b	SetRate
+Set38400        ldr	r0,=Baud38400low
+		ldr	r1,=Baud38400high
+		b	SetRate
+Set56000        ldr	r0,=Baud56000low
+		ldr	r1,=Baud56000high
+SetRate         IOBADDR r2,(COM2Port+IntEnable) ; Prevent serial interrupts while setting divisor
+		LDR     r3,=0                   ; This is because the divisor latch makes
+		STRB    r3,[r2]                 ; resuming this from an interrupt difficult
 		IOBADDR r2,(COM2Port+LineCntl)
-		STRB    r1,[r2]
-
-		LDR     r1,=Baud9600low         ; Set 9600 
+		LDR     r3,=WordLen8+DLABMsk    ; Set divisor access
+		STRB    r3,[r2]
+	
+	;; Set the actual rate in the divisor.
 		IOBADDR r2,(COM2Port+Dllsb)
-		STRB    r1,[r2]
-		LDR     r1,=Baud9600high 
+		STRB    r0,[r2]
 		IOBADDR r2,(COM2Port+Dlmsb)
 		STRB    r1,[r2]
-
-		LDR     r1,=WordLen8            ; Clear divisor access
 		IOBADDR r2,(COM2Port+LineCntl)
+		LDR     r1,=WordLen8		; Clear divisor access
 		STRB    r1,[r2]
+STOdone
+		$NEXT
 
 	;; Note that when we cleared divisor access we set the other bits we need in the
 	;; line control register for 8 bit data, no parity, 1 stop bit. This is what we need.
 
 	;; Disable the FIFOs
-		LDR     r1,=0   ; All bits clear disables the FIFOs
 		IOBADDR r2,(COM2Port+FIFOcntl)
+		LDR     r1,=0   ; All bits clear disables the FIFOs
 		STRB    r1,[r2]
 	
 	;; Clear out any errors by reading the line status
+	IF (TARGET = "COGENT")
+		ldr	r3,=&100
+	ENDIF
+01
 		IOBADDR r2,(COM2Port+LineStatus)
 		LDRB    r1,[r2]
 
+;COGENT todo Carey reads the line status many times
+	IF (TARGET = "COGENT")
+		subs      r3, r3, #1
+		bne       %b01
+	ENDIF
+
 	;; Disable receive and error interrupts
-		LDR     r1,=0
 		IOBADDR r2,(COM2Port+IntEnable)
+		LDR     r1,=0
 		STRB    r1,[r2]
+
+;COGENT todo: Carey has a delay loop here.
+	IF (TARGET = "COGENT")
+		ldr  r1, =&10000
+01		subs r1, r1, #1
+		beq  %b01
 	ENDIF
-
-	IF (TARGET = "PIE")
-; This is a general purpose Reset for the serial chip, restoring
-; everything to the defaults, and cancelling the current transmission
-; and reception.
-; affects r2, r3
-ResetDriver     MOV     r3, #SerialChipBase
-
-		MOV     r2, #DisableRxTx
-		STR     r2, [r3, #CMDR]
-
-		MOV     r2, #ResetMR1 ; make sure we write MR1
-		STR     r2, [r3, #CMDR]
-		MOV     r2, #MR1Value
-		STR     r2, [r3, #MR1]
-		MOV     r2, #MR2Value
-		STR     r2, [r3, #MR2]
-
-		MOV     r2, #Baud9600 ; default baud rate
-		ORR     r2, r2, r2, LSL #4
-		STR     r2, [r3, #CSR]
-
-		TST     r2, #&80000000
-		MOVEQ   r2, #ACRValue
-		MOVNE   r2, #ACRValue + &80
-		STR     r2, [r3, #ACR]
-
-		MOV     r2, #ResetError
-		STR     r2, [r3, #CMDR]
-		MOV     r2, #ResetBreak
-		STR     r2, [r3, #CMDR]
-		MOV     r2, #ResetMPI
-		STR     r2, [r3, #CMDR]
-		MOV     r2, #ResetRx
-		STR     r2, [r3, #CMDR]
-		MOV     r2, #ResetTx
-		STR     r2, [r3, #CMDR]
-
-		MOV     r2, #0          ; disable all interrupts
-		STR     r2, [r3, #IMR]
-
-		MOV     r2, #EnableRxTx
-		STR     r2, [r3, #CMDR]
-	ENDIF
-
+	ENDIF ; TARGET cogent or EBSA
 		$NEXT
 
-;   SETBAUD     ( n -- )
-;               Set the baud rate for serial I/O
-;               1 => 9600
-;               2 => 19K2
-;               3 => 38K4
+;   TRUE	( -- f )
+;		Return the TRUE flag
 
-		$CODE   7,'SETBAUD',SETBAUD,_SLINK
+		$CONST	4,'TRUE',FTRUE,TRUEE,_SLINK
 
-	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
+;   NOP		( -- )
+;		Do nothing
 
-DriverSpeed     SUBS    tos,tos,#1      ; test for 9600
-		BEQ     Set9600
-		SUBS    tos,tos,#1      ; and 19200
-		BEQ     Set19200
-	;; So we want 38400
-		LDR     tos,=Baud38400low
-		LDR     r1,=Baud38400high
-		B       SetRate
-
-Set19200        LDR     tos,=Baud19200low
-		LDR     r1,=Baud19200high
-		B       SetRate
-
-Set9600         LDR     tos,=Baud9600low
-		LDR     r1,=Baud9600high
-
-SetRate         IOBADDR r4,(COM2Port+IntEnable) ; Prevent serial interrupts while setting divisor
-		LDR     r5,=0                   ; This is because the divisor latch makes
-		STRB    r5,[r4]                 ; resuming this from an interrupt difficult
-		
-		LDR     r3,=WordLen8+DLABMsk    ; Set divisor access
-		IOBADDR r2,(COM2Port+LineCntl)
-		STRB    r3,[r2]
-	
-	;; Set the actual rate in the divisor.
-		IOBADDR r2,(COM2Port+Dllsb)
-		STRB    tos,[r2]
-		IOBADDR r2,(COM2Port+Dlmsb)
-		STRB    r1,[r2]
-
-		LDR     r1,=WordLen8            ; Clear divisor access
-		IOBADDR r2,(COM2Port+LineCntl)
-		STRB    r1,[r2]
-	ENDIF
-
-	IF (TARGET = "PIE")
-
-DriverSpeed     MOV     r3, #SerialChipBase
-01              LDR     r1, [r3, #SR] ; get the status register
-		TST     r1, #SRTxEmpty ; finished sending ?
-		BEQ     %B01
-
-		CMP     tos, #0 ; really change it ?
-		BLE     NoChange
-
-		MOV     r1, #DisableRxTx
-		STR     r1, [r3, #CMDR]
-
-		MOV     r1, #Baud9600 ; default baud rate
-		CMP     tos, #2
-		MOVEQ   r1, #Baud19200
-		CMP     tos, #3
-		MOVEQ   r1, #Baud38400
-
-		ORR     r1, r1, r1, LSL #4
-		STR     r1, [r3, #CSR]
-
-		TST     r1, #&80000000
-		MOVEQ   r1, #ACRValue
-		MOVNE   r1, #ACRValue + &80
-		STR     r1, [r3, #ACR]
-
-		MOV     r1, #ResetRx
-		STR     r1, [r3, #CMDR]
-		MOV     r1, #ResetTx
-		STR     r1, [r3, #CMDR]
-
-		MOV     r1, #EnableRxTx
-		STR     r1, [r3, #CMDR]
-NoChange
-	ENDIF
-		popD    tos
-		$NEXT
-
+		$CODE	3,'NOP',NOPP,_SLINK
+		DW	EXIT
 
 ;   RX?         ( -- flag )
 ;               Return true if key is pressed.
 
 		$CODE   3,'RX?',RXQ,_SLINK
+		pushD   tos                     ;make room for flag
 
-	IF ((TARGET = "EBSADEMON") :LOR: (TARGET = "PIEDEMON"))
-
-		;Demon actually, *waits* for a key across the link from
-		;the host to the target. Therefore, always returns TRUE
-		pushD   tos
-		mvn     tos, #0                 ;push -1 (TRUE)..
-	ENDIF
-
-	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
-
-		pushD   tos                     ;make room
+;TODO only handles COM2 .. should check IOBYTE further
 		IOBADDR r0, (COM2Port+LineStatus)
 		LDRB    tos, [r0]               ;look for a character, note that reading this
 		TST     tos, #LineDRMsk         ;register also clears any errors
 		mov     tos, #0                 ;predict no char available
 		subne   tos, tos, #1            ;change flag to -1 (TRUE)
-	ENDIF
-
-	IF (TARGET = "PIE")
-
-; See if a character has been received. If char available, the Z flag is CLEAR.
-; affects r0, r1, r3
-QGetChar
-		pushD   tos
-		MOV     r3, #SerialChipBase
-		LDR     r0, [r3, #SR]           ;get the status register
-		TST     r0, #SRRxReady          ;character arrived
-		mov     tos, #0                 ;predict no char available
-		subne   tos, tos, #1            ;change flag to -1 (TRUE)
-	ENDIF
 		$NEXT
 
 ;   RX@         ( -- u )
@@ -1116,69 +1047,50 @@ QGetChar
 		$CODE   3,'RX@',RXFetch,_SLINK
 
 		pushD   tos                     ; make room
-
-	IF ((TARGET = "EBSADEMON") :LOR: (TARGET = "PIEDEMON"))
-
-		swi     4                       ;SWI_ReadC - byte is in r0
-		mov     tos,r0
-	ENDIF
-
-	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
-
-		IOBADDR r0, (COM2Port+LineStatus)
 		IOBADDR r0, (COM2Port+Rx)       ;Read the character
 		LDRB    tos, [r0]                       
-	ENDIF
+		$NEXT
 
-	IF (TARGET = "PIE")
+;   DRX@         ( -- u )
+;               Receive one keyboard event u using DEMON SWI calls
 
-		MOV     r3, #SerialChipBase
-		LDR     r0, [r3, #RHR]          ;get the character
-		AND     tos, r0, #&ff           ;only keep ASCII code
-	ENDIF
-
+		$CODE   4,'DRX@',DRXFetch,_SLINK
+		pushD   tos                     ; make room
+		swi     4                       ;SWI_ReadC - byte is in r0
+		mov     tos,r0
 		$NEXT
 
 ;   TX?         ( -- flag )
 ;               Return true if output device is ready or device state is
 ;               indeterminate.
 
-		$CONST  3,'TX?',TXQ,TRUEE,_SLINK   ;always true for UART
+		$CODE  3,'TX?',TXQ,_SLINK
+		pushD   tos                     ; make room
+		IOBADDR r1, (COM2Port+LineStatus)
+		LDRB    r2,[r1]
+		TST     r2,#LineTHREMsk         ;Wait until ready to queue character
+		ldr	tos,=TRUEE		;predict ready
+		ldrne	tos,=FALSEE
+		$NEXT
+
 
 ;   TX!         ( u -- )
 ;               Send char to the output device.
 
 		$CODE   3,'TX!',TXStore,_SLINK
-
 		mov     r0, tos                 ;pop character to r0
 		popD    tos
-
-	IF ((TARGET = "EBSADEMON") :LOR: (TARGET = "PIEDEMON"))
-		swi     0                       ;SWI_WriteC - write character
-	ENDIF
-
-	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
-
-; Send a byte to the serial line
-
-PutByte         IOBADDR r1, (COM2Port+LineStatus)
-PutByteLoop     LDRB    r2,[r1]
-		TST     r2,#LineTHREMsk         ;Wait until ready to queue character
-		BEQ     PutByteLoop
-
-		IOBADDR r1,(COM2Port+Tx)        ;Now queue the character
+		IOBADDR r1,(COM2Port+Tx)        ;Queue the character
 		STRB    r0,[r1]
-	ENDIF
+		$NEXT
 
-	IF (TARGET = "PIE")
-		; affects r1, r3
-		MOV     r3, #SerialChipBase
-PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
-		TST     r1, #SRTxReady          ;space for the next character?
-		BEQ     PutByteLoop             ;spin until there is
-		STR     r0, [r3, #THR]          ;put the character
-	ENDIF
+;   DTX!        ( u -- )
+;               Send char to the output device using DEMON SWI calls
 
+		$CODE   4,'DTX!',DTXStore,_SLINK
+		mov     r0, tos                 ;pop character to r0
+		popD    tos
+		swi     0                       ;SWI_WriteC - write character
 		$NEXT
 
 		LTORG                           ; assembler-generated literals
@@ -1198,7 +1110,7 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 
 		$CODE   3,'BYE',BYE,_FLINK
 
-	IF ((TARGET = "EBSADEMON") :LOR: (TARGET = "PIEDEMON"))
+	IF (MEMMAP = "DEMON")
 		swi     011h                    ;SWI_Exit - halt execution and
 						;return to debugger
 		$ALIGN
@@ -1212,10 +1124,11 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 ;
 ;   : hi        CR S" systemID" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
 ;                  S" version"  ENVIRONMENT? DROP TYPE
-;               ."  by Wonyong Koh, 1996" CR
+;               ."  by Wonyong Koh, 1997" CR
 ;               ." ALL noncommercial and commercial uses are granted." CR
 ;               ." Please send comment, bug report and suggestions to:" CR
-;               ."   wykoh@pado.krict.re.kr" CR ;
+;               ."   wykoh@pado.krict.re.kr" CR
+;		." StrongARM port by neal.crook@reo.mts.dec.com" CR
 
 		$COLON  2,'hi',HI,_SLINK
 		DW      CR
@@ -1223,7 +1136,7 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 		DW      ENVIRONMENTQuery,DROP,TYPEE,SPACE,DoLIT,'v',EMIT
 		$INSTR  'version'
 		DW      ENVIRONMENTQuery,DROP,TYPEE
-		$INSTR  ' by Wonyong Koh, 1996'
+		$INSTR  ' by Wonyong Koh, 1997'
 		DW      TYPEE,CR
 		$INSTR  'All noncommercial and commercial uses are granted.'
 		DW      TYPEE,CR
@@ -1252,19 +1165,42 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 		DW      XHere,DUPP,Fetch,INVERT,SWAP,TwoDUP,Store,Fetch,XORR
 		DW      ZBranch,COLD1
 		DW      RAMB,DoTO,AddrCPVar,RAMT,DoTO,AddrNPVar
-COLD1:          DW      SPZero,SPStore,RPZero,RPStore
+COLD1           DW      SPZero,SPStore,RPZero,RPStore
 		DW      TickINIT_IO,EXECUTE,TickBoot,EXECUTE
 		DW      QUIT
 
 ;   set-i/o ( -- )
 ;               Set input/output device. (Includes initialising any hardware)
 ;
-;   : set-i/o   sysVar0 var0 4 CELLS MOVE       \ set i/o vectors
-;               S" CON" stdin ;                 \ MS-DOS only
+;   : set-i/o   set-i/ov !IO ;
 
 		$COLON  7,'set-i/o',Set_IO,_SLINK
+		DW      Set_IOV,STOIO,EXIT
+
+;   set-i/ov ( -- )
+;               Set input/output vectors, according to IOBYTE. Easiest way to
+;		do this is to assume that the default vectors will be used
+;		then check IOBYTE; if DEMON vectors are required, overwrite
+;		them
+;
+;   : set-i/ov  sysVar0 var0 4 CELLS MOVE       \ set i/o vectors
+;               AddrIOBYTE @ FF AND FF =
+;		IF
+;			' DTX! TO 'emit
+;			' DRX@ TO 'ekey
+;			' NOP TO 'emit?
+;			' NOP TO 'ekey?
+;		THEN ;
+
+		$COLON  8,'set-i/ov',Set_IOV,_SLINK
 		DW      SysVar0,VarZero,DoLIT,4*CELLL,MOVE
-		DW      STOIO,EXIT
+		DW	DoLIT,AddrIOBYTE,Fetch,DoLIT,0ffh,ANDD
+		DW	0ffh,Equals,ZBranch,SETIOV2 ; ?? TODO is this coded correctly ??
+		DW	DoLIT,DTXStore,DoTO,AddrTEMIT
+		DW	DoLIT,DRXFetch,DoTO,AddrTEKEY
+		DW	DoLIT,NOPP,DoTO,AddrTEMITQ
+		DW	DoLIT,NOPP,DoTO,AddrTEKEYQ
+SETIOV2		DW      EXIT
 
 ;   PACE        ( -- )
 ;               Send an XON character for the file downloading process.
@@ -1276,23 +1212,24 @@ COLD1:          DW      SPZero,SPStore,RPZero,RPStore
 ;   FILE	( -- )
 ;		Impose flow control to allow host file download without
 ;		input overflow
-;		: FILE ' PACE 'prompt ! ;
+;		: FILE ' PACE TO 'prompt ' always_true TO 'emit?
+;		' FORTH-NOP TO 'emit ;
 
 		$COLON 4,'FILE',FILE,_SLINK
-		DW	DoLIT,PACE,DoTO,AddrTprompt,EXIT
+		DW	DoLIT,PACE,DoTO,AddrTprompt
+		DW	DoLIT,FTRUE,DoTO,AddrTEMITQ
+		DW	DoLIT,NOPP,DoTO,AddrTEMIT,EXIT
 
 ;   HAND	( -- )
-;		Restore system prompt after FILE
-;		: HAND ' DotOK 'prompt ! ;
+;		Restore system prompt and text echo after FILE
+;		: HAND ' DotOK 'prompt set-i/ov ;
 
 		$COLON 4,'HAND',HAND,_SLINK
-		DW	DoLIT,DotOK,DoTO,AddrTprompt,EXIT
+		DW	DoLIT,DotOK,DoTO,AddrTprompt,Set_IOV,EXIT
 
-;TODO that will still echo characters to the screen during compilation.
-;easy to get rid of that in eForth, since there was a 'echo vector
-;but hForth doesn't have one..
 ;TODO not clear that this will do flow control *during* compile (the important
 ;place) -- in eForth, .ok was state-smart
+; ^^ no! I had to alter the ?? external file to do that.
 
 ; Following words are for MS-DOS only.
 ; File input using MS-DOS redirection function without using FILE words.
@@ -1303,7 +1240,6 @@ COLD1:          DW      SPZero,SPStore,RPZero,RPStore
 
 		$CODE   8,'redirect',Redirect,_SLINK
 ;NAC: this code is unused for a non-DOS target
-;NAC: todo: add a file/hand mechanism like eForth has..
 ;                MOV     DX,BX
 ;                MOV     AX,Redirect1stQ
 ;                OR      AX,AX
@@ -1311,7 +1247,7 @@ COLD1:          DW      SPZero,SPStore,RPZero,RPStore
 ;                MOV     AH,03Eh
 ;                MOV     BX,RedirHandle
 ;                INT     021h            ; close previously opend file
-REDIRECT2:
+REDIRECT2
 ;                MOV     AX,03D00h       ; open file read-only
 ;                MOV     Redirect1stQ,AX ; set Redirect1stQ true
 ;                INT     021h
@@ -1323,7 +1259,7 @@ REDIRECT2:
 ;                INT     021H
 ;                JC      REDIRECT1
 ;                XOR     AX,AX
-REDIRECT1:
+REDIRECT1
 ;                MOV     BX,AX
 		$NEXT
 Redirect1stQ    DW      0               ; true after the first redirection
@@ -1346,7 +1282,7 @@ RedirHandle     DS      CELLL           ; redirect file handle
 		$COLON  5,'stdin',STDIN,_SLINK
 		DW      ASCIIZ,Redirect,QuestionDUP,ZBranch,STDIN1
 		DW      DoLIT,-38,THROW
-STDIN1:         DW      EXIT
+STDIN1          DW      EXIT
 
 ;   <<          ( "<spaces>ccc" -- )
 ;               Redirect input from the file 'ccc'. Should be used only in
@@ -1360,21 +1296,21 @@ STDIN1:         DW      EXIT
 		DW      CR
 		$INSTR  'Do not use << in a definition.'
 		DW      TYPEE,ABORT
-FROM1:          DW      PARSE_WORD,STDIN,SOURCE,ToIN,Store,DROP,EXIT
+FROM1           DW      PARSE_WORD,STDIN,SOURCE,ToIN,Store,DROP,EXIT
 
 ;;;;;;;;;;;;;;;;
 ; Non-Standard words - Processor-dependent definitions
 ;       32-bit Forth for ARM RISC
 ;;;;;;;;;;;;;;;;
 
-; microdebugger for debugging new hForth ports.
+; microdebugger for debugging new hForth ports by NAC.
 ;
 ; The major problem with debugging Forth code at the assembler level is that
 ; most of the definitions are lists of execution tokens that get interpreted
 ; (using doLIST) rather than executed directly. As far as the native processor
 ; is concerned, these xt are data, and a debugger cannot be set to trap on
 ; them.
-; 
+;
 ; The solution to that problem would seem to be to trap on the native-machine
 ; 'call' instruction at the start of each definition. However, the threaded
 ; nature of the code makes it very difficult to follow a particular definition
@@ -1414,7 +1350,7 @@ FROM1:          DW      PARSE_WORD,STDIN,SOURCE,ToIN,Store,DROP,EXIT
 ; Clearly, you could overcome these limitations by making udebug more
 ; complex -- but then you run the risk of introducing bugs in that code.
 
-udebug          ldr r0,=trapfpc
+udebug          ldr r0,=RAM0		; where UZERO table will go to
 		ldr r1,[r0]
 		cmps r1,fpc             ; compare the stored address with
 					; the address we're about to get the
@@ -1423,8 +1359,6 @@ udebug          ldr r0,=trapfpc
 		add r1,fpc,#CELLL       ; next time trap on the next xt
 		str r1, [r0]
 		ldr pc, [fpc], #CELLL   ; make debugger TRAP at this address
-
-trapfpc		DW 0
 
 ;   W!          ( c a -- )	"w store"
 ;		Store word (16-bit) value at word address.
@@ -1620,12 +1554,12 @@ coffm		EQU &ffffefff
 ;                 $COLON  5,'same?',SameQ,_SLINK
 ;                 DW      QuestionDUP,ZBranch,SAMEQ4
 ;                 DW      Zero,DoDO
-; SAMEQ3:         DW      OVER,CFetch,OVER,CFetch,XORR,ZBranch,SAMEQ2
+; SAMEQ3          DW      OVER,CFetch,OVER,CFetch,XORR,ZBranch,SAMEQ2
 ;                 DW      UNLOOP,CFetch,SWAP,CFetch,GreaterThan
 ;                 DW      TwoStar,OnePlus,EXIT
-; SAMEQ2:         DW      CHARPlus,SWAP,CHARPlus
+; SAMEQ2          DW      CHARPlus,SWAP,CHARPlus
 ;                 DW      DoLOOP,SAMEQ3
-; SAMEQ4:         DW      TwoDROP,Zero,EXIT
+; SAMEQ4          DW      TwoDROP,Zero,EXIT
 
 		$CODE   5,'same?',SameQ,_SLINK
 		popD	r0		;c-addr2
@@ -1633,7 +1567,7 @@ coffm		EQU &ffffefff
 		orrs	tos, tos, tos
 		beq	SAME1	;null string always matches; exit with tos=0
 		;could have done that with a dollar-NEXT-EQ
-SAME2:		ldrb	r2, [r0], #1	;char at c-addr2
+SAME2		ldrb	r2, [r0], #1	;char at c-addr2
 		ldrb	r3, [r1], #1	;char at c-addr1
 		cmp	r2, r3		;flags for c2>c1
 		movgt	tos, #1
@@ -1642,7 +1576,7 @@ SAME2:		ldrb	r2, [r0], #1	;char at c-addr2
 		subs	tos, tos, #1
 		bne	SAME2		;match so far, more string to do
 		;match, tos=0
-SAME1:
+SAME1
 		$NEXT
 
 ;   (search-wordlist)   ( c-addr u wid -- 0 | xt f 1 | xt f -1)
@@ -1670,18 +1604,18 @@ SAME1:
 ;                 $COLON  17,'(search-wordlist)',ParenSearch_Wordlist,_SLINK
 ;                 DW      ROT,ToR,SWAP,DUPP,ZBranch,PSRCH6
 ;                 DW      ToR
-; PSRCH1:         DW      Fetch
+; PSRCH1          DW      Fetch
 ;                 DW      DUPP,ZBranch,PSRCH9
 ;                 DW      DUPP,COUNT,DoLIT,MASKK,ANDD,RFetch,Equals
 ;                 DW      ZBranch,PSRCH5
 ;                 DW      RFrom,RFetch,SWAP,DUPP,ToR,SameQ
-; PSRCH5:         DW      ZBranch,PSRCH3
+; PSRCH5          DW      ZBranch,PSRCH3
 ;                 DW      CellMinus,Branch,PSRCH1
-; PSRCH3:         DW      RFrom,RFrom,TwoDROP,DUPP,NameToXT,SWAP
+; PSRCH3          DW      RFrom,RFrom,TwoDROP,DUPP,NameToXT,SWAP
 ;                 DW      CFetch,DUPP,DoLIT,COMPO,ANDD,ZeroEquals,SWAP
 ;                 DW      DoLIT,IMMED,ANDD,ZeroEquals,TwoStar,OnePlus,EXIT
-; PSRCH9:         DW      RFrom,RFrom,TwoDROP,EXIT
-; PSRCH6:         DW      DoLIT,-16,THROW
+; PSRCH9          DW      RFrom,RFrom,TwoDROP,EXIT
+; PSRCH6          DW      DoLIT,-16,THROW
 ;
 ; format is: wid---->[   a    ]
 ;                        |
@@ -1707,7 +1641,7 @@ SAME1:
 		moveq	tos,#-16
 		beq	THROW	;attempt to use 0-length string as a name
 		add	r6, r1, r0  	;point past reference string
-PSRCH2:		ldr	tos,[tos]	;link to next word
+PSRCH2		ldr	tos,[tos]	;link to next word
 		orrs	tos, tos, tos
 		beq	PSRCH3	;link of 0 indicates end of word list
 		; get length byte and point to next-word link
@@ -1718,7 +1652,7 @@ PSRCH2:		ldr	tos,[tos]	;link to next word
 		add	r2, tos, #5 	;point to 1st byte of string in dict'y
 		mov	r7, r1		;take a copy of the start address
 		;now compare strings at r7, r2 until r7=r6
-PSRCH4:		ldrb	r3, [r7], #1
+PSRCH4		ldrb	r3, [r7], #1
 		ldrb	r4, [r2], #1
 		subs	r3, r4, r3
 		bne	PSRCH2	;mismatch. Try next word in the list
@@ -1735,7 +1669,7 @@ PSRCH4:		ldrb	r3, [r7], #1
 		; eq => tos=0 => IMMED clear
 		movne	tos, #2
 		sub	tos, tos, #1	;1=>SET, -1=>CLEAR
-PSRCH3:
+PSRCH3
 		$NEXT
 
 ;   ?call       ( xt1 -- xt1 0 | a-addr xt2 )
@@ -1769,9 +1703,9 @@ PSRCH3:
 		DW      DUPP,DUPP,Fetch,DoLIT,0ffffffh,ANDD,DUPP
 		DW      DoLIT,07fffffh,GreaterThan,ZBranch,QCALL2
 		DW      DoLIT,0ff000000h,ORR
-QCALL2:         DW      DoLIT,2,LSHIFT,Plus,CELLPlus,CELLPlus
+QCALL2          DW      DoLIT,2,LSHIFT,Plus,CELLPlus,CELLPlus
 		DW      SWAP,CELLPlus,SWAP,EXIT
-QCALL1:         DW      Zero,EXIT
+QCALL1          DW      Zero,EXIT
 
 ;   xt,         ( xt1 -- xt2 )
 ;               Take a run-time word xt1 for :NONAME , CONSTANT , VARIABLE and
@@ -1798,7 +1732,7 @@ QCALL1:         DW      Zero,EXIT
 
 ;   doLIT       ( -- x )
 ;               Push an inline literal. The inline literal is at the current
-;		value of the fpc, so put it onto the stack and point past it
+;		value of the fpc, so put it onto the stack and point past it.
 
 		$CODE   COMPO+5,'doLIT',DoLIT,_SLINK
 		pushD   tos
@@ -1807,16 +1741,16 @@ QCALL1:         DW      Zero,EXIT
 
 ;   doCONST     ( -- x )
 ;               Run-time routine of CONSTANT and VARIABLE. When you quote a
-;		constant or variable you execute its code, which consists of a
-;		call to here, followed by an inline literal. The literal is a
-;		constant (for a CONSTANT) or the address at which a VARIABLE's
-;		value is stored. Although you come here as the result of a
-;		native machine call, you never go back to the return address
-;		-- you jump back up a level by continuing at the new fpc value.
-;		For 8086, Z80 the inline literal is at the return address
-;		stored on the top of the hardware stack. For the ARM, we came
-;		here through a bl (branch-and-link) so the return address is
-;		in r14
+;               constant or variable you execute its code, which consists of a
+;               call to here, followed by an inline literal. The literal is a
+;               constant (for a CONSTANT) or the address at which a VARIABLE's
+;               value is stored. Although you come here as the result of a
+;               native machine call, you never go back to the return address
+;               -- you jump back up a level by continuing at the new fpc value.
+;               For 8086, Z80 the inline literal is at the return address
+;               stored on the top of the hardware stack. For the ARM, we came
+;               here through a bl (branch-and-link) so the return address is
+;               in r14
 
 		$CODE   COMPO+7,'doCONST',DoCONST,_SLINK
 		pushD   tos
@@ -1825,10 +1759,10 @@ QCALL1:         DW      Zero,EXIT
 
 ;   doVALUE     ( -- x )
 ;               Run-time routine of VALUE. Return the value of VALUE word.
-;		This is like an invocation of doCONST for a VARIABLE but
-;		instead of returning the address of the variable, we return
-;		the value of the variable -- in other words, there is another
-;		level of indirection
+;               This is like an invocation of doCONST for a VARIABLE but
+;               instead of returning the address of the variable, we return
+;               the value of the variable -- in other words, there is another
+;               level of indirection.
 
 		$CODE   COMPO+7,'doVALUE',DoVALUE,_SLINK
 		pushD   tos
@@ -1838,26 +1772,26 @@ QCALL1:         DW      Zero,EXIT
 
 ;   doCREATE    ( -- a-addr )
 ;               Run-time routine of CREATE. For CREATEd words with an
-;		associated DOES>, get the address of the CREATEd word's data
-;		space and execute the DOES> actions. For CREATEd word without
-;		an associated DOES>, return the address of the CREATE'd word's
-;		data space. A CREATEd word starts its execution through this
-;		routine in exactly the same way as a colon definition uses
-;		doLIST. In other words, we come here through a native machine
-;		branch. For ARM, r14 holds the address of the next word at the
-;		called point and fpc holds next word above that.
+;               associated DOES>, get the address of the CREATEd word's data
+;               space and execute the DOES> actions. For CREATEd word without
+;               an associated DOES>, return the address of the CREATE'd word's
+;               data space. A CREATEd word starts its execution through this
+;               routine in exactly the same way as a colon definition uses
+;               doLIST. In other words, we come here through a native machine
+;               branch. For ARM, r14 holds the address of the next word at the
+;               called point and fpc holds next word above that.
 ;
 ;               Structure of CREATEd word:
 ;                       | call-doCREATE | 0 or DOES> code addr | a-addr |
 ;
-;		So, for ARM, r14 points to the "0 or DOES>" address. The DOES>
-;		address holds a native call to doLIST. This routine doesn't
-;		alter the fpc. We never come back *here* so we never need to
-;		preserve an address that would bring us back *here*. 
+;               So, for ARM, r14 points to the "0 or DOES>" address. The DOES>
+;               address holds a native call to doLIST. This routine doesn't
+;               alter the fpc. We never come back *here* so we never need to
+;               preserve an address that would bring us back *here*. 
 ;
-;		Example : myVARIABLE CREATE , DOES> ;
-;		56 myVARIABLE JIM
-;		JIM \ stacks the address of the data cell that contains 56
+;               Example : myVARIABLE CREATE , DOES> ;
+;               56 myVARIABLE JIM
+;               JIM \ stacks the address of the data cell that contains 56
 ;
 ;   : doCREATE    SWAP            \ switch BX and top of 8086 stack item
 ;                 DUP CELL+ @ SWAP @ ?DUP IF EXECUTE THEN ; COMPILE-ONLY
@@ -1866,7 +1800,7 @@ QCALL1:         DW      Zero,EXIT
 ;                 DW      SWAP,DUPP,CELLPlus,Fetch,SWAP,Fetch,QuestionDUP
 ;                 DW      ZBranch,DOCREAT1
 ;                 DW      EXECUTE
-; DOCREAT1:       DW      EXIT
+; DOCREAT1        DW      EXIT
 
 		$CODE   COMPO+8,'doCREATE',DoCREATE,_SLINK
 		pushD   tos
@@ -1879,8 +1813,9 @@ QCALL1:         DW      Zero,EXIT
 		$ALIGN
 
 ;   doTO        ( x -- )
-;               Run-time routine of TO. The inline literal holds the address
-;		to be modified. The new value is taken from tos
+;               Run-time routine of TO. Store x at the address in the
+;               following cell. The inline literal holds the address
+;               to be modified.
 
 		$CODE   COMPO+4,'doTO',DoTO,_SLINK
 		; get the address to be modified and point past
@@ -1892,10 +1827,10 @@ QCALL1:         DW      Zero,EXIT
 
 ;   doUSER      ( -- a-addr )
 ;               Run-time routine of USER. Return address of data space.
-;		This is like doCONST but a variable offset is added to the
-;		result. By changing the value at AddrUserP (which happens
-;		on a taskswap) the whole set of user variables is switched
-;		to the set for the new task
+;               This is like doCONST but a variable offset is added to the
+;               result. By changing the value at AddrUserP (which happens
+;               on a taskswap) the whole set of user variables is switched
+;               to the set for the new task.
 
 		$CODE   COMPO+6,'doUSER',DoUSER,_SLINK
 		pushD   tos
@@ -1912,10 +1847,10 @@ QCALL1:         DW      Zero,EXIT
 ;               The first word of a definition (the xt for the word) is a
 ;               native machine-code instruction for the target machine. For
 ;               high-level definitions, that code is emitted by xt, and
-;		performs a call to doLIST. doLIST executes the list of xt that
-;		make up the definition. The final xt in the definition is EXIT.
-;		The address of the first xt to be executed is passed to doLIST
-;		in a target-specific way. Two examples:
+;               performs a call to doLIST. doLIST executes the list of xt that
+;               make up the definition. The final xt in the definition is EXIT.
+;               The address of the first xt to be executed is passed to doLIST
+;               in a target-specific way. Two examples:
 ;               Z80, 8086: native machine call, leaves the return address on
 ;               the hardware stack pointer, which is used for the data stack
 ;               ARM: branch-and-link, so the return address is in r14,
@@ -2044,7 +1979,7 @@ QCALL1:         DW      Zero,EXIT
 ;                 DW      UMSlashMOD,DROP,DUPP
 ;                 DW      ZBranch,ALGN1
 ;                 DW      DoLIT,CELLL,SWAP,Minus
-; ALGN1:          DW      Plus,EXIT
+; ALGN1           DW      Plus,EXIT
 
 		$CODE   7,'ALIGNED',ALIGNED,_FLINK
 		add     tos, tos,#3
@@ -2285,21 +2220,25 @@ QCALL1:         DW      Zero,EXIT
 ;               Execution vector of EKEY?.
 
 		$VALUE  6,"'ekey?",TickEKEYQ,_SLINK
+AddrTEKEYQ	EQU	_VAR -CELLL
 
 ;   'ekey       ( -- a-addr )
 ;               Execution vector of EKEY.
 
 		$VALUE  5,"'ekey",TickEKEY,_SLINK
+AddrTEKEY	EQU	_VAR -CELLL
 
 ;   'emit?      ( -- a-addr )
 ;               Execution vector of EMIT?.
 
 		$VALUE  6,"'emit?",TickEMITQ,_SLINK
+AddrTEMITQ	EQU	_VAR -CELLL
 
 ;   'emit       ( -- a-addr )
 ;               Execution vector of EMIT.
 
 		$VALUE  5,"'emit",TickEMIT,_SLINK
+AddrTEMIT	EQU	_VAR -CELLL
 
 ;   'init-i/o   ( -- a-addr )
 ;               Execution vector to initialize input/output devices.
@@ -2433,16 +2372,16 @@ NONSTANDARD_WORDLISTAddr        EQU     _VAR -CELLL
 _VAR            SETA _VAR +2*CELLL
 _VAR            SETA _VAR +3*(MaxWLISTS-2)*CELLL
 
-;NAC typo: SET-CURRET should say SET-CURRENT
 ;   envQList    ( -- wid )
 ;               Return wid of ENVIRONMENT? string list. Never put this wid in
-;               search-order. It should be used only by SET-CURRET to add new
+;               search-order. It should be used only by SET-CURRENT to add new
 ;               environment query string after addition of a complete wordset.
 
 		$VAR    8,'envQList',EnvQList,_SLINK
 
 ;   userP       ( -- a-addr )
 ;               Return address of USER variable area of current task.
+
 		$VAR    5,'userP',UserP,_SLINK
 ;NAC: My version to set AddrUserP seems simpler and just as portable
 AddrUserP       EQU _VAR - CELLL
@@ -2450,8 +2389,7 @@ AddrUserP       EQU _VAR - CELLL
 ;ORG _VAR -CELLL
 ;AddrUserP       DW      ?
 ;ORG _CODE
-;NAC: makesrc.awk uses SETA to keep _VAR correct and so the following stuff
-;NAC should work out fine.
+
 SysTask         EQU     _VAR-0
 _VAR            SETA _VAR + CELLL
 
@@ -2582,7 +2520,7 @@ _VAR            SETA _VAR + CELLL             ;RP0 for system task
 		$COLON  3,"(')",ParenTick,_SLINK
 		DW      PARSE_WORD,Search_word,QuestionDUP,ZBranch,PTICK1
 		DW      NIP,EXIT
-PTICK1:         DW      ErrWord,TwoStore,DoLIT,-13,THROW
+PTICK1          DW      ErrWord,TwoStore,DoLIT,-13,THROW
 
 ;   (d.)        ( d -- c-addr u )
 ;               Convert a double number to a string.
@@ -2593,7 +2531,7 @@ PTICK1:         DW      ErrWord,TwoStore,DoLIT,-13,THROW
 		$COLON  4,'(d.)',ParenDDot,_SLINK
 		DW      SWAP,OVER,DUPP,ZeroLess,ZBranch,PARDD1
 		DW      DNEGATE
-PARDD1:         DW      LessNumberSign,NumberSignS,ROT
+PARDD1          DW      LessNumberSign,NumberSignS,ROT
 		DW      SIGN,NumberSignGreater,EXIT
 
 ;NAC: made this state-smart (used to be done in QUIT) to allow FILE/HAND to work
@@ -2606,7 +2544,7 @@ PARDD1:         DW      LessNumberSign,NumberSignS,ROT
 		DW	STATE,Fetch,INVERT,ZBranch,DOTO1
 		$INSTR  'ok'
 		DW      TYPEE
-DOTO1:		DW	EXIT
+DOTO1		DW	EXIT
 
 ;   .prompt         ( -- )
 ;               Display Forth prompt. This word is vectored.
@@ -2711,15 +2649,15 @@ _VAR            SETA _VAR +CELLL
 		DW      PARSE_WORD,DUPP,ZBranch,HEADC1
 		DW      DUPP,DoLIT,MASKK,GreaterThan,ZBranch,HEADC3
 		DW      DoLIT,-19,THROW
-HEADC3:         DW      TwoDUP,GET_CURRENT,SEARCH_WORDLIST,ZBranch,HEADC2
+HEADC3          DW      TwoDUP,GET_CURRENT,SEARCH_WORDLIST,ZBranch,HEADC2
 		DW      DROP
 		$INSTR  'redefine '
 		DW      TYPEE,TwoDUP,TYPEE,SPACE
-HEADC2:         DW      NPVar,Fetch,OVER,CELLPlus,Minus,ALIGNED
+HEADC2          DW      NPVar,Fetch,OVER,CELLPlus,Minus,ALIGNED
 		DW      DUPP,ToR,PackQuote,DROP,RFrom
 		DW      CellMinus,GET_CURRENT,Fetch,OVER,Store
 		DW      CellMinus,DUPP,NPVar,Store,Store,EXIT
-HEADC1:         DW      ErrWord,TwoStore,DoLIT,-16,THROW
+HEADC1          DW      ErrWord,TwoStore,DoLIT,-16,THROW
 
 ;   hld         ( -- a-addr )
 ;               Hold a pointer in building a numeric output string.
@@ -2741,17 +2679,17 @@ HEADC1:         DW      ErrWord,TwoStore,DoLIT,-16,THROW
 ;               REPEAT 2DROP ;
 
 		$COLON  9,'interpret',Interpret,_SLINK
-INTERP1:        DW      DEPTH,ZeroLess,ZBranch,INTERP2
+INTERP1         DW      DEPTH,ZeroLess,ZBranch,INTERP2
 		DW      DoLIT,-4,THROW
-INTERP2:        DW      PARSE_WORD,DUPP,ZBranch,INTERP3
+INTERP2         DW      PARSE_WORD,DUPP,ZBranch,INTERP3
 		DW      TwoDUP,ErrWord,TwoStore
 		DW      Search_word,DUPP,ZBranch,INTERP5
 		DW      SWAP,STATE,Fetch,ORR,ZBranch,INTERP4
-INTERP5:        DW      OnePlus,TwoStar,STATE,Fetch,OnePlus,Plus,CELLS
+INTERP5         DW      OnePlus,TwoStar,STATE,Fetch,OnePlus,Plus,CELLS
 		DW      TickDoWord,Plus,Fetch,EXECUTE
 		DW      Branch,INTERP1
-INTERP3:        DW      TwoDROP,EXIT
-INTERP4:        DW      DoLIT,-14,THROW
+INTERP3         DW      TwoDROP,EXIT
+INTERP4         DW      DoLIT,-14,THROW
 
 ;   optiCOMPILE, ( xt -- )
 ;               Optimized COMPILE, . Reduce doLIST ... EXIT sequence if
@@ -2770,10 +2708,10 @@ INTERP4:        DW      DoLIT,-14,THROW
 		DW      DUPP,QCall,DoLIT,DoLIST,Equals,ZBranch,OPTC2
 		DW      DUPP,Fetch,DoLIT,EXIT,Equals,ZBranch,OPTC1
 		DW      TwoDROP,EXIT
-OPTC1:          DW      DUPP,CELLPlus,Fetch,DoLIT,EXIT,Equals,ZBranch,OPTC2
+OPTC1           DW      DUPP,CELLPlus,Fetch,DoLIT,EXIT,Equals,ZBranch,OPTC2
 		DW      Fetch,DUPP,DoLIT,DoLIT,XORR,ZBranch,OPTC2
 		DW      SWAP
-OPTC2:          DW      DROP,COMPILEComma,EXIT
+OPTC2           DW      DROP,COMPILEComma,EXIT
 
 ;   singleOnly  ( c-addr u -- x )
 ;               Handle the word not found in the search-order. If the string
@@ -2789,11 +2727,11 @@ OPTC2:          DW      DROP,COMPILEComma,EXIT
 		DW      Zero,DUPP,TwoSWAP,OVER,CFetch,DoLIT,'-'
 		DW      Equals,DUPP,ToR,ZBranch,SINGLEO4
 		DW      One,SlashSTRING
-SINGLEO4:       DW      ToNUMBER,ZBranch,SINGLEO1
+SINGLEO4        DW      ToNUMBER,ZBranch,SINGLEO1
 		DW      DoLIT,-13,THROW
-SINGLEO1:       DW      TwoDROP,RFrom,ZBranch,SINGLEO2
+SINGLEO1        DW      TwoDROP,RFrom,ZBranch,SINGLEO2
 		DW      NEGATE
-SINGLEO2:       DW      EXIT
+SINGLEO2        DW      EXIT
 
 ;   singleOnly, ( c-addr u -- )
 ;               Handle the word not found in the search-order. Compile a
@@ -2825,16 +2763,16 @@ SINGLEO2:       DW      EXIT
 		DW      Zero,DUPP,TwoSWAP,OVER,CFetch,DoLIT,'-'
 		DW      Equals,DUPP,ToR,ZBranch,DOUBLEA1
 		DW      One,SlashSTRING
-DOUBLEA1:       DW      ToNUMBER,QuestionDUP,ZBranch,DOUBLEA4
+DOUBLEA1        DW      ToNUMBER,QuestionDUP,ZBranch,DOUBLEA4
 		DW      OneMinus,ZBranch,DOUBLEA3
-DOUBLEA2:       DW      DoLIT,-13,THROW
-DOUBLEA3:       DW      CFetch,DoLIT,'.',Equals,ZBranch,DOUBLEA2
+DOUBLEA2        DW      DoLIT,-13,THROW
+DOUBLEA3        DW      CFetch,DoLIT,'.',Equals,ZBranch,DOUBLEA2
 		DW      RFrom,ZBranch,DOUBLEA5
 		DW      DNEGATE
-DOUBLEA5:       DW      DoLIT,2,EXIT            ; result is a double
-DOUBLEA4:       DW      TwoDROP,RFrom,ZBranch,DOUBLEA6
+DOUBLEA5        DW      DoLIT,2,EXIT            ; result is a double
+DOUBLEA4        DW      TwoDROP,RFrom,ZBranch,DOUBLEA6
 		DW      NEGATE
-DOUBLEA6:       DW      One,EXIT                ; result is a single
+DOUBLEA6        DW      One,EXIT                ; result is a single
 
 ;   doubleAlso  ( c-addr u -- x | x x )
 ;               Handle the word not found in the search-order. If the string
@@ -2858,7 +2796,7 @@ DOUBLEA6:       DW      One,EXIT                ; result is a single
 		$COLON  11,'doubleAlso,',DoubleAlsoComma,_SLINK
 		DW      ParenDoubleAlso,OneMinus,ZBranch,DOUBC1
 		DW      SWAP,LITERAL
-DOUBC1:         DW      LITERAL,EXIT
+DOUBC1          DW      LITERAL,EXIT
 
 ;   -.          ( -- )
 ;               You don't need this word unless you care that '-.' returns
@@ -2909,7 +2847,7 @@ DOUBC1:         DW      LITERAL,EXIT
 		$COLON  5,'pack"',PackQuote,_SLINK
 		DW      OVER,DoLIT,MaxChar,GreaterThan,ZBranch,PACKQ1
 		DW      DoLIT,-18,THROW
-PACKQ1:         DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
+PACKQ1          DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
 		DW      CellMinus,Zero,SWAP,Store
 		DW      TwoDUP,CStore,CHARPlus,SWAP
 		DW      CHARS,MOVE,RFrom,EXIT
@@ -2939,7 +2877,7 @@ PACKQ1:         DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
 		DW      LastName,NameToXT,QCall,DUPP,ZBranch,PIPE1
 		DW      DoLIT,DoCREATE,Equals,ZBranch,PIPE1
 		DW      RFrom,SWAP,Store,EXIT
-PIPE1:          DW      DoLIT,-32,THROW
+PIPE1           DW      DoLIT,-32,THROW
 
 ;   skipPARSE   ( char "<chars>ccc<char>" -- c-addr u )
 ;               Skip leading chars and parse a word using char as a
@@ -2958,13 +2896,13 @@ PIPE1:          DW      DoLIT,-32,THROW
 		$COLON  9,'skipPARSE',SkipPARSE,_SLINK
 		DW      ToR,SOURCE,ToIN,Fetch,SlashSTRING
 		DW      DUPP,ZBranch,SKPAR1
-SKPAR2:         DW      OVER,CFetch,RFetch,Equals,ZBranch,SKPAR3
+SKPAR2          DW      OVER,CFetch,RFetch,Equals,ZBranch,SKPAR3
 		DW      OneMinus,SWAP,CHARPlus,SWAP
 		DW      DUPP,ZeroEquals,ZBranch,SKPAR2
 		DW      RFrom,DROP,EXIT
-SKPAR3:         DW      DROP,SOURCE,DROP,Minus,OneCharsSlash
+SKPAR3          DW      DROP,SOURCE,DROP,Minus,OneCharsSlash
 		DW      ToIN,Store,RFrom,PARSE,EXIT
-SKPAR1:         DW      RFrom,DROP,EXIT
+SKPAR1          DW      RFrom,DROP,EXIT
 
 ;   rake        ( C: do-sys -- )
 ;               Gathers LEAVEs.
@@ -2979,12 +2917,12 @@ SKPAR1:         DW      RFrom,DROP,EXIT
 
 		$COLON  COMPO+4,'rake',rake,_SLINK
 		DW      DUPP,CodeComma,RakeVar,Fetch
-RAKE1:          DW      TwoDUP,ULess,ZBranch,RAKE2
+RAKE1           DW      TwoDUP,ULess,ZBranch,RAKE2
 		DW      DUPP,Fetch,XHere,ROT,Store,Branch,RAKE1
-RAKE2:          DW      RakeVar,Store,DROP
+RAKE2           DW      RakeVar,Store,DROP
 		DW      QuestionDUP,ZBranch,RAKE3
 		DW      One,BalPlus,THENN
-RAKE3:          DW      BalMinus,EXIT
+RAKE3           DW      BalMinus,EXIT
 
 ;   rp0         ( -- a-addr )
 ;               Pointer to bottom of the return stack.
@@ -3014,12 +2952,12 @@ RAKE3:          DW      BalMinus,EXIT
 		$COLON  11,'search-word',Search_word,_SLINK
 		DW      NumberOrder,Fetch,DUPP,ZBranch,SEARCH1
 		DW      Zero,DoDO
-SEARCH2:        DW      TwoDUP,I,CELLS,NumberOrder,CELLPlus,Plus,Fetch
+SEARCH2         DW      TwoDUP,I,CELLS,NumberOrder,CELLPlus,Plus,Fetch
 		DW      ParenSearch_Wordlist,QuestionDUP,ZBranch,SEARCH3
 		DW      ToR,TwoSWAP,TwoDROP,RFrom,UNLOOP,EXIT
-SEARCH3:        DW      DoLOOP,SEARCH2
+SEARCH3         DW      DoLOOP,SEARCH2
 		DW      Zero
-SEARCH1:        DW      EXIT
+SEARCH1         DW      EXIT
 
 ;   sourceVar   ( -- a-addr )
 ;               Hold the current count and address of the terminal input buffer.
@@ -3116,7 +3054,7 @@ _VAR            SETA _VAR +CELLL
 ;   : #S        BEGIN # 2DUP OR 0= UNTIL ;
 
 		$COLON  2,'#S',NumberSignS,_FLINK
-NUMSS1:         DW      NumberSign,TwoDUP,ORR
+NUMSS1          DW      NumberSign,TwoDUP,ORR
 		DW      ZeroEquals,ZBranch,NUMSS1
 		DW      EXIT
 
@@ -3295,7 +3233,7 @@ NUMSS1:         DW      NumberSign,TwoDUP,ORR
 		$COLON  7,':NONAME',ColonNONAME,_FLINK
 		DW      Bal,ZBranch,NONAME1
 		DW      DoLIT,-29,THROW
-NONAME1:        DW      DoLIT,DoLIST,xtComma,DUPP,DoLIT,-1
+NONAME1         DW      DoLIT,DoLIST,xtComma,DUPP,DoLIT,-1
 		DW      Zero,DoTO,AddrNotNONAMEQ
 		DW      One,DoTO,AddrBal,RightBracket,EXIT
 
@@ -3312,11 +3250,11 @@ NONAME1:        DW      DoLIT,DoLIST,xtComma,DUPP,DoLIT,-1
 		$COLON  IMMED+COMPO+1,';',Semicolon,_FLINK
 		DW      Bal,OneMinus,ZBranch,SEMI1
 		DW      DoLIT,-22,THROW
-SEMI1:          DW      NIP,OnePlus,ZBranch,SEMI2
+SEMI1           DW      NIP,OnePlus,ZBranch,SEMI2
 		DW      DoLIT,-22,THROW
-SEMI2:          DW      NotNONAMEQ,ZBranch,SEMI3
+SEMI2           DW      NotNONAMEQ,ZBranch,SEMI3
 		DW      LinkLast,Zero,DoTO,AddrNotNONAMEQ
-SEMI3:          DW      DoLIT,EXIT,COMPILEComma
+SEMI3           DW      DoLIT,EXIT,COMPILEComma
 		DW      Zero,DoTO,AddrBal,LeftBracket,EXIT
 
 ;   <           ( n1 n2 -- flag )               \ CORE
@@ -3329,7 +3267,7 @@ SEMI3:          DW      DoLIT,EXIT,COMPILEComma
 		$COLON  1,'<',LessThan,_FLINK
 		DW      TwoDUP,XORR,ZeroLess,ZBranch,LESS1
 		DW      DROP,ZeroLess,EXIT
-LESS1:          DW      Minus,ZeroLess,EXIT
+LESS1           DW      Minus,ZeroLess,EXIT
 
 ;   <#          ( -- )                          \ CORE
 ;               Initiate the numeric output conversion process.
@@ -3377,7 +3315,7 @@ LESS1:          DW      Minus,ZeroLess,EXIT
 ;               THEN ;
 
 		$COLON  7,'>NUMBER',ToNUMBER,_FLINK
-TONUM1:         DW      DUPP,ZBranch,TONUM3
+TONUM1          DW      DUPP,ZBranch,TONUM3
 		DW      ToR,DUPP,ToR,CFetch,DUPP
 		DW      DoLIT,'9'+1,DoLIT,'A',WITHIN,ZeroEquals,ZBranch,TONUM2
 		DW      DoLIT,'0',Minus,DoLIT,9,OVER,LessThan
@@ -3386,8 +3324,8 @@ TONUM1:         DW      DUPP,ZBranch,TONUM3
 		DW      SWAP,BASE,Fetch,UMStar,DROP,ROT,BASE,Fetch
 		DW      UMStar,DPlus,RFrom,RFrom,One,SlashSTRING
 		DW      Branch,TONUM1
-TONUM2:         DW      DROP,RFrom,RFrom
-TONUM3:         DW      EXIT
+TONUM2          DW      DROP,RFrom,RFrom
+TONUM3          DW      EXIT
 
 ;   ?DUP        ( x -- x x | 0 )                \ CORE
 ;               Duplicate top of the stack if it is not zero.
@@ -3397,7 +3335,7 @@ TONUM3:         DW      EXIT
 		$COLON  4,'?DUP',QuestionDUP,_FLINK
 		DW      DUPP,ZBranch,QDUP1
 		DW      DUPP
-QDUP1:          DW      EXIT
+QDUP1           DW      EXIT
 
 ;   ABORT       ( i*x -- ) ( R: j*x -- )        \ EXCEPTION EXT
 ;               Reset data stack and jump to QUIT.
@@ -3431,23 +3369,22 @@ QDUP1:          DW      EXIT
 
 		$COLON  6,'ACCEPT',ACCEPT,_FLINK
 		DW      ToR,Zero
-ACCPT1:         DW      DUPP,RFetch,LessThan,ZBranch,ACCPT5
+ACCPT1          DW      DUPP,RFetch,LessThan,ZBranch,ACCPT5
 		DW      EKEY,DoLIT,MaxChar,ANDD
 		DW      DUPP,BLank,LessThan,ZBranch,ACCPT3
-;NAC want to change this to accept either a CR or a LF
 		DW      DUPP,DoLIT,CRR,Equals,ZBranch,ACCPT4
 		DW      ROT,TwoDROP,RFrom,DROP,EXIT
-ACCPT4:         DW      DUPP,DoLIT,TABB,Equals,ZBranch,ACCPT6
+ACCPT4          DW      DUPP,DoLIT,TABB,Equals,ZBranch,ACCPT6
 		DW      DROP,TwoDUP,Plus,BLank,DUPP,EMIT,SWAP,CStore,OnePlus
 		DW      Branch,ACCPT1
-ACCPT6:         DW      DUPP,DoLIT,BKSPP,Equals
+ACCPT6          DW      DUPP,DoLIT,BKSPP,Equals
 		DW      SWAP,DoLIT,DEL,Equals,ORR,ZBranch,ACCPT1
 		DW      DUPP,ZBranch,ACCPT1
 		DW      OneMinus,DoLIT,BKSPP,EMIT,BLank,EMIT,DoLIT,BKSPP,EMIT
 		DW      Branch,ACCPT1
-ACCPT3:         DW      ToR,TwoDUP,CHARS,Plus,RFrom,DUPP,EMIT,SWAP,CStore
+ACCPT3          DW      ToR,TwoDUP,CHARS,Plus,RFrom,DUPP,EMIT,SWAP,CStore
 		DW      OnePlus,Branch,ACCPT1
-ACCPT5:         DW      SWAP,RFrom,TwoDROP,EXIT
+ACCPT5          DW      SWAP,RFrom,TwoDROP,EXIT
 
 ;   AGAIN       ( C: dest -- )                  \ CORE EXT
 ;               Resolve backward reference dest. Typically used as
@@ -3460,7 +3397,7 @@ ACCPT5:         DW      SWAP,RFrom,TwoDROP,EXIT
 		$COLON  IMMED+COMPO+5,'AGAIN',AGAIN,_FLINK
 		DW      ZBranch,AGAIN1
 		DW      DoLIT,-22,THROW
-AGAIN1:         DW      DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
+AGAIN1          DW      DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 
 ;   AHEAD       ( C: -- orig )                  \ TOOLS EXT
 ;               Put the location of a new unresolved forward reference onto
@@ -3536,7 +3473,7 @@ AGAIN1:         DW      DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 		$COLON  8,'CONSTANT',CONSTANT,_FLINK
 		DW      Bal,ZBranch,CONST1
 		DW      DoLIT,-29,THROW
-CONST1:         DW      DoLIT,DoCONST,xtComma,HeadComma,CodeComma,LinkLast,EXIT
+CONST1          DW      DoLIT,DoCONST,xtComma,HeadComma,CodeComma,LinkLast,EXIT
 
 ;   COUNT       ( c-addr1 -- c-addr2 u )        \ CORE
 ;               Convert counted string to string specification. c-addr2 is
@@ -3563,7 +3500,7 @@ CONST1:         DW      DoLIT,DoCONST,xtComma,HeadComma,CodeComma,LinkLast,EXIT
 		$COLON  6,'CREATE',CREATE,_FLINK
 		DW      Bal,ZBranch,CREAT1
 		DW      DoLIT,-29,THROW
-CREAT1:         DW      DoLIT,DoCREATE,xtComma,HeadComma
+CREAT1          DW      DoLIT,DoCREATE,xtComma,HeadComma
 		DW      XHere,DUPP,CELLPlus,CELLPlus,TOXHere
 		DW      Zero,OVER,Store
 		DW      ALIGNN,HERE,SWAP,CELLPlus,Store
@@ -3619,7 +3556,7 @@ CREAT1:         DW      DoLIT,DoCREATE,xtComma,HeadComma
 ;   : EKEY      BEGIN PAUSE EKEY? UNTIL 'ekey EXECUTE ;
 
 		$COLON  4,'EKEY',EKEY,_FLINK
-EKEY1:          DW      PAUSE,EKEYQuestion,ZBranch,EKEY1
+EKEY1           DW      PAUSE,EKEYQuestion,ZBranch,EKEY1
 		DW      TickEKEY,EXECUTE,EXIT
 
 ;   EMIT        ( x -- )                        \ CORE
@@ -3648,17 +3585,17 @@ EKEY1:          DW      PAUSE,EKEYQuestion,ZBranch,EKEY1
 		DW      DUPP,ToR,TwoDUP,XORR,ToR,ToR,DUPP,ZeroLess
 		DW      ZBranch,FMMOD1
 		DW      DNEGATE
-FMMOD1:         DW      RFetch,ABSS,UMSlashMOD
+FMMOD1          DW      RFetch,ABSS,UMSlashMOD
 		DW      RFrom,ZeroLess,ZBranch,FMMOD2
 		DW      SWAP,NEGATE,SWAP
-FMMOD2:         DW      RFrom,ZeroLess,ZBranch,FMMOD3
+FMMOD2          DW      RFrom,ZeroLess,ZBranch,FMMOD3
 		DW      NEGATE,OVER,ZBranch,FMMOD4
 		DW      RFetch,ROT,Minus,SWAP,OneMinus
-FMMOD4:         DW      RFrom,DROP
+FMMOD4          DW      RFrom,DROP
 		DW      DoLIT,0,OVER,LessThan,ZBranch,FMMOD6
 		DW      DoLIT,-11,THROW
-FMMOD6:         DW      EXIT
-FMMOD3:         DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
+FMMOD6          DW      EXIT
+FMMOD3          DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		DW      DoLIT,-11,THROW
 
 ;   GET-CURRENT   ( -- wid )                    \ SEARCH
@@ -3769,12 +3706,12 @@ FMMOD3:         DW      RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		DW      ToR,SOURCE,ToIN,Fetch,SlashSTRING
 		DW      DUPP,ZBranch,PARSE4
 		DW      OVER,CHARS,Plus,OVER
-PARSE1:         DW      DUPP,CFetch,RFetch,XORR,ZBranch,PARSE3
+PARSE1          DW      DUPP,CFetch,RFetch,XORR,ZBranch,PARSE3
 		DW      CHARPlus,TwoDUP,Equals,ZBranch,PARSE1
-PARSE2:         DW      DROP,OVER,Minus,DUPP,OneCharsSlash,Branch,PARSE5
-PARSE3:         DW      NIP,OVER,Minus,DUPP,OneCharsSlash,CHARPlus
-PARSE5:         DW      ToIN,PlusStore
-PARSE4:         DW      RFrom,DROP,EXIT
+PARSE2          DW      DROP,OVER,Minus,DUPP,OneCharsSlash,Branch,PARSE5
+PARSE3          DW      NIP,OVER,Minus,DUPP,OneCharsSlash,CHARPlus
+PARSE5          DW      ToIN,PlusStore
+PARSE4          DW      RFrom,DROP,EXIT
 
 ;NAC: changed QUIT to always call prompt (used to be state-smart). 
 ;   QUIT        ( -- ) ( R: i*x -- )            \ CORE
@@ -3797,22 +3734,22 @@ PARSE4:         DW      RFrom,DROP,EXIT
 ;               AGAIN ;
 
 		$COLON  4,'QUIT',QUIT,_FLINK
-QUIT1:          DW      RPZero,RPStore,Zero,DoTO,AddrSOURCE_ID
+QUIT1           DW      RPZero,RPStore,Zero,DoTO,AddrSOURCE_ID
 		DW      Zero,DoTO,AddrBal,LeftBracket
-QUIT2:          DW      CR,REFILL,DROP,SPACE
+QUIT2           DW      CR,REFILL,DROP,SPACE
 		DW      DoLIT,Interpret,CATCH,QuestionDUP,ZeroEquals
 		DW      ZBranch,QUIT3
 		DW      DotPrompt,Branch,QUIT2
-QUIT3:          DW      DUPP,MinusOne,XORR,ZBranch,QUIT5
+QUIT3           DW      DUPP,MinusOne,XORR,ZBranch,QUIT5
 		DW      DUPP,DoLIT,-2,Equals,ZBranch,QUIT4
 		DW      SPACE,AbortQMsg,TwoFetch,TYPEE,Branch,QUIT5
-QUIT4:          DW      SPACE,ErrWord,TwoFetch,TYPEE
+QUIT4           DW      SPACE,ErrWord,TwoFetch,TYPEE
 		DW      SPACE,DoLIT,'?',EMIT,SPACE
 		DW      DUPP,MinusOne,DoLIT,-58,WITHIN,ZBranch,QUIT7
 		$INSTR  ' Exception # '
 		DW      TYPEE,Dot,Branch,QUIT5
-QUIT7:          DW      CELLS,THROWMsgTbl,Plus,Fetch,COUNT,TYPEE
-QUIT5:          DW      SPZero,SPStore,Branch,QUIT1
+QUIT7           DW      CELLS,THROWMsgTbl,Plus,Fetch,COUNT,TYPEE
+QUIT5           DW      SPZero,SPStore,Branch,QUIT1
 
 ;   REFILL      ( -- flag )                     \ CORE EXT
 ;               Attempt to fill the input buffer from the input source. Make
@@ -3828,7 +3765,7 @@ QUIT5:          DW      SPZero,SPStore,Branch,QUIT1
 		$COLON  6,'REFILL',REFILL,_FLINK
 		DW      SOURCE_ID,ZBranch,REFIL1
 		DW      Zero,EXIT
-REFIL1:         DW      NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
+REFIL1          DW      NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 		DW      DoLIT,PADSize*CHARR,ACCEPT,SourceVar,TwoStore
 		DW      Zero,ToIN,Store,MinusOne,EXIT
 
@@ -3859,7 +3796,7 @@ REFIL1:         DW      NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 		$COLON  15,'SEARCH-WORDLIST',SEARCH_WORDLIST,_FLINK
 		DW      ParenSearch_Wordlist,DUPP,ZBranch,SRCHW1
 		DW      NIP
-SRCHW1:         DW      EXIT
+SRCHW1          DW      EXIT
 
 ;   SIGN        ( n -- )                        \ CORE
 ;               Add a minus sign to the numeric output string if n is negative.
@@ -3869,7 +3806,7 @@ SRCHW1:         DW      EXIT
 		$COLON  4,'SIGN',SIGN,_FLINK
 		DW      ZeroLess,ZBranch,SIGN1
 		DW      DoLIT,'-',HOLD
-SIGN1:          DW      EXIT
+SIGN1           DW      EXIT
 
 ;   SOURCE      ( -- c-addr u )                 \ CORE
 ;               Return input buffer string.
@@ -3904,7 +3841,7 @@ SIGN1:          DW      EXIT
 		$COLON  IMMED+COMPO+4,'THEN',THENN,_FLINK
 		DW      OneMinus,ZBranch,THEN1
 		DW      DoLIT,-22,THROW
-THEN1:          DW      XHere,SWAP,Store,BalMinus,EXIT
+THEN1           DW      XHere,SWAP,Store,BalMinus,EXIT
 
 ;   THROW       ( k*x n -- k*x | i*x n )        \ EXCEPTION
 ;               If n is not zero, pop the topmost exception frame from the
@@ -3926,7 +3863,7 @@ THEN1:          DW      XHere,SWAP,Store,BalMinus,EXIT
 		DW      ThrowFrame,Fetch,RPStore,RFrom,ThrowFrame,Store
 		DW      RFrom,SWAP,ToR,SPStore,DROP,RFrom
 		DW      TickINIT_IO,EXECUTE
-THROW1:         DW      EXIT
+THROW1          DW      EXIT
 
 ;   TYPE        ( c-addr u -- )                 \ CORE
 ;               Display the character string if u is greater than zero.
@@ -3936,8 +3873,8 @@ THROW1:         DW      EXIT
 		$COLON  4,'TYPE',TYPEE,_FLINK
 		DW      QuestionDUP,ZBranch,TYPE2
 		DW      Zero,DoDO
-TYPE1:          DW      DUPP,CFetch,EMIT,CHARPlus,DoLOOP,TYPE1
-TYPE2:          DW      DROP,EXIT
+TYPE1           DW      DUPP,CFetch,EMIT,CHARPlus,DoLOOP,TYPE1
+TYPE2           DW      DROP,EXIT
 
 ;   U<          ( u1 u2 -- flag )               \ CORE
 ;               Unsigned compare of top two items. True if u1 < u2.
@@ -3948,7 +3885,7 @@ TYPE2:          DW      DROP,EXIT
 		DW      TwoDUP,XORR,ZeroLess
 		DW      ZBranch,ULES1
 		DW      NIP,ZeroLess,EXIT
-ULES1:          DW      Minus,ZeroLess,EXIT
+ULES1           DW      Minus,ZeroLess,EXIT
 
 ;   UM*         ( u1 u2 -- ud )                 \ CORE
 ;               Unsigned multiply. Return double-cell product.
@@ -3960,11 +3897,11 @@ ULES1:          DW      Minus,ZeroLess,EXIT
 
 		$COLON  3,'UM*',UMStar,_FLINK
 		DW      Zero,SWAP,DoLIT,CELLL*8,Zero,DoDO
-UMST1:          DW      DUPP,UMPlus,ToR,ToR
+UMST1           DW      DUPP,UMPlus,ToR,ToR
 		DW      DUPP,UMPlus,RFrom,Plus,RFrom
 		DW      ZBranch,UMST2
 		DW      ToR,OVER,UMPlus,RFrom,Plus
-UMST2:          DW      DoLOOP,UMST1
+UMST2           DW      DoLOOP,UMST1
 		DW      ROT,DROP,EXIT
 
 ;   UM/MOD      ( ud u1 -- u2 u3 )              \ CORE
@@ -3987,14 +3924,14 @@ UMST2:          DW      DoLOOP,UMST1
 		DW      DUPP,ZBranch,UMM5
 		DW      TwoDUP,ULess,ZBranch,UMM4
 		DW      NEGATE,DoLIT,CELLL*8,Zero,DoDO
-UMM1:           DW      ToR,DUPP,UMPlus,ToR,ToR,DUPP,UMPlus,RFrom,Plus,DUPP
+UMM1            DW      ToR,DUPP,UMPlus,ToR,ToR,DUPP,UMPlus,RFrom,Plus,DUPP
 		DW      RFrom,RFetch,SWAP,ToR,UMPlus,RFrom,ORR,ZBranch,UMM2
 		DW      ToR,DROP,OnePlus,RFrom,Branch,UMM3
-UMM2:           DW      DROP
-UMM3:           DW      RFrom,DoLOOP,UMM1
+UMM2            DW      DROP
+UMM3            DW      RFrom,DoLOOP,UMM1
 		DW      DROP,SWAP,EXIT
-UMM5:           DW      DoLIT,-10,THROW
-UMM4:           DW      DoLIT,-11,THROW
+UMM5            DW      DoLIT,-10,THROW
+UMM4            DW      DoLIT,-11,THROW
 
 ;   UNLOOP      ( -- ) ( R: loop-sys -- )       \ CORE
 ;               Discard loop-control parameters for the current nesting level.
@@ -4119,7 +4056,7 @@ UMM4:           DW      DoLIT,-11,THROW
 		DW      QCall,DUPP,ZBranch,TBODY1
 		DW      DoLIT,DoCREATE,Equals,ZBranch,TBODY1
 		DW      CELLPlus,Fetch,EXIT
-TBODY1:         DW      DoLIT,-31,THROW
+TBODY1          DW      DoLIT,-31,THROW
 
 ;   ABORT"      ( "ccc<">" -- )                 \ EXCEPTION EXT
 ;               Run-time ( i*x x1 -- | i*x ) ( R: j*x -- | j*x )
@@ -4148,7 +4085,7 @@ TBODY1:         DW      DoLIT,-31,THROW
 		$COLON  3,'ABS',ABSS,_FLINK
 		DW      DUPP,ZeroLess,ZBranch,ABS1
 		DW      NEGATE
-ABS1:           DW      EXIT
+ABS1            DW      EXIT
 
 ;   ALLOT       ( n -- )                        \ CORE
 ;               Allocate n bytes in RAM or ROM data space.
@@ -4208,9 +4145,9 @@ ABS1:           DW      EXIT
 		$COLON  IMMED+COMPO+5,'DOES>',DOESGreater,_FLINK
 		DW      Bal,OneMinus,ZBranch,DOES1
 		DW      DoLIT,-22,THROW
-DOES1:          DW      NIP,OnePlus,ZBranch,DOES2
+DOES1           DW      NIP,OnePlus,ZBranch,DOES2
 		DW      DoLIT,-22,THROW
-DOES2:          DW      DoLIT,Pipe,COMPILEComma
+DOES2           DW      DoLIT,Pipe,COMPILEComma
 		DW      DoLIT,DoLIST,xtComma,DoLIT,-1,EXIT
 
 ;   ELSE        Compilation: ( C: orig1 -- orig2 )      \ CORE
@@ -4235,7 +4172,7 @@ DOES2:          DW      DoLIT,Pipe,COMPILEComma
 		DW      EnvQList,SEARCH_WORDLIST
 		DW      DUPP,ToR,ZBranch,ENVRN1
 		DW      EXECUTE
-ENVRN1:         DW      RFrom,EXIT
+ENVRN1          DW      RFrom,EXIT
 
 ;   EVALUATE    ( i*x c-addr u -- j*x )         \ CORE
 ;               Evaluate the string. Save the input source specification.
@@ -4263,8 +4200,8 @@ ENVRN1:         DW      RFrom,EXIT
 		$COLON  4,'FILL',FILL,_FLINK
 		DW      ROT,ROT,QuestionDUP,ZBranch,FILL2
 		DW      Zero,DoDO
-FILL1:          DW      TwoDUP,CStore,CHARPlus,DoLOOP,FILL1
-FILL2:          DW      TwoDROP,EXIT
+FILL1           DW      TwoDUP,CStore,CHARPlus,DoLOOP,FILL1
+FILL2           DW      TwoDROP,EXIT
 
 ;   FIND        ( c-addr -- c-addr 0 | xt 1 | xt -1)     \ SEARCH
 ;               Search dictionary for a match with the given counted name.
@@ -4277,7 +4214,7 @@ FILL2:          DW      TwoDROP,EXIT
 		$COLON  4,'FIND',FIND,_FLINK
 		DW      DUPP,COUNT,Search_word,QuestionDUP,ZBranch,FIND1
 		DW      NIP,ROT,DROP,EXIT
-FIND1:          DW      TwoDROP,Zero,EXIT
+FIND1           DW      TwoDROP,Zero,EXIT
 
 ;   IMMEDIATE   ( -- )                          \ CORE
 ;               Make the most recent definition an immediate word.
@@ -4326,8 +4263,8 @@ FIND1:          DW      TwoDROP,Zero,EXIT
 		$COLON  6,'LSHIFT',LSHIFT,_FLINK
 		DW      QuestionDUP,ZBranch,LSHIFT2
 		DW      Zero,DoDO
-LSHIFT1:        DW      TwoStar,DoLOOP,LSHIFT1
-LSHIFT2:        DW      EXIT
+LSHIFT1         DW      TwoStar,DoLOOP,LSHIFT1
+LSHIFT2         DW      EXIT
 
 ;   M*          ( n1 n2 -- d )                  \ CORE
 ;               Signed multiply. Return double product.
@@ -4338,7 +4275,7 @@ LSHIFT2:        DW      EXIT
 		DW      TwoDUP,XORR,ZeroLess,ToR,ABSS,SWAP,ABSS
 		DW      UMStar,RFrom,ZBranch,MSTAR1
 		DW      DNEGATE
-MSTAR1:         DW      EXIT
+MSTAR1          DW      EXIT
 
 ;   MAX         ( n1 n2 -- n3 )                 \ CORE
 ;               Return the greater of two top stack items.
@@ -4348,7 +4285,7 @@ MSTAR1:         DW      EXIT
 		$COLON  3,'MAX',MAX,_FLINK
 		DW      TwoDUP,LessThan,ZBranch,MAX1
 		DW      SWAP
-MAX1:           DW      DROP,EXIT
+MAX1            DW      DROP,EXIT
 
 ;   MIN         ( n1 n2 -- n3 )                 \ CORE
 ;               Return the smaller of top two stack items.
@@ -4358,7 +4295,7 @@ MAX1:           DW      DROP,EXIT
 		$COLON  3,'MIN',MIN,_FLINK
 		DW      TwoDUP,GreaterThan,ZBranch,MIN1
 		DW      SWAP
-MIN1:           DW      DROP,EXIT
+MIN1            DW      DROP,EXIT
 
 ;   MOD         ( n1 n2 -- n3 )                 \ CORE
 ;               Divide n1 by n2, giving the single cell remainder n3.
@@ -4381,9 +4318,9 @@ MIN1:           DW      DROP,EXIT
 		$COLON  4,'PICK',PICK,_FLINK
 		DW      DEPTH,DUPP,DoLIT,2,LessThan,ZBranch,PICK1
 		DW      DoLIT,-4,THROW
-PICK1:          DW      DoLIT,2,Minus,OVER,ULess,ZBranch,PICK2
+PICK1           DW      DoLIT,2,Minus,OVER,ULess,ZBranch,PICK2
 		DW      DoLIT,-4,THROW
-PICK2:          DW      OnePlus,CELLS,SPFetch,Plus,Fetch,EXIT
+PICK2           DW      OnePlus,CELLS,SPFetch,Plus,Fetch,EXIT
 
 ;   POSTPONE    ( "<spaces>name" -- )           \ CORE
 ;               Parse name and find it. Append compilation semantics of name
@@ -4396,7 +4333,7 @@ PICK2:          DW      OnePlus,CELLS,SPFetch,Plus,Fetch,EXIT
 		$COLON  IMMED+COMPO+8,'POSTPONE',POSTPONE,_FLINK
 		DW      ParenTick,ZeroLess,ZBranch,POSTP1
 		DW      LITERAL,DoLIT,COMPILEComma
-POSTP1:         DW      COMPILEComma,EXIT
+POSTP1          DW      COMPILEComma,EXIT
 
 ;   RECURSE     ( -- )                          \ CORE
 ;               Append the execution semactics of the current definition to
@@ -4410,7 +4347,7 @@ POSTP1:         DW      COMPILEComma,EXIT
 		$COLON  IMMED+COMPO+7,'RECURSE',RECURSE,_FLINK
 		DW      Bal,OneMinus,TwoStar,PICK,OnePlus,ZBranch,RECUR1
 		DW      DoLIT,-22,THROW
-RECUR1:         DW      Bal,OneMinus,TwoStar,OnePlus,PICK
+RECUR1          DW      Bal,OneMinus,TwoStar,OnePlus,PICK
 		DW      COMPILEComma,EXIT
 
 ;   REPEAT      ( C: orig dest -- )             \ CORE
@@ -4419,7 +4356,7 @@ RECUR1:         DW      Bal,OneMinus,TwoStar,OnePlus,PICK
 ;
 ;   : REPEAT    AGAIN THEN ; COMPILE-ONLY IMMEDIATE
 
-		$COLON  IMMED+COMPO+6,'REPEAT',REPEAT,_FLINK
+		$COLON  IMMED+COMPO+6,'REPEAT',REPEATT,_FLINK
 		DW      AGAIN,THENN,EXIT
 
 ;   RSHIFT      ( x1 u -- x2 )                  \ CORE
@@ -4435,9 +4372,9 @@ RECUR1:         DW      Bal,OneMinus,TwoStar,OnePlus,PICK
 		$COLON  6,'RSHIFT',RSHIFT,_FLINK
 		DW      QuestionDUP,ZBranch,RSHIFT2
 		DW      Zero,SWAP,DoLIT,CELLL*8,SWAP,Minus,Zero,DoDO
-RSHIFT1:        DW      TwoDUP,DPlus,DoLOOP,RSHIFT1
+RSHIFT1         DW      TwoDUP,DPlus,DoLOOP,RSHIFT1
 		DW      NIP
-RSHIFT2:        DW      EXIT
+RSHIFT2         DW      EXIT
 
 ;   SLITERAL    ( c-addr1 u -- )                \ STRING
 ;               Run-time ( -- c-addr2 u )
@@ -4478,14 +4415,14 @@ RSHIFT2:        DW      EXIT
 		DW      TwoDUP,XORR,ToR,OVER,ToR,ToR,DUPP,ZeroLess
 		DW      ZBranch,SMREM1
 		DW      DNEGATE
-SMREM1:         DW      RFrom,ABSS,UMSlashMOD
+SMREM1          DW      RFrom,ABSS,UMSlashMOD
 		DW      RFrom,ZeroLess,ZBranch,SMREM2
 		DW      SWAP,NEGATE,SWAP
-SMREM2:         DW      RFrom,ZeroLess,ZBranch,SMREM3
+SMREM2          DW      RFrom,ZeroLess,ZBranch,SMREM3
 		DW      NEGATE,DoLIT,0,OVER,LessThan,ZeroEquals,ZBranch,SMREM4
-SMREM5:         DW      EXIT
-SMREM3:         DW      DUPP,ZeroLess,ZBranch,SMREM5
-SMREM4:         DW      DoLIT,-11,THROW
+SMREM5          DW      EXIT
+SMREM3          DW      DUPP,ZeroLess,ZBranch,SMREM5
+SMREM4          DW      DoLIT,-11,THROW
 
 ;   SPACES      ( n -- )                        \ CORE
 ;               Send n spaces to the output device if n is greater than zero.
@@ -4495,8 +4432,8 @@ SMREM4:         DW      DoLIT,-11,THROW
 		$COLON  6,'SPACES',SPACES,_FLINK
 		DW      QuestionDUP,ZBranch,SPACES2
 		DW      Zero,DoDO
-SPACES1:        DW      SPACE,DoLOOP,SPACES1
-SPACES2:        DW      EXIT
+SPACES1         DW      SPACE,DoLOOP,SPACES1
+SPACES2         DW      EXIT
 
 ;   TO          Interpretation: ( x "<spaces>name" -- ) \ CORE EXT
 ;               Compilation:    ( "<spaces>name" -- )
@@ -4516,8 +4453,8 @@ SPACES2:        DW      EXIT
 		DW      DoLIT,DoVALUE,Equals,ZBranch,TO1
 		DW      Fetch,STATE,Fetch,ZBranch,TO2
 		DW      DoLIT,DoTO,COMPILEComma,CodeComma,EXIT
-TO2:            DW      Store,EXIT
-TO1:            DW      DoLIT,-32,THROW
+TO2             DW      Store,EXIT
+TO1             DW      DoLIT,-32,THROW
 
 ;   U.          ( u -- )                        \ CORE
 ;               Display u in free field format followed by space.
@@ -4536,7 +4473,7 @@ TO1:            DW      DoLIT,-32,THROW
 		$COLON  IMMED+COMPO+5,'UNTIL',UNTIL,_FLINK
 		DW      ZBranch,UNTIL1
 		DW      DoLIT,-22,THROW
-UNTIL1:         DW      DoLIT,ZBranch,COMPILEComma,CodeComma,BalMinus,EXIT
+UNTIL1          DW      DoLIT,ZBranch,COMPILEComma,CodeComma,BalMinus,EXIT
 
 ;   VALUE       ( x "<spaces>name" -- )         \ CORE EXT
 ;               name Execution: ( -- x )
@@ -4551,7 +4488,7 @@ UNTIL1:         DW      DoLIT,ZBranch,COMPILEComma,CodeComma,BalMinus,EXIT
 		$COLON  5,'VALUE',VALUE,_FLINK
 		DW      Bal,ZBranch,VALUE1
 		DW      DoLIT,-29,THROW
-VALUE1:         DW      DoLIT,DoVALUE,xtComma,HeadComma
+VALUE1          DW      DoLIT,DoVALUE,xtComma,HeadComma
 		DW      XHere,DUPP,CELLPlus,TOXHere,RAMB,Fetch,SWAP,Store
 		DW      Comma,LinkLast,EXIT
 
@@ -4570,7 +4507,7 @@ VALUE1:         DW      DoLIT,DoVALUE,xtComma,HeadComma
 		$COLON  8,'VARIABLE',VARIABLE,_FLINK
 		DW      Bal,ZBranch,VARIA1
 		DW      DoLIT,-29,THROW
-VARIA1:         DW      DoLIT,DoCONST,xtComma,HeadComma
+VARIA1          DW      DoLIT,DoCONST,xtComma,HeadComma
 		DW      XHere,DUPP,CELLPlus,TOXHere
 		DW      RAMB,Fetch,DUPP,CELLPlus,RAMB,Store
 		DW      SWAP,Store,LinkLast,EXIT
@@ -4582,7 +4519,7 @@ VARIA1:         DW      DoLIT,DoCONST,xtComma,HeadComma
 ;
 ;   : WHILE     POSTPONE IF 2SWAP ; COMPILE-ONLY IMMEDIATE
 
-		$COLON  IMMED+COMPO+5,'WHILE',WHILE,_FLINK
+		$COLON  IMMED+COMPO+5,'WHILE',WHILEE,_FLINK
 		DW      IFF,TwoSWAP,EXIT
 
 ;   WORD        ( char "<chars>ccc<char>" -- c-addr )   \ CORE
@@ -4657,7 +4594,9 @@ VARIA1:         DW      DoLIT,DoCONST,xtComma,HeadComma
 		DW      DoLIT,UZERO0,SysVar0,DoLIT,ULAST-UZERO
 		DW      MOVE,COLD,EXIT
 
-UZERO0:         DW      RXQ
+UZERO0          DW	0
+		DW	IOBYTE
+		DW      RXQ
 		DW      RXFetch
 		DW      TXQ
 		DW      TXStore
