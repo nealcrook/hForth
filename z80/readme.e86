@@ -1,0 +1,385 @@
+*** Warning **** Warning **** Warning **** Warning **** Warning ***
+
+Be careful about MSDOS.F and SAVE?.EXE which contains MSDOS.F.
+Previous versions of hForth executables worked only in memory and
+could not alter mass storage except reading from it. Now, however,
+you can delete or rename files in hard disks. Computer (especially
+Forth computer) will faithfully execute whatever commands you give
+it. You may loose your invaluable data. Also MSDOS.F is not fully
+tested yet. There might be some bugs that hForth words do not comply
+the behaviors described by ANS Forth Standard. Of course You can do
+regrettable things with strictly complying ANS Forth words.
+
+*** Warning **** Warning **** Warning **** Warning **** Warning ***
+
+
+                                        wykoh@pado.krict.re.kr
+                                        Inorganic Materials Division
+                                        KRICT
+                                        P.O.Box 107, Yusong
+                                        Taejon, 305-600
+                                        South Korea
+                                        82-42-861-4245 (FAX)
+
+                                        Nov. 26, 1995
+
+Dear hForth beta-testers:
+
+This is beta release of hForth v0.9.6 which is designed for small
+embedded system. Following the great Forth tradition hForth is free
+software. You can use it for whatever purpose commercial or
+non-commercial. Please spread it as widely as you can.
+
+hForth is based on eForth model published by Mr. Bill Muench and Dr.
+C. H. Ting in 1990. The key features of the original eForth model is
+preserved. Following is quoted from the original 8086 eForth source.
+
+    > small machine dependent kernel and portable high level code
+    > source code in the MASM format
+    > direct threaded code
+    > separated code and name dictionaries
+    > simple vectored terminal and file interface to host computer
+    > aligned with the proposed ANS Forth Standard
+    > easy upgrade path to optimize for specific CPU
+
+These are also the characteristics of hForth. For better, hForth
+is ANS Forth system which complies the Standard, not just aligns
+with the Standard. Colon definitions for all high level words are
+also given as comments in TASM source code. The source code should
+be a working example for Forth learners.
+
+hForth consists of three models: ROM model, RAM model and EXE model.
+ROM and RAM models are easily portable while EXE model is more
+competitive to other interpretive 8086 Forth systems. ROM model was
+first written, then RAM and EXE models came later. Few machine
+dependent definitions added to ROM model to derive RAM and EXE
+models and only several high-level words which must know dictionary
+structures such as HERE and CREATE are redefined for RAM and EXE
+models. I believe it shows the flexibility of hForth model.
+
+ROM model is especially designed for a minimal development system
+for embedded system which uses non-volatile RAM or ROM emulator in
+place of ROM so that the content of ROM address space can be changed
+during development phase and can be copied to real ROM later for
+production system. Name space does not need to be included in final
+system if the system does not require Forth text interpreter. hForth
+occupies little more than 6 KB of code space for CORE words only and
+about 8 KB with additional words such as WORDS, HEX, SEE, etc.
+hForth requires at lease 1 KB of RAM.
+
+RAM and EXE models are for RAM only system. EXE model is for a
+system in which code space is completely separated and xt is not a
+valid address for '@'. EXE model can utilize segmented 8086 memory
+model. EXE model might be extended for a embedded system development
+where name space reside in host computer and code and data space are
+in target computer.
+
+ANS Forth Standard divide Forth dictionary into code, name, and data
+space. Five combinations are possible: all separated; code and
+name spaces are combined; code and data spaces are combined; name
+and data spaces are combined; all combined. I exercised four of
+them. Code, name and data spaces are all intermingled in RAM model.
+Name and data spaces are combined and code space is separated in
+different 8086 segment in EXE model. When ROM model starts, the code
+space resides at bottom of ROM, name space at top of ROM, and data
+space in RAM address space. If "ROM" is not writable, code and data
+part of new definitions goes into bottom of RAM and name part of new
+definitions goes into top of RAM.
+
+All Standard Core words are provided in assembler source. Complete
+TOOLS words, SEARCH ORDER words, SEARCH ORDER EXTENSION words and
+other useful words are provided as Forth source in 'OPTIONAL.F'.
+CORE words were tested with test program from Johns Hopkins
+University. I believe that hForth CORE words are bug-free, however,
+optional words might have few bugs.
+
+The files on this package are:
+
+HF86ROM.ASM     TASM source of hForth 8086 ROM model for IBM-PC.
+HF86RAM.ASM     TASM source of hForth 8086 RAM model for IBM-PC.
+HF86EXE.ASM     TASM source of hForth 8086 EXE model for IBM-PC.
+HF86ROM.COM     Executable object of hForth 8086 ROM model.
+HF86RAM.COM     Executable object of hForth 8086 RAM model.
+HF86EXE.EXE     Executable object of hForth 8086 EXE model.
+SAVE.EXE        HF86EXE.EXE with OPTIONAL.F, ASM8086.F, MULTI.F
+                and MSDOS.F loaded.
+SAVE2.EXE       SAVE.EXE with HIOMULT2.F loaded.
+OPTIONAL.F      Forth source code of Optional wordset words.
+ASM8086.F       Forth source code of 8086 assembler.
+ASMTEST.F       Test code to check 8086 assembler.
+MULTI.F         Forth source code of Bill Muench's multitasker.
+MULDEMO.F       Simple example for hForth multitasker.
+MSDOS.F         BLOCK and FILE wordset words for MS-DOS.
+DOSEXEC.F       Words to call DOS programs from hForth.
+HIOMULTI.F      Showing English and Korean characters on graphics screen
+                using multitasker.
+HIOMULT2.F      HIOMULTI.F with better looking Korean screen fonts.
+CLOCK.F         On screen clock for SAVE2.EXE using multitasker.
+STACK.F         Graphic representation of datastack for Forth learners.
+DEBUGGER.ANS    Joerg Plewe's ANS Forth debugger. (KEY? was changed to EKEY?)
+TURTLE.F        Unfinished Turtle Graphics Program.
+                (Try "BL PARSE TURTLE.F INCLUDED" in SAVE2.EXE)
+WHATSNEW.ENG    Changes from v0.9.5
+README.ENG      This file.
+
+You can make the executable objects as below:
+
+>TASM /ml HF86ROM or HF86RAM or HF86EXE
+>TLINK /t HF86ROM or TLINK /t HF86RAM or TLINK HF86EXE
+
+You can save the system state using SAVE-SYSTEM so that the system
+returns the state when it will boot up next time. You need to save
+the content of memory either in non-volatile RAM or some other way.
+You can use MS-DOS DEBUG program for this purpose for *.COM files.
+
+SAVE.EXE was prepared as below after starting HF86EXE.EXE:
+
+    << OPTIONAL.F
+    << ASM8086.F
+    << MSDOS.F
+    GET-CURRENT NONSTANDARD-WORDLIST SET-CURRENT
+    : <<   ." Do NOT use '<<'." CR
+    ." Use Standard word INCLUDED instead of '<<'."  ABORT ;
+    IMMEDIATE
+    SET-CURRENT
+    BL PARSE MULTI.F INCLUDED
+    SAVE-SYSTEM-AS SAVE.EXE
+
+SAVE2.EXE which displays English and Korean alphabets on graphics
+screen was prepared as below after starting SAVE.EXE:
+
+    BL PARSE HIOMULT2.F INCLUDED
+    SAVE-SYSTEM-AS  SAVE2.EXE
+
+You can load Forth source files using Standard word INCLUDED instead
+of '<<'. Do not use '<<' after you load MSDOS.F. MSDOS.F was not
+fully tested. Please report any bug to me.
+
+You can easily build application program simply changing "'init-i/o"
+and "'boot". When the executable starts 'init-i/o is called first
+then 'boot is called. 'init-i/o is also called by THROW. You should
+reset I/O for keyboard input after an error. HIOMULT?.F set
+'init-i/o to NEW-SET-I/O which determines either output to text
+screen or output to graphics screen. 'boot is set to NEW-hi which
+displays greeting message, copy command line argument to PAD, and
+start Forth interpreter. You can build simple program which displays
+command line argument on graphics screen as below:
+
+    C:\HF096>SAVE2
+
+    hForth 8086 EXE Model v0.9.6 by Wonyong Koh, 1995
+    ALL noncommercial and commercial uses are granted.
+    Please send comment, bug report and suggestions to:
+      wykoh@pado.krict.re.kr or 82-42-861-4245 (FAX)
+    *‰e‰* *A*e‰* §¡*w*i *a·¡*I wykoh* ¥¡ *¯³¯¡µ¡.
+
+    HEX
+    : SAMPLE
+        CS@ 10 -  \ PSP segment
+        80 2DUP LC@ 1+ 0 DO 2DUP LC@ PAD I + C! CHAR+ LOOP 2DROP
+        HGRAPHIC
+        PAD COUNT TYPE CR CR
+        ." Press any key." KEY BYE ;
+    ' SAMPLE TO 'boot
+    SAVE-SYSTEM-AS BYE.EXE
+    BYE
+    C:\HF096>BYE 11 22 33
+
+HIOMULTI.F and HIOMULT2.F are real example of multitasker. Scrolling
+costs virtually nothing since screen is updated when Forth system is
+waiting for keyboard input. I included HIOMULT?.F in hForth package
+to show how multitasking is used in a real world problem.
+
+TURTLE.F is unfinished implementation of Turtle Graphics. You can
+taste it although you cannot eat it yet. It still needs much
+polishing.
+
+I am sorry that many files are written in only Korean, especially
+HIOMULT?.F and TURTLE.F. I will try to provide English version if
+there is enough interests.
+
+I applied all the best ideas and tricks I know to hForth. Most of
+them came from other people while I added a few of my own. I
+believe one is worth to mention here. hForth text interpreter uses
+vector table which tells what to do with a parsed word after search
+it in Forth dictionary. The key part of text interpreter is:
+
+    \ ca u 0 | xt -1 | xt 1
+    1+ 2* STATE @ 1+ + CELLS 'doWord + @ EXECUTE
+
+So what the interpreter does is summarized in 'doWord table as:
+
+                        +------------------+--------------------+
+                        |compilation state |interpretation state|
+                        |(STATE returns -1)|(STATE returns 0)   |
+    +-------------------+------------------+--------------------+
+    | nonimmediate word |   optiCOMPILE,   |    EXECUTE         |
+    |(top-of-stack = -1)|                  |                    |
+    +-------------------+------------------+--------------------+
+    | not found word    |   doubleAlso,    |    doubleAlso      |
+    |(top-of-stack = 0) |                  |                    |
+    +-------------------+------------------+--------------------+
+    | immediate word    |   EXECUTE        |    EXECUTE         |
+    |(top-of-stack = 1) |                  |                    |
+    +-------------------+------------------+--------------------+
+
+You can easily change the behavior of the interpreter by changing
+this vector table as below:
+
+    1234567890. .S
+    722 18838 <sp ok
+    ' singleOnly, 'doWord 2 CELLS + ! ok
+    ' singleOnly  'doWord 3 CELLS + ! ok
+    1234567890.  1234567890. ? undefined word
+
+optiCOMPILE, is used in place of Standard word COMPILE, which
+removes one level of EXIT if possible as shown below:
+
+    : TEST1 ;           SEE TEST1
+    call-doLIST EXIT ok
+    : TEST2   TEST1 ;   SEE TEST2
+    call-doLIST EXIT ok
+    : TEST3   DUP ;     SEE TEST3
+    call-doLIST DUP EXIT ok
+    : TEST4   TEST3 ;   SEE TEST4
+    call-doLIST DUP EXIT ok
+
+There is no penalty to use empty definition CHARS or use CELLS
+instead of 2* in hForth 8086 models.
+
+Whether to Use VALUE words or not has been bugging me for long time.
+In hForth RAM and ROM models "VARIABLE VAR1" and "1 VALUE VAL1" are
+compiled as below like many other interpretive Forth systems:
+
+     VARIABLE VAR1
+    +---------+---------+
+    | doVAR   |   x     |
+    +---------+---------+
+
+     1 VALUE VAL1
+    +---------+---------+
+    | doVALUE |   1     |
+    +---------+---------+
+
+"VAR1 @" and "VAL1" are compile as below:
+
+     VAR1 @
+    +---------+---------+
+    | VAR1    |   @     |
+    +---------+---------+
+
+     VAL1
+    +---------+
+    | VAL1    |
+    +---------+
+
+As you can see VALUE words are more concise and slightly faster. So
+there is temptation to use VALUE words in place of VARIABLE words
+which are simple and more Forth-like. I have solved it once and for
+all. In EXE model all VARIABLE words and VALUE words are IMMEDIATE
+as well as all CONSTANT words. IMMEDIATE "@", "!", and "+!" do the
+rest of tricks. "VAL1" compiles to:
+
+     VAL1
+    +---------+---------+
+    | doLIT@  | a-addr  |
+    +---------+---------+
+
+"VAR1" compiles to:
+
+     VAR1
+    +---------+---------+
+    | doLIT   | a-addr  |
+    +---------+---------+
+
+Immediately following "@" after "VAR1" will change 'doLIT' to
+'doLIT@' if 'doLIT' is not a literal value. In other words, "@"
+should not modify second 'doLIT' in | doLIT | doLIT | COMPILE,|.
+So "VAR1 @" will compiles to:
+
+     VAR1 @
+    +---------+---------+
+    | doLIT@  | a-addr  |
+    +---------+---------+
+
+There no difference of execution speed between VALUE words and
+VARIABLE words as you see. VARIABLE words are even faster for '+!'
+since equivalent '+TO' is not in Standard:
+
+     VAL1 + TO VAL1
+    +---------+---------+---------+---------+--------+
+    | doLIT@  | a-addr  |   +     | doLIT!  | a-addr |
+    +---------+---------+---------+---------+--------+
+
+     VAR1 +!
+    +---------+---------+
+    | doLIT+! | a-addr  |
+    +---------+---------+
+
+Whether to use VARIABLE or VALUE words is pure matter of style now.
+
+Now the definition of 'DOES>' is processor-independent. 'CREATE FOO'
+produces following structure:
+
+    +---------------+---------+---------+
+    | call-doCREATE |    0    | a-addr  |
+    +---------------+---------+---------+
+
+If the behavior of FOO is modified by 'DOES>' or ';CODE', the
+structure will change to:
+
+    +---------------+---------+---------+
+    | call-doCREATE |   xt    | a-addr  |
+    +---------------+---------+---------+
+
+'xt' is the execution token of the definition following 'DOES>' or
+';CODE'. CREATE and DOES> are defined in EXE model as below:
+
+  : CREATE
+      xhere ALIGNED CELL+ TO xhere    \ reserve space for nfa
+      ['] doCREATE xt, head,
+      0 COMPILE,              \ no DOES> code yet
+      ALIGN HERE COMPILE,     \ >BODY returns this address
+      linkLast ;              \ link CREATEd word to current wordlist
+
+  : DOES>
+      bal @ IF -22 THROW THEN         \ control structure mismatch
+      0 bal !
+      POSTPONE pipe ['] doLIST xt, DROP ; COMPILE-ONLY IMMEDIATE
+
+  : pipe
+      lastName name>xt ?call DUP IF   \ code-addr xt2
+          ['] doCREATE = IF
+          R> SWAP x!          \ change DOES> code of CREATEd word
+          EXIT
+      THEN THEN
+      -32 THROW       \ invalid name argument, no-CREATEd last name
+      ; COMPILE-ONLY
+
+'doCREATE' is the only word which is processor-dependent. Its colon
+definition is given below:
+
+  : doCREATE
+      SWAP            \ switch BX and top of 8086 stack item
+      DUP CELL+ x@ SWAP x@ ?DUP IF EXECUTE THEN ; COMPILE-ONLY
+
+hForth is a result of more than a year's hard work. Now I feel
+comfortable with it. I would like to receive feedback. Any comment,
+bug report or suggestions are appreciated. Please send them to the
+address above. I try to provide enough technical information as I
+can, however, I doubt I will have time to make User's manual in
+English. I will be busy to write User's manual in Korean.
+
+I ported hForth RAM model to Z80. Only code definitions were needed
+to be redefined. I strongly encourage you to implement hForth on
+your favorite processors.
+
+I pick up 'h' in hForth for Han which means Korean in Korean
+language. Please let me know if you know the name hForth is used
+already by someone else.
+
+Sincerely,
+Wonyong Koh, Ph.D.
+wykoh@pado.krict.re.kr
+
+

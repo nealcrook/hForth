@@ -1,0 +1,829 @@
+\
+\
+\
+\
+\ We CANNOT access code!
+\ We CANNOT change the compiler!
+\ We CANNOT do anything!
+\
+\ But we want a debugger!
+\ Ok, here it is....
+\
+\
+\ ********************************************************************
+\ *								     *
+\ *		   Debugger for ANSI Forth Programs		     *
+\ *								     *
+\ *								     *
+\ * Contributed to the community by				     *
+\ *								     *
+\ *		       Joerg Plewe, 1dec94			     *
+\ *								     *
+\ * This code can be used and copied free of charge.		     *
+\ * All rights reserved.					     *
+\ *								     *
+\ * Comments, hints and bug reports are welcome. Please email to     *
+\ *								     *
+\ *			jps@Forth-eV.de 			     *
+\ *								     *
+\ *								     *
+\ * testet with: F68KANS (>jan94), pfe0.9.7, thisForth		     *
+\ *								     *
+\ * Special thanks to Ulrich Hoffmann and Bernd Paysan		     *
+\ *  for testing and commenting.				     *
+\ *								     *
+\ * V0.1: Added treatment of nesting levels			     *
+\ * V0.2: Decompiler feature					     *
+\ * V0.3: worked in hints from the net				     *
+\ ********************************************************************
+\
+\
+\ The following code provides a simple debugging tool for ANSI Forth
+\ programs. It may be used to debug colon- and DOES>- and :NONAME-code
+\ on source level.
+\
+\ The debugger expects your system to be a well behaved Forth system.
+\ (Like my F68KANS :-)
+\ When you suspect that your problems arise from the compiler itself
+\ (do you use an optimizer?), please use another tool.
+\
+\
+\ Usage:
+\
+\ There are two pairs of words switching the debugger on and off.
+\
+\ +DEBUG, -DEBUG
+\ These two control a global switch, which has effects both a compile-
+\ and runtime. When used at compiletime, -DEBUG will completely switch
+\ of the debugger. So no debugging code is generated. This allows you
+\ to leave your code with all debugging statements in it and test it
+\ without debugger.
+\ At runtime, -DEBUG switches off the evaluation of debugging code.
+\ So your code will behave as normal, just a bit slower.
+\
+\ [DBG, DBG]
+\ You will have to use [DBG at compiletime in front of a ':' or a DOES>
+\ to tell the debugger to generate special debugging code. [DBG is
+\ valid until switched off with DBG]. DBG] may appear anywhere in the source!
+\ So it is possible to debug only the first part of a word and then to switch
+\ of the debugger causing 'original' code to be generated for the rest.
+\ It is not possible to generate normal code a the beginning of a definition
+\ and debugging code in the end!
+\
+\ E.g.
+\ : FOO CREATE [DBG  0 ,   DOES> @ ;   DBG]
+\
+\ will only debug the DOES>-part of the definition. The reason is that [DBG
+\ only switches the behaviour of ':' and DOES>.
+\
+\
+\ Think about the difference of +-DEBUG and [DBG]!
+\
+\
+\ There some additional words to control the debugger a runtime. These
+\ words have short names to be typepable at debugtime. But of course
+\ you may also compile them into your code. Thsi gives you the
+\ possibility to realize breakpoints etc.
+\
+\ [+I], [-I]
+\ Interactive. This switch controls wether you do singlestepping or a
+\ kind of code animation. When singlestepping, you can type any number
+\ of Forth statements between two steps. The next step is peformed when
+\ simply pressing <return>.
+\
+\ [+V], [-V]
+\ Verbose. [+V] adds a stack dump to the output on each step.
+\
+\ [+S], [-S]
+\ Silent. [+S] switches off all outputs and the program begins to run.
+\ Pressing a key switches it back to interactive mode.
+\
+\ [>L] ( n -- )
+\ Goto Level of nesting. This option recieves a parameter (don't forget).
+\ It lets the debugger run in '[+S] [-I] [-V]'-mode until the given
+\ level of nesting is reached the next time. Then the previous state of
+\ the debugger is restored.
+\ Note that the given level may be lower, higher or equal to the current level.
+\ You can overwrite the settings invoked be [>L] with further debugger
+\ commands.
+\ Suppose you are on level 1, than
+\    1 [>L] [-S]
+\ will give you an animation of your code until the next word on nestinglevel 1
+\ is reached.
+\
+\ [Y]
+\ Step over. This command will avoid nesting to deeper levels. It is
+\ equivalent to a [>L] with the current level. So the example above can
+\ be written as:
+\    [Y] [-S]
+\
+\
+\ [DEF]
+\ Default: [+I] [-V] [-S], no nestlevel targeting
+\
+\
+\ The debugger also supports a decompiler feature for words compiled with the
+\ debugger on. The decompiler is envoked by
+\
+\ DSEE <name>
+\
+\ and decompiles the whole word at once. For this decompiler works completely
+\ different from these you maybe know, it has e.g. the possibility to
+\ decompile even things which were in you source with the compiler off.
+\ This means, sequences like '... [ 1 2 3 + + ] LITERAL ...' will
+\ reappear while decompiling.
+\
+\
+\ 0!DBG
+\
+\ This is the debugger's reset. It sets back e.g. the level of nesting.
+\ You should use this at the beginning of a file you compile, e.g.
+\      0!DBG
+\ in the first line.
+\
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ WORKS WITH
+\
+\   F68KANS (>jan94)	portable 68k nativecode Forth by me
+\   pfe0.9.7		by Dirk Zoller
+\   thisForth		by Wil Baden
+\
+\ Reported to work with:
+\
+\   gforth		by Bernd Paysan (paysan@informatik.tu-muenchen.de)
+\   iForth		by Marcel Hendrix (mhx@bbs.forth-ev.de)
+\
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ ENVIRONMENTAL DEPENDENCIES
+\
+\ When the decompiler option is used:
+\   The Control Stack (CS) has to be the data stack.
+\
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ RESTRICTIONS:
+\
+\ The generation of debugging code can only be invoked with the words
+\ ':', DOES> and :NONAME (or words which use them, after the debugger
+\ has been compiled).
+\
+\ The debugger is steered by some string literals: debugging is switched
+\ off when the debugger's outer interpreter finds the words DBG] or ';'.
+\ The words a compiled as string literals into the debugger, so no
+\ definitions including them will be able to do theire job!
+\ Further, the words ';' and '[' have a special meaning for the
+\ debugger (they both switch off the Forth compiler).
+\
+\ In the current state, the debugger cannot handle floating point
+\ literals. This will be removed in one of the next releases.
+\
+\
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ HOW IT WORKS
+\
+\ A standard system does not let you examine the code. You do not know
+\ anything about it's location in memory or it's structure. You do not
+\ know wether it is direct or inderect threaded or native code.
+\ But most debuggers exactly do that: they examine the code, and sometimes
+\ even modify it at runtime (e.g. to set breakpoints in native code systems).
+\ They need detailed knowledge about the code and the CPU it runs on.
+\ In most cases, additional knowledge about the structure of the
+\ dictionary is needed, too.
+\
+\ For all that cannot be done with an ANSI Forth system, this debugger
+\ tries a completely different way.
+\ From the things said above, it is clear that once the code is
+\ generated, there is no possibility for debugging any more. So an ANSI
+\ debugger has to generate a special debugging code. In order to do that,
+\ it must define a new compiler, because an ANSI system does not
+\ let you manipulate the outer interpreter.
+\ My debugger uses an own outer interpreter which generates, let's say,
+\ 'self debugging code'.
+\ (Thanks to the standard comittee for providing REFILL)
+\
+\ The next serious problem is how to access the source? There are
+\ different input sources like TIB, files, blocks or strings. Perhaps for
+\ blocks it would be possible to compile the blocknumber into the code.
+\ Then the right block could be accessed at runtime.
+\ Files would be more complicated, because they are represented by a
+\ single number, which may be OS dependent. Reaccessing a file from
+\ this number later means to implement a completely new
+\ file word set. I did not want to do that!
+\ With source from TIB or a string, the source retrieval will be
+\ impossible at all.
+\ So the only way to solve the problem is to compile the source together
+\ with the generated code!
+\ (Thanks to the standard comittee for providing SLITERAL)
+\
+\ The following code is generated (in general) for a Forth word <word>:
+\
+\	[ S" <word>" ] SLITERAL dodebug nodecomp @ IF <word> THEN
+\
+\ (So make sure that you have enough space in your code area!)
+\
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\  REMARKS
+\
+\ V0.2 initially did not work with Wil Baden's thisForth.
+\ The reason seemed to be
+\ that VALUES cannot be POSTPONEd in thisForth. So I turned the VALUE
+\ 'decompile' into the VARIABLE 'nodecomp'.
+\ thisForth had (has?) some problems with it's REFILL. Wil Baden send
+\ me a valid definition:
+\
+\  : REFILL ( -- flag ) next-char eof <> ;
+\
+\ Don't wonder about what you see when debugging thisForth programs!
+\ The debugger also sees thisForth's macro expansions!!
+\
+
+
+\ CR .(  ANSI Forth debugger V0.3     by Joerg Plewe, 1dec94 ) CR
+
+MARKER *debugger*
+
+\
+\ customization
+\
+ \ Compile the decompiler feature?
+ \ This will introduce an environmental dependency!
+\ TRUE CONSTANT withDSEE
+
+\ Try to find out wether the control stack is the data stack.
+\ In this case, the system fullfills the environmental dependency
+MARKER *check_for_controlstack*
+FALSE VARIABLE CSisDS  CSisDS !
+VARIABLE saveDEPTH
+
+: checker
+  [ DEPTH saveDEPTH ! ]
+  IF		 \ IF should change the controlstack
+  [ DEPTH saveDEPTH @ > CSisDS ! ]   \ datastack changed?
+  THEN ;
+
+CSisDS @ *check_for_controlstack*  CONSTANT withDSEE
+
+
+
+
+: is_defined ( <name> -- flag )
+  BL WORD FIND NIP ;
+
+\ prelude
+\ is_defined ON  is_defined OFF  AND  0=
+\ [IF]
+: ON  ( addr -- )   TRUE SWAP ! ;
+: OFF ( addr -- )  FALSE SWAP ! ;
+\ [THEN]
+
+
+
+
+\
+\ switching debugger globally
+\
+VARIABLE use_debugger	    use_debugger ON
+   \ use the debugger at all?
+VARIABLE nodecomp	    nodecomp ON
+   \ controls decompiling vs. debugging at runtime
+VARIABLE creating_dbgcode   creating_dbgcode OFF   \ internal switch
+VARIABLE nestlevel	    0 nestlevel !	   \ level of nesting
+
+
+
+: +DEBUG ( -- )
+  use_debugger ON ;
+
+: -DEBUG ( -- )
+  use_debugger OFF ;
+
+
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\
+\ executing watches
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+10 CONSTANT #watches
+CREATE watchlist #watches CELLS ALLOT
+
+: slot ( n -- addr )
+	CELLS watchlist + ;
+
+: watch_execute ( xt -- flag )
+	DEPTH >R  EXECUTE  DEPTH R> -		\ may ONLY return a flag!
+	ABORT" A watch is not legal: not returning ONLY a flag!"
+	;
+
+
+: do_watch ( n -- flag )
+	DUP 0 #watches WITHIN
+	IF
+		slot @ DUP			\ if slot @ gives 0, this is
+							\ uses as a FALSE
+		IF  watch_execute  THEN
+	ELSE DROP FALSE THEN ;
+
+: do_watches ( -- flag )
+	FALSE
+	#watches 0 DO  I do_watch 0= 0= OR  LOOP ;
+
+
+: find_free_slot ( -- n | -1 )
+	#watches 0
+	DO
+		I slot @ 0=
+		IF  I UNLOOP EXIT  THEN
+	LOOP
+	-1 ;
+
+: 0!WATCHES ( -- )
+	watchlist #watches CELLS ERASE ;
+
+0!WATCHES
+
+
+: :WATCH ( -- xt ) ( C: -- colon-sys )
+	use_debugger @ -DEBUG		\ no debugging of the watches
+	:NONAME ;
+
+: ;WATCH ( xt -- ) ( C: colon-sys -- )
+	POSTPONE ;
+	SWAP use_debugger !
+	find_free_slot DUP 0< 0=
+	IF
+		DUP >R slot !
+		R> ." ( Slot #" . ." filled with watch.) "
+	ELSE
+		2DROP TRUE ABORT" Cannot add more watches!"
+	THEN ;
+IMMEDIATE
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\
+\ we need some routines for service
+\
+
+\
+\ is a string a number?
+\
+: ?negate ( n sign -- n' )     0< IF NEGATE THEN ;
+: ?dnegate ( d sign -- d' )    0< IF DNEGATE THEN ;
+
+: number? ( addr c -- FALSE | u 1 | ud -1 )
+   \ Tries to find out, wether the given string can be interpreted
+   \ as a numeric literal.
+   \ Returns a flag and the converted number, if possible.
+	0 >R						\ push default sign
+	OVER C@ [CHAR] - = IF R> DROP -1 >R  THEN	\ - sign?
+	OVER C@ [CHAR] + = IF R> DROP  1 >R  THEN	\ + sign?
+	R@ ABS /STRING
+	0. 2SWAP >NUMBER  ( ud2 c-addr2 u2 )
+	?DUP 0= IF  DROP D>S R> ?negate  1 EXIT  THEN	( exit: single )
+	1 = SWAP C@ [CHAR] . = AND			\ with a '.', it is double
+	IF  R> ?dnegate  -1 EXIT  THEN			( exit: double )
+	R> DROP 2DROP FALSE
+	;
+
+
+
+\
+\ things to be done while debugging
+\
+
+CREATE debugTIB 80 CHARS ALLOT
+: eval_debug_statements ( -- )
+  \ A simple outer interpreter for interactive input at
+  \ debugtime.
+	BEGIN
+	  CR ." > " debugTIB DUP 80 ACCEPT SPACE DUP
+	WHILE
+	  ['] EVALUATE  CATCH IF ." Oops!?" CR THEN
+	REPEAT
+	2DROP ;
+
+
+: .next_statement ( addr len -- )
+  \ addr len shows the name of the following statement in the
+  \ source code. .next_statement formats and prints it.
+	nestlevel @ 2* SPACES
+	nodecomp @ IF
+	  ." Nxt["   nestlevel @ S>D <# #S #> TYPE  ." ]: "
+	THEN
+	TYPE
+	;
+
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\
+\ steering the debugger
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+VARIABLE debugstate	0 debugstate !
+			  \ Bit 0 = Interactive
+			  \ Bit 1 = Silent
+			  \ Bit 2 = Verbose
+
+: +debugstate: ( state <name> -- )
+    CREATE ,
+    DOES> @ debugstate @ OR debugstate ! ;
+
+: -debugstate: ( state <name> -- )
+    CREATE INVERT ,
+    DOES> @ debugstate @ AND debugstate ! ;
+
+: ?debugstate: ( state <name> -- )
+    CREATE ,
+    DOES> @ debugstate @ AND 0<> ;
+
+1  DUP +debugstate: (+I)  DUP -debugstate: [-I]  ?debugstate: [?I]
+2  DUP +debugstate: [+S]  DUP -debugstate: [-S]  ?debugstate: [?S]
+4  DUP +debugstate: [+V]  DUP -debugstate: [-V]  ?debugstate: [?V]
+
+\
+\ define some additional rules
+\
+: [+I] ( -- )	       \ interactive can never be silent
+	[-S] (+I) ;
+
+VARIABLE target_nestlevel      -1 target_nestlevel !
+VARIABLE savedebugstate       debugstate @ savedebugstate !
+
+
+: check_nesting ( -- )
+  \ Checks wether the execution has reached a defined level
+  \ of nexting (target_nestlevel). In this case, it switches off
+  \ targetting (-1!) and restore the previously saved state
+  \ of the debugger.
+	target_nestlevel @ nestlevel @ =
+	IF
+	  -1 target_nestlevel ! 	  \ switch targeting off
+	  savedebugstate @ debugstate !
+	THEN ;
+
+
+: [>L] ( n -- ) 		     \ goto level
+	target_nestlevel !
+	debugstate @ savedebugstate !
+	[+S] [-I] [-V]
+	;
+
+
+: [Y] ( -- )			  \ step over
+	nestlevel @ [>L]
+	;
+
+
+
+: [DEF] ( -- )	    \ the default behaviour
+	-1 target_nestlevel !
+	[+I] [-V] [-S] ;
+
+[DEF]
+
+
+\
+\
+\ check: what has to be displayed?
+\
+\
+: ?.next_statement ( addr len -- )
+  \ When the debugger is not running silent, the following
+  \ has to be displayed. When not beeing interactive, a CR
+  \ has to be added.
+	[?S] 0=
+	IF
+	  .next_statement
+	  [?I] 0= IF CR THEN
+	ELSE  2DROP  THEN
+	;
+
+
+: ?eval_debug_statements ( -- )
+  \ When the debugger is interactive but not silent, we want
+  \ to evaluate statements.
+    [?I] [?S] 0= AND
+    IF	eval_debug_statements  THEN ;
+
+: ?.s ( -- )
+  \ Perhaps, a stackdump is needed. This is indicated by the
+  \ verbose mode.
+    [?V] [?S] 0= AND
+    IF	.S  CR THEN ;
+
+: ?>[+I] ( -- )
+  \ Oh oh. Return to interactive mode when a key is pressed
+  \ or a watch is activated.
+	nodecomp @
+	IF
+	EKEY? IF  KEY DROP  [+I]  THEN
+		do_watches IF  [+I]  THEN
+	THEN ;
+
+
+: dodebug ( addr len -- )
+  \ This word is executed between two statements in the source.
+  \ Note I had to do some stack juggling for the stack has to
+  \ be 'original' when showing the stackdump!
+	use_debugger @ IF		  \ wonna debug anyway?
+	  check_nesting
+	  ?>[+I]
+	  >R >R ?.s R> R>	( >R's for addr len )
+	  ?.next_statement
+	  ?eval_debug_statements
+	ELSE  2DROP  THEN
+	;
+
+
+
+
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\
+\ this section is to create debugging code
+\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+
+\
+\ THIS word is the main point:
+\ It compiles code suitable for debugging.
+\ Or better: it compiles self-debugging code
+\
+: .source, ( c-addr -- )
+    STATE @ DUP >R 0= IF ] THEN     \ switch compiler on for SLITERAL
+    COUNT
+    POSTPONE SLITERAL ( POSTPONE) ALIGN
+    POSTPONE dodebug
+    R> 0= IF POSTPONE [ THEN	    \ switch compiler off when it was off
+    ;
+
+CREATE wordbuf 64 CHARS ALLOT
+
+: >wordbuf ( c-addr -- )
+  DUP C@ CHAR+ wordbuf SWAP CHARS MOVE ;
+
+
+: C$= ( c-addr addr u -- flag )
+     ROT COUNT COMPARE 0= ;
+
+: $;=	 ( c-addr -- flag )   S" ;"     C$= ;
+: $DBG]= ( c-addr -- flag )   S" DBG]"  C$= ;
+: $[=	 ( c-addr -- flag )   S" ["     C$= ;
+
+
+: apply_semantic ( xt +-1 -- ? )
+	0< STATE @  AND
+	IF  COMPILE,  ELSE  EXECUTE THEN ;
+
+
+: compile_number ( u 1 | ud -1 -- )
+  STATE @ 0<>
+  IF
+     0< IF  POSTPONE 2LITERAL  ELSE  POSTPONE LITERAL  THEN
+  ELSE DROP THEN ;
+
+
+: compiler_error ( c-addr -- )
+  ." Not found in dictionary: " wordbuf COUNT TYPE
+  -13 THROW ;
+
+
+\
+\ handling the nesting level
+\
+: +nest ( -- )
+   1 nestlevel +! ;
+: -nest ( -- )
+   -1 nestlevel +! ;
+
+
+
+: endof_dbgd_def? ( -- flag )	  \ end of debugged definition?
+	wordbuf $;=
+	wordbuf $DBG]= OR
+	;
+
+: compiler_off? ( -- flag )	\ a word, which switches the compiler off?
+	wordbuf $;=
+	wordbuf $[= OR
+	;
+
+
+
+\
+\ compile conditinal branches to skip 'real' code for decompiling
+\
+withDSEE [IF]
+
+CREATE CSbuffer 20 CELLS ALLOT
+VARIABLE decompilerIF	  decompilerIF OFF
+VARIABLE saveDEPTH	  0 saveDEPTH !
+VARIABLE CSsaved	  0 CSsaved !
+
+: saveCS ( ? -- )
+  \ Save control structure information from the data stack
+  \ to a special buffer.
+  \ The variable saveDEPTH has to be set!!
+	0 CSsaved !
+	BEGIN
+	  DEPTH saveDEPTH @ <>
+	WHILE
+	  CSbuffer CSsaved @ CELLS + !
+	  1 CSsaved +!
+	REPEAT ;
+
+: restoreCS ( -- ? )
+  \ restore control structure information from the buffer to stack
+	BEGIN
+	  CSsaved @
+	WHILE
+	  -1 CSsaved +!
+	  CSbuffer CSsaved @ CELLS + @
+	REPEAT ;
+
+
+: decompiler_jump ( -- )
+  \ Under right conditions, compile a 'nodecomp @ IF'
+  \ The possible change on data stack (IF) is cleared, so that
+  \ words like LITERAL do not come into trouble.
+  \ The Control Stack CS defined in the ANSI document may consist
+  \ of some entries on the common data stack (which, indeed, is implemented
+  \ in most Forth systems). But the data stack has to be unchanged by the
+  \ debugger when compiling a word: ' ... [ 1 2 3 + + ] LITERAL ...'
+  \ In this example, 'LITERAL' wants to compile the number 6, and not some
+  \ token left on the stack by the decompiler's IF. For it is unknown,
+  \ what IF will place in an arbitary Forth system, this complicated
+  \ construction has to be made.
+	STATE @  compiler_off? 0= AND
+	IF
+	  DEPTH saveDEPTH !		\ DEPTH of stack 'before'
+	  POSTPONE nodecomp  POSTPONE @
+	  POSTPONE IF			\ now compile IF. It may change stack!
+	  saveCS			\ stackeffect of IF removed
+	  decompilerIF ON		\ ok, there is an IF
+	THEN
+	;
+
+: decompiler_target ( -- )
+  \ Resolve the decompiler IF compiled
+	decompilerIF @
+	IF
+	  restoreCS			\ prepare stack with IF-values
+	  POSTPONE THEN 		\ and resolve the jump.
+	  decompilerIF OFF		\ done!
+	THEN
+	;
+
+[ELSE]	( withDSEE )
+: decompiler_jump ;   IMMEDIATE
+: decompiler_target ; IMMEDIATE
+[THEN]	( withDSEE )
+
+
+
+\
+\ now construct a complete outer interpreter
+\
+
+\ a special hack to allow F68KANS to handle files with tabs etc.
+is_defined F68kAns
+  [IF] blankbits  [ELSE]  BL  [THEN]
+  CONSTANT whitespace
+
+
+: create_debugging_code ( -- )
+  POSTPONE +nest
+  creating_dbgcode @ >R creating_dbgcode ON
+  BEGIN 					  \ loop to EOF
+    BEGIN					  \ loop to EOL
+      whitespace WORD DUP C@
+    WHILE
+      >wordbuf
+      wordbuf .source,
+      endof_dbgd_def? IF  POSTPONE -nest THEN
+      decompiler_jump
+      wordbuf FIND ( c-addr 0 | xt +1 | xt -1 )  ?DUP
+      IF   apply_semantic
+      ELSE				       ( caddr )
+	 COUNT number? ?DUP
+	 IF  compile_number  ELSE  compiler_error  THEN
+      THEN
+      decompiler_target
+      endof_dbgd_def? IF  R> creating_dbgcode !  EXIT ( **) THEN
+    REPEAT  DROP
+  REFILL 0= UNTIL
+  R> creating_dbgcode !
+;
+
+
+
+
+
+
+\
+\ Define the decompiler
+\
+withDSEE [IF]
+: DSEE ( <name> -- )
+  \ Show a decompiler listing of a word compiled with the debugger.
+  \ A non-debugger word will be executed instead.
+	CR
+	nodecomp @  >R	   FALSE nodecomp !
+	debugstate @ >R    [-I] [-V] [-S]
+	' EXECUTE
+	R> debugstate !
+	R> nodecomp !
+	;
+[ELSE]
+: DSEE ( <name> -- )
+	CR BL WORD DROP
+	." Debugger compiled without decompiler option! "
+	;
+[THEN]
+
+
+\
+\ Now the replacements for the code-beginning words.
+\
+
+: debug: ( <name> -- )
+  :   create_debugging_code ;
+
+: debug:NONAME ( --  xt )
+  :NONAME   create_debugging_code ;
+
+
+: debugDOES>
+  creating_dbgcode @ IF POSTPONE -nest THEN
+      \ when the decompiler is invoked between ':' and 'DOES>',
+      \ there has to be a '-nest' compiled before 'DOES>'.
+  POSTPONE DOES>  create_debugging_code ;
+
+
+\
+\ switching the debugger on and off
+\
+VARIABLE debugging     debugging OFF
+
+: [DBG
+  debugging ON ;  IMMEDIATE
+
+: DBG]
+  debugging OFF ;  IMMEDIATE
+
+
+: 0!DBG ( -- )
+  \ reset the debugger
+	0 nestlevel !
+	POSTPONE [DBG
+	+DEBUG
+	[DEF]
+	creating_dbgcode OFF
+	;
+
+
+
+\
+\ redefinition of the code generating defining words
+\
+: : ( <name> -- )
+  use_debugger @ debugging @ AND
+  IF  debug:  ELSE  :  THEN ;
+
+: DOES> ( <name> -- )
+  use_debugger @ debugging @ AND
+  IF  debugDOES>  ELSE	POSTPONE DOES>	THEN ; IMMEDIATE
+
+: :NONAME ( <name> -- )
+  use_debugger @ debugging @ AND
+  IF  debug:NONAME  ELSE  :NONAME  THEN ;
+
+
+\
+\ OK
+\
+CR
+.( The words for you are: ) CR
+.(   +DEBUG -DEBUG     to switch debugging on/off globally ) CR
+.(   [DBG   DBG]       to envoke and terminate generation ) CR
+.(		       of debugging code at compiletime ) CR
+.(   :WATCH ;WATCH     Define a watch function returning a flag ) CR
+.(   0!WATCHES	       to remove all watch functions ) CR
+.(   [+I]   [-I]       Interactive mode on/off ) CR
+.(   [+S]   [-S]       Silent mode on/off ) CR
+.(   [+V]   [-V]       Verbose mode on/off ) CR
+.(   [>L]   [Y]        level targeting control ) CR
+.(   [DEF]	       DEFault settings ) CR
+withDSEE [IF]
+.(   DSEE	       Decompile words compiled with debugger ) CR
+[THEN]
+.(   0!DBG	       Reset the debugger when something goes wrong ) CR
+
+
+
