@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.4  1998/08/17 23:59:25  crook
+\ much closer to finishing
+\
 \ Revision 1.3  1998/06/30 22:49:01  crook
 \ Remove all DW definitions in favour of Forth definitions
 \
@@ -14,7 +17,7 @@
 \ on words defined earlier and whether these can be removed by re-ordering
 \ Start with as many high-level definitions as possible.
 
-\ Look for META-TODO for areas that I have not converted yet
+\ highlight areas that still need work
 0 CONSTANT META-TODO
 
 \ ** the pieces below are notes or definitions to go in the metacompiler.
@@ -90,8 +93,9 @@
 \ defn of RESET-SYSTEM requires definition of a new constant sysVar00, set
 \  to a value of UZERO0 (like sysVar0).
 \ defn of TRUE should be marked CORE EXT and therefore use _FLINK
-
-\ ** things that have been re-ordered
+\ defn of REPEAT should be "POSTPONE AGAIN POSTPONE THEN"
+\ in defn of SLITERAL, "DUP LITERAL" should be "DUP POSTPONE LITERAL"
+\ in defn of ABORT", >>S"<< should be >>POSTPONE S"<<
 
 
 \ TODO forward references. These will be cured by the compiler and by
@@ -1788,107 +1792,22 @@ MM_DEMON [IF]
 [THEN]
 		$END-CODE
 
-META-TODO [IF]
-
-;   hi          ( -- )
-;
-xS-DEF
-  : hi		CR ." hForth "
-		S" CPU" ENVIRONMENT? DROP TYPE SPACE
-		S" model" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
-		S" version"  ENVIRONMENT? DROP TYPE
-		."  by Wonyong Koh, 1997" CR
-		." StrongARM port by neal.crook@reo.mts.dec.com" CR
-		." ALL noncommercial and commercial uses are granted." CR
-		." Please send comment, bug report and suggestions to:" CR
-		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR ;
-
-
-;   INIT-BUS ( -- )
-;               For the 21285, need to init some PCI stuff to avoid hanging
-;               the host system (if any)
-;
-;   : INIT-BUS 40012000 @ 40 AND 0= IF
-;       \ init PCI because stand-alone bit is clear - see
-;	\ EBSA-285 reference manual for explanation of these
-;       0C 42000034 !
-;       00 42000150 !
-;	00 42000154 !
-;       00 42000140 !
-;       200 4200013C !
-;       7C0000 42000100 !
-;       40000000 42000010 !
-;	F000 42000018 !
-;       17 42000004 !
-;       1  4200013C !
-;     THEN ;
-
-		$COLON  8,'INIT-BUS',InitBus,_SLINK
-	IF (TARGET = "EBSA285")
-		DW DoLIT,&40012000,Fetch,DoLIT
-		DW &40,ANDD,ZeroEquals,ZBranch,IBDONE
-		DW DoLIT,&0C,DoLIT,&42000034,Store
-		DW Zero,DoLIT,&42000150,Store
-		DW Zero,DoLIT,&42000154,Store
-		DW Zero,DoLIT,&42000140,Store
-		DW DoLIT,&200,DoLIT,&4200013C,Store
-		DW DoLIT,&7C0000,DoLIT,&42000100,Store
-		DW DoLIT,&40000000,DoLIT,&42000010,Store
-		DW DoLIT,&0F000,DoLIT,&42000018,Store
-		DW DoLIT,&017,DoLIT,&42000004,Store
-		DW DoLIT,One,DoLIT,&4200013C,Store
-	ENDIF
-IBDONE		DW      EXIT
-
-;   COLD        ( -- )
-;               The cold start sequence execution word.
-;
-;   : COLD      sysVar0 var0 [ sysVar0End sysVar0 - ] LITERAL
-;               MOVE                            \ initialize system variable
-;               xhere DUP @                     \ free-ROM [free-ROM]
-;               INVERT SWAP 2DUP ! @ XOR        \ writable ROM?
-;               IF RAMB TO cpVar RAMT TO npVar THEN
-;               sp0 sp! rp0 rp!                 \ initialize stack
-;               'init-i/o EXECUTE
-;               'boot EXECUTE
-;		INIT-BUS
-;               QUIT ;                          \ start interpretation
-
-		$COLON  4,'COLD',COLD,_SLINK
-		DW      SysVar0,VarZero,DoLIT,ULAST-UZERO,MOVE
-		DW      XHere,DUPP,Fetch,INVERT,SWAP,TwoDUP,Store,Fetch,XORR
-		DW      ZBranch,COLD1
-		DW      RAMB,DoTO,AddrCPVar,RAMT,DoTO,AddrNPVar
-COLD1           DW      SPZero,SPStore,RPZero,RPStore
-		DW      TickINIT_IO,EXECUTE,TickBoot,EXECUTE,InitBus
-		DW      QUIT
-
+\ TODO - want this conditional on 21285 systems
+: INIT-BUS	( -- )
+\               For the 21285, need to init some PCI stuff to avoid hanging
+\               the host system (if any)
+\
+    H# 40012000 @ H# 40 AND 0= IF
+    \ stand-alone bit is clear so must init the PCI bus to avoid hanging the
+    \ host system - see EBSA-285 reference manual for explanation of these
+    H#       0C H# 42000034 !    H#       00 H# 42000150 !
+    H#       00 H# 42000154 !    H#       00 H# 42000140 !
+    H#      200 H# 4200013C !    H#   7C0000 H# 42000100 !
+    H# 40000000 H# 42000010 !    H#     F000 H# 42000018 !
+    H#       17 H# 42000004 !    H#       1  H# 4200013C !
+  THEN ;
 
 xS-DEF
-
-
-\   set-i/o	( -- )
-\		Set input/output device. (Includes initialising any hardware)
-\
-: set-i/o	set-i/ov !IO ;
-
-: set-i/ov	( -- )
-\		Set input/output vectors, according to IOBYTES. Easiest way to
-\		do this is to assume that the default vectors will be used
-\		then check IOBYTES; if DEMON vectors are required, overwrite
-\		them
-\
-		sysVar0 var0 [ 4 CELLS ] LITERAL MOVE       \ set i/o vectors
-		IOBYTES H# FF AND H# FF =
-		IF
-		        ' DTX! TO 'emit
-		        ' DRX@ TO 'ekey
-		        ' TRUE TO 'emit?
-		        ' TRUE TO 'ekey?
-		THEN ;
-
-[THEN]
-
 
 CR .( *** MS-DOS only words -- not necessary for other systems.)
 
@@ -2259,6 +2178,36 @@ META-HI [IF]
 		R0 R1 R1 ADD,
 		[ tos ] R1 STR,
 		tos popD,
+		$NEXT
+[THEN]
+
+\   rp0         ( -- a-addr )
+\		Pointer to bottom of the return stack.
+\
+META-HI [IF]
+: rp0		userP @ CELL+ CELL+ @ ;
+[ELSE]
+		$SCODE rp0
+		tos pushD,
+		AddrUserP R0 =,
+		[ R0 ] R1 LDR,
+		CELLL 2 * # R1 R1 ADD,
+		[ R1 ] tos LDR,
+		$NEXT
+[THEN]
+
+\   sp0		( -- a-addr )
+\		Pointer to bottom of the data stack.
+\
+META-HI [IF]
+: sp0		userP @ CELL+ @ ;
+[ELSE]
+		$SCODE sp0
+		tos pushD,
+		AddrUserP R0 =,
+		[ R0 ] R1 LDR,
+		CELLL # R1 R1 ADD,
+		[ R1 ] tos LDR,
 		$NEXT
 [THEN]
 
@@ -2641,7 +2590,7 @@ META-HI [IF]
 		WHILE cell-             \ pointer to next word in wordlist
 		REPEAT
 		R> R> 2DROP DUP name>xt SWAP            \ xt ca2
-		C@ DUP [ =COMP ] LITERAL AND 0= SWAP
+	 	C@ DUP [ =COMP ] LITERAL AND 0= SWAP
 		[ =IMED ] LITERAL AND 0= 2* 1+ ;
 [ELSE]
 		$SCODE (search-wordlist)
@@ -2682,6 +2631,14 @@ META-HI [IF]
 03 L.
 		$NEXT
 [THEN]
+
+\   SEARCH-WORDLIST     ( c-addr u wid -- 0 | xt 1 | xt -1)     \ SEARCH
+\		Search word list for a match with the given name.
+\		Return execution token and -1 or 1 ( IMMEDIATE) if found.
+\		Return 0 if not found.
+\
+: SEARCH-WORDLIST
+		(search-wordlist) DUP IF NIP THEN ;
 
 \   D+          ( d1|ud1 d2|ud2 -- d3|ud3 )	\ DOUBLE
 \		Add double-cell numbers.
@@ -2878,14 +2835,7 @@ META-HI [IF]
 		   LOOP D# 0		        \ ca u 0
 		THEN ;
 
-\   .ok         ( -- )
-\		Display 'ok'.
-\
-META-TODO [IF]
-: .ok		S" ok" TYPE ;
-[THEN]
-
-\   .prompt	( -- )
+\ .prompt	( -- )
 \		Display Forth prompt. This word is vectored.
 \
 META-HI [IF]
@@ -3243,6 +3193,11 @@ META-HI [IF]
     THEN
   THEN DROP COMPILE, ;
 
+\   GET-CURRENT   ( -- wid )		     \ SEARCH
+\		Return the indentifier of the compilation wordlist.
+\
+: GET-CURRENT	current @ ;
+
 \   linkLast	( -- )
 \		Link the word being defined to the current wordlist.
 \		Do nothing if the last definition is made by :NONAME .
@@ -3250,7 +3205,7 @@ META-HI [IF]
 \ TODO: that comment about doing nothing.. is is really true? Looks like
 \ the caller already checks, and only calls linklast if the defn is not
 \ made with :NONAME.
-META-TODO [IF] \ some clash with GET-CURRENT
+\
 META-HI [IF]
 : linkLast	lastName GET-CURRENT ! ;
 [ELSE]
@@ -3263,9 +3218,6 @@ META-HI [IF]
 		[ R0 ] R1 LDR,		\ wid of compilation wordlist
 		[ R1 ] R2 STR,		\ gets bumped up by new addition
 		$NEXT
-[THEN]
-[ELSE]
-: linklast ;
 [THEN]
 
 \   pipe        ( -- ) ( R: xt -- )
@@ -3336,6 +3288,25 @@ META-HI [IF]
 \
 		(') DROP ;
 
+: set-i/ov	( -- )
+\		Set input/output vectors, according to IOBYTES. Easiest way to
+\		do this is to assume that the default vectors will be used
+\		then check IOBYTES; if DEMON vectors are required, overwrite
+\		them
+\
+    sysVar0 var0 [ 4 CELLS ] LITERAL MOVE       \ set i/o vectors
+    IOBYTES H# FF AND H# FF = IF
+      ' DTX! TO 'emit
+      ' DRX@ TO 'ekey
+      ' TRUE TO 'emit?
+      ' TRUE TO 'ekey?
+    THEN ;
+
+: set-i/o	( -- )
+\		Set input/output device. (Includes initialising any hardware)
+\
+    set-i/ov !IO ;
+
 \   rake        ( C: do-sys -- )
 \		Gathers LEAVEs.
 \
@@ -3348,35 +3319,6 @@ META-HI [IF]
     D# 1 bal+ POSTPONE THEN \ orig type is 1
   THEN bal- ; COMPILE-ONLY
 
-\   rp0         ( -- a-addr )
-\		Pointer to bottom of the return stack.
-\
-META-HI [IF]
-: rp0		userP @ CELL+ CELL+ @ ;
-[ELSE]
-		$SCODE rp0
-		tos pushD,
-		AddrUserP R0 =,
-		[ R0 ] R1 LDR,
-		CELLL 2 * # R1 R1 ADD,
-		[ R1 ] tos LDR,
-		$NEXT
-[THEN]
-
-\   sp0		( -- a-addr )
-\		Pointer to bottom of the data stack.
-\
-META-HI [IF]
-: sp0		userP @ CELL+ @ ;
-[ELSE]
-		$SCODE sp0
-		tos pushD,
-		AddrUserP R0 =,
-		[ R0 ] R1 LDR,
-		CELLL # R1 R1 ADD,
-		[ R1 ] tos LDR,
-		$NEXT
-[THEN]
 
 \   sourceVar	( -- a-addr )
 \		Hold the current count and addr of the terminal input buffer.
@@ -3502,25 +3444,6 @@ META-HI [IF]
 \
 : DEPTH		sp@ sp0 SWAP - CELLL / ;
 
-\ META-TODO [IF] \ problem is with SEARCH-WORDLIST
-\   head,	( xt "<spaces>name" -- )
-\		Parse a word and build a dictionary entry using xt and name.
-\
-: head,		PARSE-WORD DUP 0=
-		IF errWord 2! D# -16 THROW THEN
-		               \ attempt to use zero-length string as a name
-		DUP [ =MASK ] LITERAL > IF D# -19 THROW THEN   \ definition name too long
-		2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
-		IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
-		npVar @ OVER CELL+ - ALIGNED
-		DUP >R pack" DROP R>            \ pack the name in dictionary
-		cell- GET-CURRENT @ OVER !      \ build wordlist link
-		cell- DUP npVar !  ! ;          \ adjust name space pointer
-						\ and store xt at code field
-[ELSE]
-: head, ; \ temp forward defn
-[THEN]
-
 \   ALIGNED	( addr -- a-addr )		\ CORE
 \		Align address to the cell boundary.
 \
@@ -3571,6 +3494,38 @@ META-HI [IF]
 	[ CALLL ] LITERAL OR            \ make the opcode 
 	xhere SWAP                      \ remember where it will go
 	code, IDflushline ;             \ emit it and purge the block
+
+\   TYPE        ( c-addr u -- )		  \ CORE
+\		Display the character string if u is greater than zero.
+\
+: TYPE		?DUP IF 0 DO DUP C@ EMIT CHAR+ LOOP THEN DROP ;
+
+\   SPACE       ( -- )				\ CORE
+\		Send the blank character to the output device.
+META-HI [IF]
+: SPACE		D# 32 EMIT ;
+[ELSE]
+		$FCODE SPACE
+		tos pushD,
+		SPC # tos MOV,
+\ TODO		xtEMIT B,
+		$END-CODE
+[THEN]
+
+\   head,	( xt "<spaces>name" -- )
+\		Parse a word and build a dictionary entry using xt and name.
+\
+: head,		PARSE-WORD DUP 0=
+		IF errWord 2! D# -16 THROW THEN
+		               \ attempt to use zero-length string as a name
+		DUP [ =MASK ] LITERAL > IF D# -19 THROW THEN   \ definition name too long
+		2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
+		IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
+		npVar @ OVER CELL+ - ALIGNED
+		DUP >R pack" DROP R>            \ pack the name in dictionary
+		cell- GET-CURRENT @ OVER !      \ build wordlist link
+		cell- DUP npVar !  ! ;          \ adjust name space pointer
+						\ and store xt at code field
 
 \   :NONAME     ( -- xt colon-sys )             \ CORE EXT
 \		Create an execution token xt, enter compilation state and
@@ -3626,17 +3581,6 @@ xS-DEF
 xF-DEF
 : CR  [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
 
-\   SPACE       ( -- )				\ CORE
-\		Send the blank character to the output device.
-META-HI [IF]
-: SPACE		D# 32 EMIT ;
-[ELSE]
-		$FCODE SPACE
-		tos pushD,
-		SPC # tos MOV,
-\ TODO		xtEMIT B,
-		$END-CODE
-[THEN]
 
 \   EKEY?       ( -- flag )		      \ FACILITY EXT
 \		If a keyboard event is available, return true.
@@ -3752,11 +3696,6 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-\   GET-CURRENT   ( -- wid )		     \ SEARCH
-\		Return the indentifier of the compilation wordlist.
-\
-: GET-CURRENT	current @ ;
-
 \   IF          Compilation: ( C: -- orig )             \ CORE
 \		Run-time: ( x -- )
 \		Put the location of a new unresolved forward reference orig
@@ -3804,10 +3743,10 @@ META-HI [IF]
 		[ PADSize ] LITERAL ACCEPT sourceVar 2!
 		D# 0 >IN ! -1 ;
 
-\   TYPE        ( c-addr u -- )		  \ CORE
-\		Display the character string if u is greater than zero.
+\ .ok		( -- )
+\		Display 'ok'.
 \
-: TYPE		?DUP IF 0 DO DUP C@ EMIT CHAR+ LOOP THEN DROP ;
+: .ok		S" ok" TYPE ;
 
 \   D.          ( d -- )		         \ DOUBLE
 \		Display d in free field format followed by a space.
@@ -3842,6 +3781,27 @@ META-HI [IF]
 		$END-CODE
 [THEN]
 
+\   ENVIRONMENT?   ( c-addr u -- false | i*x true )     \ CORE
+\		Environment query.
+\
+: ENVIRONMENT?
+		envQList SEARCH-WORDLIST
+		DUP >R IF EXECUTE THEN R> ;
+
+\   hi          ( -- )
+\		By default, this is the application started through 'boot
+xS-DEF
+: hi
+		CR ." hForth "
+		S" CPU" ENVIRONMENT? DROP TYPE SPACE
+		S" model" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
+		S" version"  ENVIRONMENT? DROP TYPE
+		."  by Wonyong Koh, 1997" CR
+		." StrongARM port by neal.crook@reo.mts.dec.com" CR
+		." ALL noncommercial and commercial uses are granted." CR
+		." Please send comment, bug report and suggestions to:" CR
+		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR ;
+
 \ TODO - 58 should be expressed as 'numthrowmsgs' and need to be in DECIMAL
 \ to just express it as a raw number
 \   QUIT        ( -- ) ( R: i*x -- )            \ CORE
@@ -3860,21 +3820,24 @@ META-HI [IF]
 	SPACE errWord 2@ TYPE
 	SPACE [CHAR] ? EMIT SPACE
 	DUP D# -1 D# -58 WITHIN
-\ META-TODO: implement the ."
-\        IF ." Exception # " . ELSE \ undefined exception
-\	  CELLS THROWMsgTbl + @ COUNT TYPE
-\        THEN
+        IF ." Exception # " . ELSE \ undefined exception
+	  CELLS THROWMsgTbl + @ COUNT TYPE
+        THEN
       THEN
     THEN sp0 sp!
   AGAIN ;
 
-\   SEARCH-WORDLIST     ( c-addr u wid -- 0 | xt 1 | xt -1)     \ SEARCH
-\		Search word list for a match with the given name.
-\		Return execution token and -1 or 1 ( IMMEDIATE) if found.
-\		Return 0 if not found.
+: COLD		( -- )
+\		The cold start sequence execution word.
 \
-: SEARCH-WORDLIST
-		(search-wordlist) DUP IF NIP THEN ;
+\ META-TODO doesn't understand these constants
+\  sysVar0 var0 [ sysVar0End sysVar0 - ] LITERAL MOVE \ init system variables
+  xhere DUP @			\ free-ROM [free-ROM]
+  INVERT SWAP 2DUP ! @ XOR	\ writable ROM?
+  IF RAMB TO cpVar RAMT TO npVar THEN
+  sp0 sp! rp0 rp!		\ initialize stack
+  'init-i/o EXECUTE 'boot EXECUTE
+  INIT-BUS QUIT ;		\ start interpretation
 
 \   THEN        Compilation: ( C: orig -- )     \ CORE
 \		Run-time: ( -- )
@@ -3949,7 +3912,7 @@ META-HI [IF]
 \		Run-time ( i*x x1 -- | i*x ) ( R: j*x -- | j*x )
 \		Conditional abort with an error message.
 \
-: ABORT"	S" POSTPONE ROT
+: ABORT"	POSTPONE S" POSTPONE ROT
 		POSTPONE IF POSTPONE abort"msg POSTPONE 2!
 		D# -2 POSTPONE LITERAL POSTPONE THROW
 		POSTPONE ELSE POSTPONE 2DROP POSTPONE THEN
@@ -4024,13 +3987,6 @@ META-HI [IF]
 \		onto control-flow stack.
 \
 : ELSE		POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
-
-\   ENVIRONMENT?   ( c-addr u -- false | i*x true )     \ CORE
-\		Environment query.
-\
-: ENVIRONMENT?
-		envQList SEARCH-WORDLIST
-		DUP >R IF EXECUTE THEN R> ;
 
 \   EVALUATE    ( i*x c-addr u -- j*x )         \ CORE
 \		Evaluate the string. Save the input source specification.
@@ -4154,19 +4110,15 @@ META-HI [IF]
 \		Terminate a BEGIN-WHILE-REPEAT indefinite loop. Resolve
 \		backward reference dest and forward reference orig.
 \
-META-TODO [IF]
-: REPEAT	AGAIN THEN ; COMPILE-ONLY IMMEDIATE
-[THEN]
+: REPEAT	POSTPONE AGAIN POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
 \ SLITERAL	( c-addr1 u -- )		 \ STRING
 \		Run-time ( -- c-addr2 u )
 \		Compile a string literal. Return the string on execution.
 \
-META-TODO [IF] \ get control structure mismatch
-: SLITERAL	DUP LITERAL POSTPONE doS"
+: SLITERAL	DUP POSTPONE LITERAL POSTPONE doS"
 		CHARS xhere 2DUP + ALIGNED TOxhere
 		SWAP MOVE ; COMPILE-ONLY IMMEDIATE
-[THEN]
 
 \   SPACES      ( n -- )		         \ CORE
 \		Send n spaces to the output device if n is greater than zero.
@@ -4269,23 +4221,16 @@ META-TODO [IF] \ need to  be able to find target constant values from
 		sysVar00 sysVar0 [ sysVar0End sysVar0 - ] LITERAL  MOVE COLD ;
 [THEN]
 
+\ META-TODO need to patch the final values of some variables into the
+\ two cold-start tables. The required variables are:
+\
+\ CTOP		. - 0		;next available memory in code dictionary
+\ NTOP		_NAME - 0	;next available memory in name dictionary
+\ VTOP		_VAR - 0	;next available memory in variable area
+\ LASTENV	_ENVLINK - 0
+\ LASTSYSTEM    _SLINK - 0	;last SYSTEM word name address
+\ LASTFORTH	_FLINK - 0	;last FORTH word name address
 
-META-TODO [IF]
-\ ===============================================================
-\ NAC: these are put in by makesrc.awk -- CTOP and VTOP are OK because _VAR
-\ NAC: is SETA to the right value as the awk script emits new source
-\ LASTENV         EQU     _ENVLINK-0
-\ LASTSYSTEM      EQU     _SLINK-0        ;last SYSTEM word name address
-\ LASTFORTH       EQU     _FLINK-0        ;last FORTH word name address
-
-\ TODO need to patch the final values of NTOP, CTOP and VTOP back into the
-\ two cold-start tables. 
-
-NTOP            EQU     _NAME-0         ;next available memory in name dictionary
-CTOP            EQU     .-0             ;next available memory in code dictionary
-VTOP            EQU     _VAR-0          ;next available memory in variable area
-
-[THEN]
 
 \ ..do I need to make the target system's variables and constant values
 \ available on the host? That would save duplication, but might make
