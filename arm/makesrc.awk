@@ -12,6 +12,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.2  1997/01/15 23:24:58  crook
+# minor tweaks
+#
 # Revision 1.1  1997/01/13 09:41:28  crook
 # Initial revision
 #
@@ -129,11 +132,11 @@ function do_code_header(NUM_PARA) {
   # length and name. 
   if (param[2] == "\\") {
     #single exception case is backslash, which the assembler cannot handle. Replace it with its ASCII code
-    #print("\t\t************************** found backslash")
-    print("\t\tDCB\t" param[1] "," 92 "\n") > datafile
+    #printf("\t\t************************** found backslash\n")
+    printf("\t\tDCB\t" param[1] "," 92 "\n") > datafile
   }
   else {
-    print("\t\tDCB\t" param[1] "," quot param[2] quot "\n") > datafile
+    printf("\t\tDCB\t" param[1] "," quot param[2] quot "\n") > datafile
   }
 }
 
@@ -153,7 +156,7 @@ function do_envir_header() {
   printf("\t\tDCD\tENVIR%x, 0x%x %s\n", envlink, envlink, nameoffset) > datafile
   envlink = dict_pc + (2 * celll)
   # length and name. 
-  print("\t\tDCB\t" param[1] "," quot param[2] quot "\n") > datafile
+  printf("\t\tDCB\t" param[1] "," quot param[2] quot "\n") > datafile
 }
 
 
@@ -219,9 +222,9 @@ function do_envir_header() {
     # no need to align. Need length+1 bytes to hold to counted string
     dict_pc -= (calc_length + 1)
     printf(";--- org 0x%x %s = 0x%x.. may be 1,2,3 less\n", dict_pc, nameoffset, dict_pc - 232) > datafile
-    print (param[1] "\tDCB\t" calc_length "," quot param[2] quot "\n\n") > datafile
+    printf(param[1] "\tDCB\t" calc_length "," quot param[2] quot "\n\n") > datafile
     printf (";--- org 0x%x\n",init_dict_pc - throwoffset) > throwfile
-    printf ("\t\tDCD\t%s\n\n\n",param[1]) > throwfile
+    printf ("\t\tDCD\t%s\n\n",param[1]) > throwfile
     throwoffset += celll
     print (";Expansion of $THROWSTR for " param[1]) > codefile
   }
@@ -243,7 +246,7 @@ function do_envir_header() {
     # no need to align. Need length+1 bytes to hold to counted string
     dict_pc -= (calc_length + 1)
     printf(";--- org 0x%x %s = 0x%x\n", dict_pc, nameoffset, dict_pc - 232) > datafile
-    print (param[1] "\tDCB\t" calc_length "," quot param[2] quot "\n\n") > datafile
+    printf(param[1] "\tDCB\t" calc_length "," quot param[2] quot "\n\n") > datafile
     print (";Expansion of $STR for " param[1]) > codefile
   }
   else
@@ -288,7 +291,7 @@ function do_envir_header() {
     split($2, param, ",")
     throwmsgs = param[2]
     nameoffset = "- (" throwmsgs "*CELLL)"
-    printf (";--- Throw table\n%s\n\n\n", param[1]) > throwfile
+    printf (";--- Throw table\n%s\n\n", param[1]) > throwfile
   }
   else
   if ($1 == "$ALIGN_NAME") {
