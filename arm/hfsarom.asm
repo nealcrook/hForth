@@ -5,6 +5,10 @@
 ;; $Id$
 ;;
 ;; $Log$
+;; Revision 1.7  1997/01/24 19:48:20  crook
+;; migrated to
+;; Wonyong's V1.0 sources
+;;
 ;; Revision 1.6  1997/01/18 16:32:18  crook
 ;; changed whitespace to tab. Fixed ?call and doCREATE. No known bugs..
 ;; Words still exit through udebug for now
@@ -27,9 +31,9 @@
 
 
 ;;; NAC things-to-do
-;;; 1. add memory-management words
-;;; 3. feed changes back to Wonyong
-;;; 4. add file/hand
+;;; 1. test mmu words
+;;; 2. redesign mem map to allow space for page tables
+;;; 3. add mmu words from utils, create hutils.fth
 ;;; 5. port support routines
 ;;; 6. recode stuff in here for speed
 ;;; 7. port EBSA words
@@ -267,8 +271,9 @@ MASKK           EQU     1Fh             ;lexicon bit mask
 					;extended character set
 					;maximum name length = 1Fh
 
-;NAC: added SPC. 
+;NAC: added SPC, XON
 SPC             EQU     32              ;space (blank)
+XON		EQU	17		;CTRL-Q - flow control for FILE
 BKSPP           EQU     8               ;backspace
 TABB            EQU     9               ;tab
 LFF             EQU     10              ;line feed
@@ -276,8 +281,8 @@ CRR             EQU     13              ;carriage return
 DEL             EQU     127             ;delete
 
 ;For the ARM, this is the branch-with-link op-code; the offset gets ORed in.
-;Used by ?call and xt, -- those are the only words that omit opcodes.
-CALLL           EQU     0eb000000h      ;****fix modsntx.awk
+;Used by ?call and xt, -- note that only xt, emits opcodes.
+CALLL           EQU     0eb000000h      ;for ARM
 
 ; Memory allocation for writable ROM
 ;   ROMbottom||code>WORDworkarea|--//--|PAD|TIB|reserved<name||ROMtop
@@ -286,8 +291,14 @@ CALLL           EQU     0eb000000h      ;****fix modsntx.awk
 ;   ROMbottom||initial-code>--//--<initial-name||ROMtop
 ;   RAMbottom||code/data>WORDworkarea|--//--|PAD|TIB|reserved<name|sp|rp||RAMtop
 
-;NAC: defined the EBSA SSRAM memory map here.
-RAM0            EQU     040010000h              ;bottom of RAM memory ******
+;NAC: The memory map for EBSA-110 ARM systems is designed to fit into 2, 64Kbyte sections.
+;NAC: The first section is the ROM section, which can be loaded from Flash and stored back
+;NAC: to Flash with new definitions added. The second section is the RAM Section which is
+;NAC: volatile: it never gets saved away. The first 16Kbytes of the RAM section is reserved for
+;NAC: the memory-management page tables.
+;
+MMU0		EQU	040010000h		;start of page tables
+RAM0            EQU     040014000h              ;bottom of RAM memory ******
 RAMEnd          EQU     040020000h              ;top of RAM memory ******
 						;RAM size = 64KB
 ROM0            EQU     040000000h              ;bottom of ROM memory ******
@@ -474,7 +485,6 @@ _ENVLINK        SETA 0                          ;force a null link
 _NAME           SETA ROMEnd                     ;initialize name pointer
 ;NAC: don't think that _CODE needs to be initialised.. it is always used as
 ;temporary storage in macro expansions. This is a bug in eForth, too.
-;furthermore, the macros always 'restore' _CODE at the end, which is unecessary
 _CODE           SETA CODEE                      ;initialize code pointer
 _VAR            SETA RAM0                       ;variable space pointer
 
@@ -536,7 +546,7 @@ $THROWSTR MACRO   LABEL,STRING
 	_CODE   = $
 	DB      STRING
 	_LEN    = $ - _CODE
-	_NAME   = _NAME - _LEN + 1              ;pack the strings
+	_NAME   = _NAME - _LEN + 1              ;packed string - not aligned
 ORG     _NAME
 LABEL:
 	DB      _LEN,STRING
@@ -565,16 +575,14 @@ ORG     _CODE                                   ;restore code pointer
 
 $COLON  MACRO   LEX,NAME,LABEL,LINK
 	$CODE   LEX,NAME,LABEL,LINK
-	NOP                                     ;align to cell boundary
-	CALL    DoLIST                          ;include CALL doLIST
+	bl	DoLIST
 	ENDM
 
 ;       Compile a system CONSTANT header.
 
 $CONST  MACRO   LEX,NAME,LABEL,VALUE,LINK
 	$CODE   LEX,NAME,LABEL,LINK
-	NOP
-	CALL    DoCONST
+	bl	DoCONST
 	DW      VALUE
 	ENDM
 
@@ -582,8 +590,7 @@ $CONST  MACRO   LEX,NAME,LABEL,VALUE,LINK
 
 $VALUE  MACRO   LEX,NAME,LABEL,LINK
 	$CODE   LEX,NAME,LABEL,LINK
-	NOP
-	CALL    DoVALUE
+	bl	DoVALUE
 	DW      _VAR
 	_VAR = _VAR +CELLL
 	ENDM
@@ -592,8 +599,7 @@ $VALUE  MACRO   LEX,NAME,LABEL,LINK
 
 $VAR    MACRO   LEX,NAME,LABEL,LINK
 	$CODE   LEX,NAME,LABEL,LINK
-	NOP
-	CALL    DoCONST
+	bl	DoCONST
 	DW      _VAR
 	_VAR = _VAR +CELLL                      ;update variable area offset
 	ENDM
@@ -602,8 +608,7 @@ $VAR    MACRO   LEX,NAME,LABEL,LINK
 
 $USER   MACRO   LEX,NAME,LABEL,OFFSET,LINK
 	$CODE   LEX,NAME,LABEL,LINK
-	NOP
-	CALL    DoUSER
+	bl	DoUSER
 	DW      OFFSET
 	ENDM
 
@@ -641,8 +646,8 @@ ORG     _CODE
 ;       Assemble inline direct threaded code ending.
 
 $NEXT   MACRO
-	LODSW                                   ;next code address into AX
-	JMP     AX                              ;jump directly to code address
+	mov	pc,[fpc], #CELLL	; get next xt and go there,
+					; incrementing fpc to next cell
 	$ALIGN
 	ENDM
 
@@ -1200,18 +1205,6 @@ PutByteLoop     LDR     r1, [r3, #SR]           ;get the status register
 		DW      TYPEE,CR,EXIT
 	ENDIF
 
-;   Iflushline  ( -- )
-;               Flush the whole Icache or the Icache block associated with
-;               the code word most recently generated (at xhere???). This must
-;               be called in a cached system any time that a machine op-code
-;               is generated (unless the CPU supports a cache-coherent Icache).
-;               Currently, the only word that uses this is xt,
-
-		$COLON 10,'Iflushline',Iflushline,_SLINK
-;NAC: todo: code this..
-		DW EXIT
-
-
 ;   hi          ( -- )
 ;
 ;   : hi        CR S" systemID" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
@@ -1267,6 +1260,34 @@ COLD1:          DW      SPZero,SPStore,RPZero,RPStore
 		$COLON  7,'set-i/o',Set_IO,_SLINK
 		DW      SysVar0,VarZero,DoLIT,4*CELLL,MOVE
 		DW      STOIO,EXIT
+
+;   PACE        ( -- )
+;               Send an XON character for the file downloading process.
+;		: PACE XON EMIT ;
+
+		$COLON  4,'PACE',PACE,_SLINK
+		DW      DoLIT,XON,EMIT,EXIT
+
+;   FILE	( -- )
+;		Impose flow control to allow host file download without
+;		input overflow
+;		: FILE ' PACE 'prompt ! ;
+
+		$COLON 4,'FILE',FILE,_SLINK
+		DW	DoLIT,PACE,DoTO,AddrTprompt,EXIT
+
+;   HAND	( -- )
+;		Restore system prompt after FILE
+;		: HAND ' DotOK 'prompt ! ;
+
+		$COLON 4,'HAND',HAND,_SLINK
+		DW	DoLIT,DotOK,DoTO,AddrTprompt,EXIT
+
+;TODO that will still echo characters to the screen during compilation.
+;easy to get rid of that in eForth, since there was a 'echo vector
+;but hForth doesn't have one..
+;TODO not clear that this will do flow control *during* compile (the important
+;place) -- in eForth, .ok was state-smart
 
 ; Following words are for MS-DOS only.
 ; File input using MS-DOS redirection function without using FILE words.
@@ -1341,37 +1362,52 @@ FROM1:          DW      PARSE_WORD,STDIN,SOURCE,ToIN,Store,DROP,EXIT
 ;       32-bit Forth for ARM RISC
 ;;;;;;;;;;;;;;;;
 
-;;;;;;;;;;;;;;;;
-; microdebugger for debugging hForth ports
+; microdebugger for debugging new hForth ports.
 ;
 ; The major problem with debugging Forth code at the assembler level is that
 ; most of the definitions are lists of execution tokens that get interpreted
-; (using doList) rather than executed directly. As far as the native processor
+; (using doLIST) rather than executed directly. As far as the native processor
 ; is concerned, these xt are data, and a debugger cannot be set to trap on
 ; them.
-;
+; 
 ; The solution to that problem would seem to be to trap on the native-machine
-; 'call' instruction at the start of each definition. The problem with this
-; approach is that many definitions use (and are used) repeatedly through
-; the code. Simply trapping on the 'call' leads to multiple unwanted traps.
+; 'call' instruction at the start of each definition. However, the threaded
+; nature of the code makes it very difficult to follow a particular definition
+; through: many definitions are used repeatedly through the code. Simply
+; trapping on the 'call' leads to multiple unwanted traps.
 ;
 ; Consider, for example, the code for doS" --
 ;
-;          DW      RFrom,COUNT,TwoDUP,Plus,ALIGNED,ToR,EXIT
+;          DW      RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
 ;
 ; It would be useful to run each word in turn; at the end of each word the
 ; effect upon the stacks could be checked until the faulty word is found.
 ;
 ; This technique allows you to do exactly that.
 ;
-; All definitions end with $NEXT -- either directly (code definitons) or
+; All definitions end with $NEXT -- either directly (code definitions) or
 ; indirectly (colon definitions terminating in EXIT, which is itself a code
-; definition.
+; definition). The action of $NEXT is to use the fpc for the next word to
+; fetch the xt and jumps to it.
 ;
-; $NEXT has the fpc for the next word, and jumps to the xt at the fpc
+; To use the udebug routine, replace the $NEXT expansion with a jump (not a
+; call) to the routine udebug (this requires you to reassemble the code)
 ;
-; - replace the $NEXT expansion with a jump to a new routine, udebug
-; (this requires you to reassemble the code)
+; When you want to debug a word, trap at the CALL doLIST at the start of the
+; word and then load the location trapfpc with the address of the first xt
+; of the word. Make your debugger trap when you execute the final instruction
+; in the udebug routine. Now execute your code and your debugger will trap
+; after the completion of the first xt in the definition. To stop debugging,
+; simply set trapfpc to 0.
+;
+; This technique has a number of limitations:
+; - It is an assumption that an xt of 0 is illegal
+; - You cannot automatically debug a code stream that includes inline string
+;   definitions, or any other kind of inline literal. You must step into the
+;   word that includes the definition then hand-edit the appropriate new value
+;   into trapfpc
+; Clearly, you could overcome these limitations by making udebug more
+; complex -- but then you run the risk of introducing bugs in that code.
 
 udebug          ldr r0,=trapfpc
 		ldr r1,[r0]
@@ -1385,25 +1421,183 @@ udebug          ldr r0,=trapfpc
 
 trapfpc		DW 0
 
+;   W!          ( c a -- )	"w store"
+;		Store word (16-bit) value at word address.
 
-; When you want to debug a word, trap at the CALL doLIST at the start of the
-; word and then load the location trapfpc with the address of the first xt
-; of the word. Make your debugger trap when you execute the final instruction
-; in the udebug routine. Now execute your code and your debugger will trap
-; after the completion of the first xt in the definition. To stop debugging,
-; simply set trapfpc to 0.
+		$CODE   2,'W!',WSTOR,_SLINK
+		popD	r1			;pop data
+						;only interested in bits7:0
+		strh	r1, [tos]		;store word at address
+		popD	tos
+		$NEXT
 
-; Limitations
-; - It is an assumption that an xt of 0 is illegal
-; - You cannot automatically debug a code stream that includes inline string
-;   definitions. You must step into the word that includes thye definition
-;   and hand-edit the appropriate value into trapfpc
-; - You cannot automatically debug a code stream that includes an
-;   inline literal
-; Clearly, you could overcome these limitations by making udebug more
-; complex -- but then you run the risk of introducing bugs in that code.
-;;;;;;;;;;;;;;;;
+;   W@          ( a -- c )	"w fetch"
+;               Fetch word value from word address.
+;TODO what if the address is not word aligned?
 
+		$CODE   2,'W@',WAT,_SLINK
+		ldrh	r1, [tos]		;get the word
+		mov	tos, r1			;bung back on the stack
+		$NEXT
+
+;===============================================================
+;; StrongARM-specific words for getting at the internals of
+;; the chip
+
+conm		EQU &1000
+coffm		EQU &ffffefff
+
+;   CHIPID	( -- n )
+;		Read chip ID
+
+		$CODE	6,'CHIPID',CHIPID,_SLINK
+		pushD	tos
+		mrc	p15,0,tos,c0,c1,0
+		$NEXT
+
+;   ION		( -- )
+;		Turn on Icache
+
+		$CODE	3,'ION',ION,_SLINK
+		ldr	r1,=conm		;mask Icache ON
+		mrc	p15,0,r2,c1,c1,0
+		orr	r2,r2,r1		;Icache ON
+		mcr	p15,0,r2,c1,c1,0
+		$NEXT
+
+;   IOFF	( -- )
+;		Turn off Icache
+
+		$CODE	4,'IOFF',IOFF,_SLINK
+		ldr	r1,=coffm		;mask Icache OFF
+		mrc	p15,0,r2,c1,c1,0
+		and	r2,r2,r1		;Icache OFF
+		mcr	p15,0,r2,c1,c1,0
+		$NEXT
+
+;   IFLUSH	( -- )
+;		Flush the Icache
+
+		$CODE	6,'IFLUSH',IFLUSH,_SLINK
+		mcr	p15,0,r2,c7,c5,0
+		$NEXT
+
+;   DFLUSH	( -- )
+;		Flush the Dcache by forcing data out to memory
+;		This algorithm comes from the SA-110 spec. Could optimise
+;		it to half the loopcount by selecting an unused
+;		address range and adding an MCR.
+
+		$CODE	6,'DFLUSH',DFLUSH,_SLINK
+		mov	r0, #0
+		add	r1, r0, #32768
+01		ldr	r2, [r0], #32
+		teq	r1, r0
+		bne	%B01
+		$NEXT
+
+;   TLBFLUSH	( -- )
+;		Flush the I and D TLBs
+
+		$CODE	8,'TLBFLUSH',TLBFLUSH,_SLINK
+		mcr	p15,0,r2,c8,c6,0
+		$NEXT
+
+;   MMUON	( -- )
+;		Turn on the MMU, WB, Icache, Dcache
+
+		$CODE	5,'MMUON',MMUON,_SLINK
+		ldr	r1, =&100d
+		mrc	p15,0,r2,c1,c1,0
+		orr	r2,r2,r1
+		mcr	p15,0,r2,c1,c1,0
+		$NEXT
+
+;   MMUOFF	( -- )
+;		Turn off the MMU, WB, Icache, Dcache
+
+		$CODE	6,'MMUOFF',MMUOFF,_SLINK
+		ldr	r1, =&eff2
+		mrc	p15,0,r2,c1,c1,0
+		and	r2,r2,r1
+		mcr	p15,0,r2,c1,c1,0
+		$NEXT
+
+;   WBDRAIN	( -- )
+;		Drain the write buffer
+
+		$CODE	7,'WBDRAIN',WBDRAIN,_SLINK
+		mcr	p15,0,r2,c7,c10,4
+		$NEXT
+
+;   CKSWON	( -- )
+;		clock switching ON
+
+		$CODE	6,'CKSWON',CKSWON,_SLINK
+		mcr	p15,0,r2,c15,c1,2
+		$NEXT
+
+;   CKSWOFF	( -- )
+;		clock switching OFF
+
+		$CODE	7,'CKSWOFF',CKSWOFF,_SLINK
+		mcr	p15,0,r2,c15,c2,2
+		$NEXT
+
+;   WAI		( -- )
+;		Wait for interrupt
+
+		$CODE	3,'WAI',WAI,_SLINK
+		mcr	p15,0,r2,c15,c8,2
+		$NEXT
+
+;   TTB!	( n -- )
+;		Store n as the translation table base address
+
+		$CODE	4,'TTB!',TTBWR,_SLINK
+		mcr	p15,0,tos,c2,c1,0
+		popD	tos
+		$NEXT
+
+;   DAC@	( -- n )
+;		Read the domain access control register
+
+		$CODE	4,'DAC@',DACat,_SLINK
+		pushD	tos
+		mrc	p15,0,tos,c3,c1,0
+		$NEXT
+
+;   DAC!	( n -- )
+;		Store n in the domain access control register
+
+		$CODE	4,'DAC!',DACstore,_SLINK
+		mcr	p15,0,tos,c3,c1,0
+		popD	tos
+		$NEXT
+
+		LTORG
+
+;   IDflushline  ( a-addr -- )
+;               Ensure cache coherency after generating a new op-code
+;		at (a-addr-CELLL). For machines with unified caches this is a
+;		DROP but for machines with separate I and D caches you must first
+;		flush the Dcache (in case the code word is sitting in a dirty
+;		block there) and then flush the Icache (in case it has a copy
+;		of the old value at that location).
+;		A refinement would be to determine the correct cache block
+;		and only flush that block -- that would improve compile
+;		performance a lot!
+;               Currently, the only word that uses this is xt,
+
+		$CODE 11,'IDflushline',IDflushline,_SLINK
+		sub	tos, tos, #CELLL	;VA of changed address
+;              p15,??, arm_reg, co-proc_register, CRm, OPC_2
+		mcr	p15,0,tos,c7,c10,1	;clean Dcache entry 
+		mcr	p15,0,tos,c7,c6,1	;flush Dcache entry 
+		mcr	p15,0,tos,c7,c10,4	;drain write buffer
+		mcr	p15,0,tos,c7,c5,0	;flush Icache
+		popD	tos
+		$NEXT
 
 ;   same?       ( c-addr1 c-addr2 u -- -1|0|1 )
 ;               Return 0 if two strings, ca1 u and ca2 u, are same; -1 if
@@ -1428,18 +1622,25 @@ trapfpc		DW 0
 ;                 DW      DoLOOP,SAMEQ3
 ; SAMEQ4:         DW      TwoDROP,Zero,EXIT
 
-		$COLON   5,'same?',SameQ,_SLINK
-;NAC: recode this native for speed..
-
-		DW      QuestionDUP,ZBranch,SAMEQ4
-		DW      Zero,DoDO
-SAMEQ3:         DW      OVER,CFetch,OVER,CFetch,XORR,ZBranch,SAMEQ2
-		DW      UNLOOP,CFetch,SWAP,CFetch,GreaterThan
-		DW      TwoStar,OnePlus,EXIT
-SAMEQ2:         DW      CHARPlus,SWAP,CHARPlus
-		DW      DoLOOP,SAMEQ3
-SAMEQ4:         DW      TwoDROP,Zero,EXIT
-
+;NAC: TODO this isn't tested since (compare-wordlist) native version never
+;uses it..
+		$CODE   5,'same?',SameQ,_SLINK
+		popD	r0		;c-addr2
+		popD	r1		;c-addr1
+		orrs	tos, tos, tos
+		beq	SAME1	;null string always matches; exit with tos=0
+		;could have done that with a dollar-NEXT-EQ
+SAME2:		ldrb	r2, [r0], #1	;char at c-addr2
+		ldrb	r3, [r1], #1	;char at c-addr1
+		cmp	r2, r3		;flags for c2>c1
+		movgt	tos, #1
+		movlt	tos, #-1
+		bne	SAME1		;mismatch. dollar-NEXT-NE would do
+		subs	tos, tos, #1
+		bne	SAME2		;match so far, more string to do
+		;match, tos=0
+SAME1:
+		$NEXT
 
 ;   (search-wordlist)   ( c-addr u wid -- 0 | xt f 1 | xt f -1)
 ;               Search word list for a match with the given name.
@@ -1478,23 +1679,61 @@ SAMEQ4:         DW      TwoDROP,Zero,EXIT
 ;                 DW      DoLIT,IMMED,ANDD,ZeroEquals,TwoStar,OnePlus,EXIT
 ; PSRCH9:         DW      RFrom,RFrom,TwoDROP,EXIT
 ; PSRCH6:         DW      DoLIT,-16,THROW
+;
+; format is: wid---->[   a    ]
+;                        |
+;                        V
+; [   xt'  ][   a'   ][ccbbaann][ggffeedd]...
+;               |
+;               +--------+
+;                        V
+; [   xt'' ][   a''  ][ccbbaann][ggffeedd]...
+;
+; a, a' etc. point to the cell that contains the name of the word. The length
+; is in the low byte of the cell (little byte for little-endian, big byte for
+; big-endian)
+; eventually, a''' contains 0 to indicate the end of the wordlist (oldest
+; entry). a=0 indicates an empty wordlist
+; xt is the xt of the word. aabbccddeedd etc. is the name of the word, packed
+; into cells
 
-		$COLON   17,'(search-wordlist)',ParenSearch_Wordlist,_SLINK
-;NAC: recode native for speed..
-		DW      ROT,ToR,SWAP,DUPP,ZBranch,PSRCH6
-		DW      ToR
-PSRCH1:         DW      Fetch
-		DW      DUPP,ZBranch,PSRCH9
-		DW      DUPP,COUNT,DoLIT,MASKK,ANDD,RFetch,Equals
-		DW      ZBranch,PSRCH5
-		DW      RFrom,RFetch,SWAP,DUPP,ToR,SameQ
-PSRCH5:         DW      ZBranch,PSRCH3
-		DW      CellMinus,Branch,PSRCH1
-PSRCH3:         DW      RFrom,RFrom,TwoDROP,DUPP,NameToXT,SWAP
-		DW      CFetch,DUPP,DoLIT,COMPO,ANDD,ZeroEquals,SWAP
-		DW      DoLIT,IMMED,ANDD,ZeroEquals,TwoStar,OnePlus,EXIT
-PSRCH9:         DW      RFrom,RFrom,TwoDROP,EXIT
-PSRCH6:         DW      DoLIT,-16,THROW
+		$CODE   17,'(search-wordlist)',ParenSearch_Wordlist,_SLINK
+		popD	r0	;u
+		popD	r1	;c-addr
+		orrs	r0, r0, r0
+		moveq	tos,#-16
+		beq	THROW	;attempt to use 0-length string as a name
+PSRCH2:		ldr	tos,[tos] ;link to next word
+		orrs	tos, tos, tos
+		beq	PSRCH3	;link of 0 indicates end of word list
+		; get length byte and point to next-word link
+		ldrb	r5, [tos], #-CELLL
+		and	r2, r5, #MASKK ;get length
+		cmp	r2, r0	;same length as word we're looking for?
+		bne	PSRCH2	;no. Try next word in the list
+		add	r2, tos, #5 ;point to 1st byte of string in dict'y
+		add	r6, r2, r0  ;r6 points past end of string in dict'y
+		mov	r7, r1	    ; take a copy of the start address
+		;now compare strings at r7, r2 until r2=r6
+PSRCH4:		ldrb	r3, [r7], #1
+		ldrb	r4, [r2], #1
+		subs	r3, r4, r3
+		bne	PSRCH2	;mismatch. Try next word in the list
+		subs	r4, r2, r6
+		bne	PSRCH4	;match so far, keep going
+;match!! and we tricked 0 into r3 and r4 for later use..
+		ldr	r0, [tos, #-CELLL]
+		pushD	r0	;stack the xt
+		tst	r5, #COMPO
+		; eq => !COMPO, want to push -1. ne => COMPO push 0
+		subeq	r3, r3, #1 ;r3 started as 0
+		pushD	r3
+		ands	tos, r5, #IMMED
+		; eq => tos=0 => IMMED clear
+		movne	tos, #2
+		sub	tos, tos, #1	;1=>SET, -1=>CLEAR
+PSRCH3:
+		$NEXT
 
 ;   ?call       ( xt1 -- xt1 0 | a-addr xt2 )
 ;               If xt1 starts with a machine CALL instruction then leave
@@ -1545,16 +1784,18 @@ QCALL1:         DW      Zero,EXIT
 ;   : xt,       xhere ALIGNED DUP TOxhere SWAP
 ;               xhere - CELL- CELL- 2 RSHIFT    \ get signed offset
 ;               00ffffffh AND                   \ mask off high-order sign bits
-;               call_code OR code, Iflushline ;
+;               call_code OR code, IDflushline ;
 
 		$COLON  3,'xt,',xtComma,_SLINK
 		DW      XHere,ALIGNED,DUPP,TOXHere,SWAP
 		DW      XHere,Minus,CellMinus,CellMinus,DoLIT,2,RSHIFT
 		DW      DoLIT,0FFFFFFH,ANDD
-		DW      DoLIT,CALLL,ORR,CodeComma,Iflushline,EXIT
+		DW      DoLIT,CALLL,ORR,CodeComma
+		DW	XHere,IDflushline,EXIT
 
 ;   doLIT       ( -- x )
-;               Push an inline literal.
+;               Push an inline literal. The inline literal is at the current
+;		value of the fpc, so put it onto the stack and point past it
 
 		$CODE   COMPO+5,'doLIT',DoLIT,_SLINK
 		pushD   tos
@@ -1562,10 +1803,17 @@ QCALL1:         DW      Zero,EXIT
 		$NEXT
 
 ;   doCONST     ( -- x )
-;               Run-time routine of CONSTANT and VARIABLE.
-;               For the ARM, invoking a constant results in a bl to doCONST;
-;               the return address is in r14; the value of the constant is
-;               stored in-line at that address. 
+;               Run-time routine of CONSTANT and VARIABLE. When you quote a
+;		constant or variable you execute its code, which consists of a
+;		call to here, followed by an inline literal. The literal is a
+;		constant (for a CONSTANT) or the address at which a VARIABLE's
+;		value is stored. Although you come here as the result of a
+;		native machine call, you never go back to the return address
+;		-- you jump back up a level by continuing at the new fpc value.
+;		For 8086, Z80 the inline literal is at the return address
+;		stored on the top of the hardware stack. For the ARM, we came
+;		here through a bl (branch-and-link) so the return address is
+;		in r14
 
 		$CODE   COMPO+7,'doCONST',DoCONST,_SLINK
 		pushD   tos
@@ -1574,7 +1822,10 @@ QCALL1:         DW      Zero,EXIT
 
 ;   doVALUE     ( -- x )
 ;               Run-time routine of VALUE. Return the value of VALUE word.
-;NAC: like doCONST but with another level of indirection
+;		This is like an invocation of doCONST for a VARIABLE but
+;		instead of returning the address of the variable, we return
+;		the value of the variable -- in other words, there is another
+;		level of indirection
 
 		$CODE   COMPO+7,'doVALUE',DoVALUE,_SLINK
 		pushD   tos
@@ -1583,9 +1834,27 @@ QCALL1:         DW      Zero,EXIT
 		$NEXT
 
 ;   doCREATE    ( -- a-addr )
-;               Run-time routine of CREATE. Return address of data space.
+;               Run-time routine of CREATE. For CREATEd words with an
+;		associated DOES>, get the address of the CREATEd word's data
+;		space and execute the DOES> actions. For CREATEd word without
+;		an associated DOES>, return the address of the CREATE'd word's
+;		data space. A CREATEd word starts its execution through this
+;		routine in exactly the same way as a colon definition uses
+;		doLIST. In other words, we come here through a native machine
+;		branch. For ARM, r14 holds the address of the next word at the
+;		called point and fpc holds next word above that.
+;
 ;               Structure of CREATEd word:
 ;                       | call-doCREATE | 0 or DOES> code addr | a-addr |
+;
+;		So, for ARM, r14 points to the "0 or DOES>" address. The DOES>
+;		address holds a native call to doLIST. This routine doesn't
+;		alter the fpc. We never come back *here* so we never need to
+;		preserve an address that would bring us back *here*. 
+;
+;		Example : myVARIABLE CREATE , DOES> ;
+;		56 myVARIABLE JIM
+;		JIM \ stacks the address of the data cell that contains 56
 ;
 ;   : doCREATE    SWAP            \ switch BX and top of 8086 stack item
 ;                 DUP CELL+ @ SWAP @ ?DUP IF EXECUTE THEN ; COMPILE-ONLY
@@ -1595,19 +1864,6 @@ QCALL1:         DW      Zero,EXIT
 ;                 DW      ZBranch,DOCREAT1
 ;                 DW      EXECUTE
 ; DOCREAT1:       DW      EXIT
-
-;NAC: I'd describe the opration of this word as: Run-time routine of CREATE.
-;For CREATEd words with an associated DOES>, get the address of the CREATEd
-;word's data space and execute the DOES> actions. For CREATEd word without
-;an associated DOES>, return the address of the CREATE'd word's data space
-
-; NAC we come into this routine, for a CREATEd word, in exactly the same way as we would
-; come into doLIST for a colon-defined word eg a native machine branch.
-; for ARM, r14 holds next word at called point and fpc holds next word above that.
-; So, r14 points to the "0 or DOES>" address. The DOES> address holds a native call to doLIST
-; This routine doesn't touch the fpc. We never come back *here* so we never need to preserve
-; an address that would bring us back *here*. 
-; a-addr is the start address of the data space for the CREATEd word
 
 		$CODE   COMPO+8,'doCREATE',DoCREATE,_SLINK
 		pushD   tos
@@ -1620,20 +1876,23 @@ QCALL1:         DW      Zero,EXIT
 		$ALIGN
 
 ;   doTO        ( x -- )
-;               Run-time routine of TO. Store x at the address in the
-;               following cell.
+;               Run-time routine of TO. The inline literal holds the address
+;		to be modified. The new value is taken from tos
 
 		$CODE   COMPO+4,'doTO',DoTO,_SLINK
-		; the address to be modified is an in-line literal; get it
-		; and point past
+		; get the address to be modified and point past
 		ldr     r0, [fpc], #CELLL
-		str     tos, [r0]               ;modify the VALUE
+		; update to new value from tos
+		str     tos, [r0]
 		popD    tos
 		$NEXT
 
 ;   doUSER      ( -- a-addr )
 ;               Run-time routine of USER. Return address of data space.
-;NAC: like doCONST but add a constant offset to the result
+;		This is like doCONST but a variable offset is added to the
+;		result. By changing the value at AddrUserP (which happens
+;		on a taskswap) the whole set of user variables is switched
+;		to the set for the new task
 
 		$CODE   COMPO+6,'doUSER',DoUSER,_SLINK
 		pushD   tos
@@ -1647,17 +1906,16 @@ QCALL1:         DW      Zero,EXIT
 
 ;   doLIST      ( -- ) ( R: -- nest-sys )
 ;               Process colon list.
-;               The first word of a definition (the xt for the word) is
-;               a native machine-code instruction for the target machine.
-;               For high-level definitions, that code is emitted by xt,
-;               and performs a call to doLIST. The function of doLIST is
-;               to execute the list of xt that make up the definition.
-;               The final xt in the definition is EXIT. The address of the
-;               first xt to be executed by doLIST is passed in a
-;               target-specific way. Two examples:
+;               The first word of a definition (the xt for the word) is a
+;               native machine-code instruction for the target machine. For
+;               high-level definitions, that code is emitted by xt, and
+;		performs a call to doLIST. doLIST executes the list of xt that
+;		make up the definition. The final xt in the definition is EXIT.
+;		The address of the first xt to be executed is passed to doLIST
+;		in a target-specific way. Two examples:
 ;               Z80, 8086: native machine call, leaves the return address on
 ;               the hardware stack pointer, which is used for the data stack
-;               ARM: branch-and-link, so the return address is in R14,
+;               ARM: branch-and-link, so the return address is in r14,
 ;               not on the data stack.
 
 		$CODE   COMPO+6,'doLIST',DoLIST,_SLINK
@@ -2049,6 +2307,7 @@ QCALL1:         DW      Zero,EXIT
 ;               Execution vector of '.prompt'.
 
 		$VALUE  7,"'prompt",TickPrompt,_SLINK
+AddrTprompt	EQU	_VAR -CELLL
 
 ;   'boot       ( -- a-addr )
 ;               Execution vector of COLD.
@@ -2247,7 +2506,7 @@ _VAR            SETA _VAR + CELLL             ;RP0 for system task
 
 		$USER   5,'user1',User1,SysUser1-SysUserP,_SLINK
 
-; ENVIRONMETN? strings can be searched using SEARCH-WORDLIST and can be
+; ENVIRONMENT? strings can be searched using SEARCH-WORDLIST and can be
 ; EXECUTEd. This wordlist is completely hidden to Forth system except
 ; ENVIRONMENT? .
 
@@ -2334,17 +2593,20 @@ PTICK1:         DW      ErrWord,TwoStore,DoLIT,-13,THROW
 PARDD1:         DW      LessNumberSign,NumberSignS,ROT
 		DW      SIGN,NumberSignGreater,EXIT
 
+;NAC: made this state-smart (used to be done in QUIT) to allow FILE/HAND to work
 ;   .ok         ( -- )
 ;               Display 'ok'.
 ;
 ;   : .ok       ." ok" ;
 
 		$COLON  3,'.ok',DotOK,_SLINK
+		DW	STATE,Fetch,INVERT,ZBranch,DOTO1
 		$INSTR  'ok'
-		DW      TYPEE,EXIT
+		DW      TYPEE
+DOTO1:		DW	EXIT
 
 ;   .prompt         ( -- )
-;               Disply Forth prompt. This word is vectored.
+;               Display Forth prompt. This word is vectored.
 ;
 ;   : .prompt   'prompt EXECUTE ;
 
@@ -2404,8 +2666,7 @@ _VAR            SETA _VAR +CELLL
 		$COLON  12,'COMPILE-ONLY',COMPILE_ONLY,_SLINK
 		DW      LastName,DoLIT,COMPO,OVER,Fetch,ORR,SWAP,Store,EXIT
 
-;NAC starts with something on stack??
-;   doS"        ( -- c-addr u )
+;   doS"        ( u -- c-addr u )
 ;               Run-time function of S" .
 ;
 ;   : doS"      R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
@@ -2599,7 +2860,7 @@ DOUBC1:         DW      LITERAL,EXIT
 ;   -.          ( -- )
 ;               You don't need this word unless you care that '-.' returns
 ;               double cell number 0. Catching illegal number '-.' in this way
-;               is easier than make 'interpret' catch this exeption.
+;               is easier than make 'interpret' catch this exception.
 ;
 ;   : -.        -13 THROW ; IMMEDIATE   \ undefined word
 
@@ -2823,10 +3084,9 @@ _VAR            SETA _VAR +CELLL
 ; Essential Standard words - Colon definitions
 ;;;;;;;;;;;;;;;;
 
-;NAC typo numeric
 ;   #           ( ud1 -- ud2 )                  \ CORE
 ;               Extract one digit from ud1 and append the digit to
-;               pictured nemeric output string. ( ud2 = ud1 / BASE )
+;               pictured numeric output string. ( ud2 = ud1 / BASE )
 ;
 ;   : #         0 BASE @ UM/MOD >R BASE @ UM/MOD SWAP
 ;               9 OVER < [ CHAR A CHAR 9 1 + - ] LITERAL AND +
@@ -3145,6 +3405,7 @@ QDUP1:          DW      EXIT
 ACCPT1:         DW      DUPP,RFetch,LessThan,ZBranch,ACCPT5
 		DW      EKEY,DoLIT,MaxChar,ANDD
 		DW      DUPP,BLank,LessThan,ZBranch,ACCPT3
+;NAC want to change this to accept either a CR or a LF
 		DW      DUPP,DoLIT,CRR,Equals,ZBranch,ACCPT4
 		DW      ROT,TwoDROP,RFrom,DROP,EXIT
 ACCPT4:         DW      DUPP,DoLIT,TABB,Equals,ZBranch,ACCPT6
@@ -3486,6 +3747,7 @@ PARSE3:         DW      NIP,OVER,Minus,DUPP,OneCharsSlash,CHARPlus
 PARSE5:         DW      ToIN,PlusStore
 PARSE4:         DW      RFrom,DROP,EXIT
 
+;NAC: changed QUIT to always call prompt (used to be state-smart). 
 ;   QUIT        ( -- ) ( R: i*x -- )            \ CORE
 ;               Empty the return stack, store zero in SOURCE-ID, make the user
 ;               input device the input source, and start text interpreter.
@@ -3494,13 +3756,13 @@ PARSE4:         DW      RFrom,DROP,EXIT
 ;                 rp0 rp!  0 TO SOURCE-ID  0 TO bal  POSTPONE [
 ;                 BEGIN CR REFILL DROP SPACE    \ REFILL returns always true
 ;                       ['] interpret CATCH ?DUP 0=
-;                 WHILE STATE @ 0= IF .prompt THEN
+;                 WHILE .prompt
 ;                 REPEAT
 ;                 DUP -1 XOR IF                                 \ ABORT
 ;                 DUP -2 = IF SPACE abort"msg 2@ TYPE    ELSE   \ ABORT"
 ;                 SPACE errWord 2@ TYPE
 ;                 SPACE [CHAR] ? EMIT SPACE
-;                 DUP -1 -58 WITHIN IF ." Exeption # " . ELSE \ undefined exeption
+;                 DUP -1 -58 WITHIN IF ." Exception # " . ELSE \ undefined exeption
 ;                 CELLS THROWMsgTbl + @ COUNT TYPE       THEN THEN THEN
 ;                 sp0 sp!
 ;               AGAIN ;
@@ -3511,7 +3773,6 @@ QUIT1:          DW      RPZero,RPStore,Zero,DoTO,AddrSOURCE_ID
 QUIT2:          DW      CR,REFILL,DROP,SPACE
 		DW      DoLIT,Interpret,CATCH,QuestionDUP,ZeroEquals
 		DW      ZBranch,QUIT3
-		DW      STATE,Fetch,ZeroEquals,ZBranch,QUIT2
 		DW      DotPrompt,Branch,QUIT2
 QUIT3:          DW      DUPP,MinusOne,XORR,ZBranch,QUIT5
 		DW      DUPP,DoLIT,-2,Equals,ZBranch,QUIT4
@@ -3519,8 +3780,7 @@ QUIT3:          DW      DUPP,MinusOne,XORR,ZBranch,QUIT5
 QUIT4:          DW      SPACE,ErrWord,TwoFetch,TYPEE
 		DW      SPACE,DoLIT,'?',EMIT,SPACE
 		DW      DUPP,MinusOne,DoLIT,-58,WITHIN,ZBranch,QUIT7
-;NAC:	 typo
-		$INSTR  ' Exeption # '
+		$INSTR  ' Exception # '
 		DW      TYPEE,Dot,Branch,QUIT5
 QUIT7:          DW      CELLS,THROWMsgTbl,Plus,Fetch,COUNT,TYPEE
 QUIT5:          DW      SPZero,SPStore,Branch,QUIT1
