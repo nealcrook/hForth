@@ -1,17 +1,16 @@
 \ $Id$
 \ $Log$
+\ Revision 1.2  1997/04/02 09:47:40  crook
+\ FLASHFORTH and most other stuff now works
+\
 \ Revision 1.1  1997/03/30 21:20:18  crook
 \ Initial revision
 \
-\
 \ ebsa-110 hForth utility words
-\ these utilities expect coreext and optional to be loaded; they require
+\ these utilities expect optional to be loaded; they require
 \ definitions of HEX MARKER SAVE-SYSTEM ROM RAM
 \
-\ TODO: check SOFTSTAT refers to pass-2 jumpers and change the message to
-\ report which image number is selected
 \ TODO: fix Ethernet code to work with cache on; delay loops?
-\ TODO: fix Flash programming with cache on; delay after byte programming?
 \ TODO: what wordlist should these go into?
 \ TODO: should Flash moves be DATA or CODE space? 
 \ TODO: in FLASHFORTH make sure DRAM is working first, OR (better) don't
@@ -21,6 +20,11 @@
 \ address. BUT do want to set bitmap to only allocate 1 block, in case of
 \ FMU bug. Note that you cannot program the Flash whilst running from DEMON
 \ with my code.
+\ TODO: add FLDIR (directory of flash)
+\ TODO: add FLBFREE (next free flash block)
+\ TODO: allow Flashforth to program new image into a different block
+\ TODO: hForth MARKER doesn't seem to work
+\ TODO: CSUM herein does loads of xs masking
 
 HEX
 MARKER STARTOF-UTILS
@@ -93,11 +97,7 @@ VARIABLE OLDBASE
  CR ." Speaker is "                 6 BIT IF ." ON" ELSE ." OFF" THEN
  CR ." DRAM configuration mode is " 5 BIT IF ." ON" ELSE ." OFF" THEN
  CR ." DRAM configured for "    4 BIT IF ." BURST EDO" ELSE ." EDO" THEN
- CR ." Link J17 13-14 is "      3 BIT IF ." NOT fitted" ELSE ." fitted" THEN
- CR ." Link J17 15-16 is "      2 BIT IF ." NOT fitted" ELSE ." fitted" THEN
- CR ." Link J4  13-14 is "      1 BIT IF ." NOT fitted" ELSE ." fitted" THEN
- CR ." Link J4  15-16 is "      0 BIT IF ." NOT fitted" ELSE ." fitted" THEN
- DROP SPACE
+ INVERT 0F AND  CR ." Image jumpers selecting image " . CR
 ;
 
 :  LED \ ( F -- )
@@ -350,18 +350,15 @@ VARIABLE FLBASE
 : HFHDR \ ( -- n ) find hForth header in Flash 
 \ return block number of block containing the
 \ hForth header, or 0x10 if not found. Header is
-\ identified by the first 4 characaters of its
+\ identified by the first 4 characters of its
 \ name, which must be hFor
- 0
- BEGIN
-   DUP FLB2A 14 + \ point to name in this header
+ 10 0 DO
+   I FLB2A 14 + \ point to name in this header
    @ 726F4668 = \ text string hFor
    IF
-     -1 \ remember we found it
-   ELSE
-     1 + DUP 10 = \ next block number
+     I UNLOOP EXIT
    THEN
- UNTIL
+ LOOP 10
 ;
 
 : QCSUM \ ( n1 n2 -- n)
@@ -384,16 +381,17 @@ VARIABLE FLBASE
  FLFIND INVERT ABORT" Fatal: Couldn't find the flash"
  HFHDR DUP 10 = ABORT" Fatal: couldn't find Flash image 'hForth'"
  FLB2A DUP ." Found image " 14 + 10 TYPE
- \ copy image to DRAM @ 10000-1FFFF - need this so we can calculate the C'sum
+ \ copy image from SSRAM to DRAM @ 10000-1FFFF - need this so we can
+ \ calculate the C'sum
  40000000
  20000 10000 DO
    DUP @ I ! 4 +
- 4 +LOOP DROP
- DUP 10000 C0 MOVE	\ copy header from Flash to DRAM image
- 0 1000C !		\ clear out the checksum in the DRAM image
- 10000 10010 !		\ set the length to a full block in the DRAM image
- 10000 4000 QCSUM  1000C !	\ update checksum in the DRAM image
- 10008 @ 		\ get bitmap of used blocks
+ 4 +LOOP DROP		\ Flash image address still at tos
+ 10000 C0 MOVE		\ copy header from Flash to DRAM image
+ 0 1000C !		\ Work on the DRAM image: ..clear out the checksum
+ 10000 10010 !		\ .. set the length to a full block
+ 10000 4000 QCSUM  1000C !	\ .. update the checksum
+ 10008 @ 		\ .. get bitmap of used blocks
  DUP 0= ABORT" Fatal: no blocks allocated in this image's block map"
  20 0 DO \ 32 bits to check; bits 31:0
    DUP 1 AND
