@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.8  1998/09/30 23:56:54  crook
+\ first working binary.
+\
 \ Revision 1.7  1998/09/05 12:10:09  crook
 \ minor tweaks
 \
@@ -64,27 +67,10 @@
 \
 
 MARKER *HMETA*
-
 HEX
 
-: LOAD-ASM
-DEPTH ABORT" dstack depth is non-zero at start of hmeta"
-DEPTH S" asmarm.fth" INCLUDED DEPTH 1- - ABORT" armasm affected depth"
-CR ." ..asmarm" ;
-
-: LOAD-COLON
-DEPTH S" hmeta_colon.fth" INCLUDED DEPTH 1- - ABORT" hmeta_colon affected depth"
-CR ." ..hmeta_colon" ;
-
-: LOAD-LAST
-DEPTH ABORT" dstack depth is non-zero after hmeta loaded"
-DEPTH S" compare.fth" INCLUDED DEPTH 1- - ABORT" compare affected depth"
-CR ." ..compare"
-DEPTH S" hforth.fth" INCLUDED DEPTH 1- - ABORT" hforth affected depth"
-CR ." ..hforth" CR ;
-
-\ Load the assembler NOW!
-LOAD-ASM
+\ Load the assembler
+S" ../asmarm/asmarm.fth" INCLUDED
 
 : hCONSTANT CONSTANT ;
 : hVALUE VALUE ;
@@ -222,7 +208,8 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 
 \ Definitions to control the flavour of compilation
 \ Force high-level definitions where possible
-TRUE hCONSTANT META-HI
+\ TRUE hCONSTANT META-HI
+FALSE hCONSTANT META-HI
 \ Force unproven definitions where available
 TRUE hCONSTANT META-EXPERIMENTAL
 \ Force code endings to branch through micro-debugger
@@ -242,7 +229,12 @@ FALSE hCONSTANT MICRO-DEBUG
 \ using xhere.
 
 \ load compare function and the forth source itself
-LOAD-LAST
+DEPTH S" compare.fth" INCLUDED DEPTH 1- -
+[IF] .( compare affected depth) ABORT [ELSE] CR .( ..compare loaded OK) [THEN]
+DEPTH S" hforth.fth"  INCLUDED DEPTH 1- -
+[IF] .( hforth affected depth) ABORT [ELSE] CR .( ..hforth loaded OK) [THEN]
+
+DEPTH [IF] .( dstack depth is non-zero after hmeta loaded) ABORT [THEN]
 
 ALSO ASSEMBLER
 GLOBAL-RESOLVED \ check that global forward references are resolved.
@@ -259,6 +251,8 @@ image-wr
 CR .( Image saved as ) meta-built TYPE CR
 
 CR .( Checking forward references..)
+' doLIST doLIST = .
+' doUSER doUSER = .
 ALSO tunresolved-words
 ' doDO doDO = .
 ' doCONST doCONST = .
@@ -275,3 +269,4 @@ ALSO tunresolved-words
 ' THROW THROW = .
 ' doCREATE [']-doCREATE = . \ defn in hmeta_colon
 PREVIOUS
+S" mkfor.fth" INCLUDED

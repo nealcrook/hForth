@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.14  1998/10/03 18:18:25  crook
+\ Updates to pack" head, from Wonyong's release of 05-Jan-1998
+\
 \ Revision 1.13  1998/10/01 00:18:00  crook
 \ fixed forward references for ACCEPT bugfix.
 \
@@ -57,7 +60,7 @@
 \ 3. put all defn in correct wordlists
 \ 4. consistent cpVar, xhere, meta-asm, etc.
 \ 5. allow early low-level defn to inhibit later hi-level defn
-\ 6. get assembler version to build
+\ 6. DONE
 \ 7. fix TODO things in assembler
 \ 8. fix forward defns
 \ 9. ? order of immediate words in hforth
@@ -66,6 +69,10 @@
 \ 12. Review and document is when to use nit- and when/whether
 \     I really need it- --- it's very confusing at the moment when each are
 \     used.
+\ 13. DONE
+\ 14. Fix forward reference for udebug and test udebugger
+\ 15. : dd CATCH -55 THROW ; works on fpe but causes an undefined
+\     instruction exception on hForth.
 
 \ colon compiler and immediate words for hForth
 MARKER *hmc*
@@ -185,23 +192,28 @@ HEX
 GET-CURRENT  \ wid of compilation word list
 GET-ORDER \ list of wids in the search order
 
-\ In hForth, WORDLIST-NAME associates the name with the wid such that ORDER
-\ can display it.
-hForth INVERT [IF] : WORDLIST-NAME CONSTANT ; [THEN]
-
-
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ Create wordlists and associated manipulation words for later use
-WORDLIST WORDLIST-NAME t-words-WORDLIST
-WORDLIST WORDLIST-NAME it-words-WORDLIST
-WORDLIST WORDLIST-NAME its-words-WORDLIST
-WORDLIST WORDLIST-NAME tunresolved-words-WORDLIST
+CHAR " PARSE hforth" ENVIRONMENT?
+[IF]
+  \ in hForth WORDLIST-NAME associates a string with a WID such that ORDER
+  \ can display it.
+  WORDLIST WORDLIST-NAME t-words-WORDLIST
+  WORDLIST WORDLIST-NAME it-words-WORDLIST
+  WORDLIST WORDLIST-NAME its-words-WORDLIST
+  WORDLIST WORDLIST-NAME tunresolved-words-WORDLIST
+[ELSE]
+  WORDLIST CONSTANT t-words-WORDLIST
+  WORDLIST CONSTANT it-words-WORDLIST
+  WORDLIST CONSTANT its-words-WORDLIST
+  WORDLIST CONSTANT tunresolved-words-WORDLIST
+[THEN]
+
 \ add a wordlist to the search order; use with ALSO
 : t-words GET-ORDER NIP t-words-WORDLIST SWAP SET-ORDER ;
 : it-words GET-ORDER NIP it-words-WORDLIST SWAP SET-ORDER ;
 : its-words GET-ORDER NIP its-words-WORDLIST SWAP SET-ORDER ;
 : tunresolved-words GET-ORDER NIP tunresolved-words-WORDLIST SWAP SET-ORDER ;
-
 
 
 \ TODO - ought to use this for CODE words, too?
@@ -488,19 +500,7 @@ BASE !
 \ todo temp..
 BASE @ HEX
 ALSO tunresolved-words DEFINITIONS
-40001484 hCONSTANT doDO
-40000590 hCONSTANT doCONST
-4000059C hCONSTANT doVALUE
-40001BE0 hCONSTANT pipe
-40000CE0 hCONSTANT UNLOOP
-40002DB0 hCONSTANT doS"
-400013FC hCONSTANT abort"msg
-400021A4 hCONSTANT TYPE
-40001B20 hCONSTANT COMPILE,
-40000AF4 hCONSTANT ROT
-40000B7C hCONSTANT 2!
-40000BB4 hCONSTANT 2DROP
-40000E18 hCONSTANT THROW
+S" forward.fth" INCLUDED
 PREVIOUS DEFINITIONS
 BASE !
 
@@ -845,6 +845,11 @@ CR .( >> TODO UNRESOLVED --  temp to resolve forward defn. in hmeta_colon )
 \ to resolved these in searches of the target dictionary
 BASE @ HEX
 400005EC hCONSTANT doLIST
+\ TODO these are forward definitions of XTs for the $VAR $CONST $VALUE $USER
+\ definitions..
+4000059C hCONSTANT doVALUE
+40000590 hCONSTANT doCONST
+400005D4 hCONSTANT doUSER
 BASE !
 
 
