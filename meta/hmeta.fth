@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.10  1998/11/25 21:48:57  crook
+\ check-point before starting on STC modifications.
+\
 \ Revision 1.9  1998/10/08 20:33:54  crook
 \ minor tidy-ups; first working asm version
 \
@@ -295,7 +298,7 @@ image-wr
 CR .( Image saved as ) meta-built TYPE CR
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-CR .( Checking forward references..)
+CR .( Checking forward references.. if any are NOT -1 re-run the build) CR
 ' doUSER doUSER = .
 ALSO tunresolved-words
 ' doLIST doLIST = .
@@ -313,7 +316,7 @@ ALSO tunresolved-words
 ' 2DROP 2DROP = .
 ' THROW THROW = .
 ' doCREATE [']-doCREATE = . \ defn in hmeta_colon
-PREVIOUS
+PREVIOUS CR
 S" mkfor.fth" INCLUDED
 
 \ End.
