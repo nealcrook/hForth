@@ -1,0 +1,195 @@
+ARM Macro Assembler    Page 1
+
+
+    1 00000000         ;;; piece of code to exercise all ARM op-codes in order 
+                       to compare
+    2 00000000         ;;; ARM's ARM assembler with my Forth ARM assembler
+    3 00000000         ;;;
+    4 00000000         ;;; NAC 02-Feb-1997 Example of each format, but not ever
+                       y opcode.
+    5 00000000         ;;;   for branch, data-processing, multiply and load/sto
+                       re
+    6 00000000         
+    7 00000000                 AREA    test,CODE,READONLY
+    8 00000000         
+    9 00000000 EA000002        b       %F01
+   10 00000004 3A000002        bcc     %F02
+   11 00000008 0AFFFFFF        beq     %F03
+   12 0000000C E1800000 
+                       03      orr     r0, r0, r0  ; NOP
+   13 00000010 E1800000 
+                       01      orr     r0, r0, r0  ; NOP
+   14 00000014 E1800000 
+                       02      orr     r0, r0, r0  ; NOP
+   15 00000018 EAFFFFFC        b       %B01
+   16 0000001C EAFFFFFB        b       %B01
+   17 00000020         
+   18 00000020 EB000002        bl      %F01
+   19 00000024 3B000002        blcc    %F02
+   20 00000028 0BFFFFFF        bleq    %F03
+   21 0000002C E1800000 
+                       03      orr     r0, r0, r0  ; NOP
+   22 00000030 E1800000 
+                       01      orr     r0, r0, r0  ; NOP
+   23 00000034 E1800000 
+                       02      orr     r0, r0, r0  ; NOP
+   24 00000038 EBFFFFFC        bl      %B01
+   25 0000003C EBFFFFFB        bl      %B01
+   26 00000040         
+   27 00000040 EF000001        swi     01
+   28 00000044 EF340123        swi     &340123
+   29 00000048 0F000001        swieq   01
+   30 0000004C         
+   31 0000004C         ;;; DP format 1
+   32 0000004C E3A00000        mov     r0, #0
+   33 00000050 E2853001        add     r3, r5, #1
+   34 00000054 E3570FFA        cmp     r7, #1000
+   35 00000058 E3C89CFF        bic     r9, r8, #&ff00
+   36 0000005C         ;;; DP format 2
+   37 0000005C E1A02001        mov     r2, r1
+   38 00000060 E0834002        add     r4, r3, r2
+   39 00000064 E1570009        cmp     r7, r9
+   40 00000068         ;;; DP format 3
+   41 00000068 E1A02100        mov     r2, r0, lsl #2
+   42 0000006C E0859185        add     r9, r5, r5, lsl #3
+   43 00000070 E0659185        rsb     r9, r5, r5, lsl #3
+   44 00000074 E049A228        sub     r10, r9, r8, lsr #4
+   45 00000078 E1A0C374        mov     r12, r4, ror r3
+   46 0000007C         ;;; DP shifter operands
+   47 0000007C E3A0270F        mov     r2, #&3c0000
+   48 00000080 E3A02003        mov     r2, #&3
+   49 00000084 E1A02006        mov     r2, r6
+   50 00000088 E1A02287        mov     r2, r7, lsl #5
+   51 0000008C E1A02917        mov     r2, r7, lsl r9
+   52 00000090 E1A024C9        mov     r2, r9, asr #9
+   53 00000094 E1A0206C        mov     r2, r12, rrx
+   54 00000098         
+   55 00000098 0283370F        addeq   r3, r3, #&3c0000
+   56 0000009C 02933003        addeqs  r3, r3, #&3
+   57 000000A0 E0834006        add     r4, r3, r6
+   58 000000A4 E0937287        adds    r7, r3, r7, lsl #5
+   59 000000A8 E0838917        add     r8, r3, r7, lsl r9
+   60 000000AC         ;; reserved instruction - (nv)
+   61 000000AC         ;; addnvs r9, r3, r9, asr #9
+   62 000000AC 109394C9        addnes  r9, r3, r9, asr #9
+   63 000000B0 4083A06C        addmi   r10, r3, r12, rrx
+   64 000000B4         
+   65 000000B4         ;;; Multiply
+   66 000000B4 E0040192        mul     r4, r2, r1
+   67 000000B8 E0140192        muls    r4, r2, r1
+   68 000000BC E0273998        mla     r7, r8, r9, r3
+   69 000000C0 E0C84392        smull   r4, r8, r2, r3
+   70 000000C4 E0886190        umull   r6, r8, r0, r1
+   71 000000C8 E0A85190        umlal   r5, r8, r0, r1
+   72 000000CC         
+   73 000000CC         ;;; Addressing modes for load/store
+   74 000000CC E5957005        ldr     r7, [r5, #5]
+   75 000000D0 05157005        ldreq   r7, [r5, #-5]
+   76 000000D4 17957006        ldrne   r7, [r5, r6]
+   77 000000D8 27157006        ldrcs   r7, [r5, -r6]
+   78 000000DC 27957226        ldrhs   r7, [r5, r6, lsr #4]
+   79 000000E0 37157226        ldrcc   r7, [r5, -r6, lsr #4]
+   80 000000E4 37957066        ldrlo   r7, [r5, r6, rrx]
+   81 000000E8 47157066        ldrmi   r7, [r5, -r6, rrx]
+   82 000000EC 55B57005        ldrpl   r7, [r5, #5]!
+   83 000000F0 65357005        ldrvs   r7, [r5, #-5]!
+   84 000000F4 77B57006        ldrvc   r7, [r5, r6]!
+   85 000000F8 87357006        ldrhi   r7, [r5, -r6]!
+   86 000000FC 97B57226        ldrls   r7, [r5, r6, lsr #4]!
+   87 00000100 A7357226        ldrge   r7, [r5, -r6, lsr #4]!
+   88 00000104 B7B57066        ldrlt   r7, [r5, r6, rrx]!
+   89 00000108 C7357066        ldrgt   r7, [r5, -r6, rrx]!
+   90 0000010C D495700E        ldrle   r7, [r5], #14
+   91 00000110 E415700E        ldral   r7, [r5], #-14
+   92 00000114         ;; reserved instruction (Rm=Rn with post-indexing)
+   93 00000114         ;; ldr r7, [r5], r5, lsr #4
+   94 00000114         ;; ldr r7, [r5], -r5, asr #4
+   95 00000114         ;; ldr r7, [r5], r5, rrx
+   96 00000114 E6947225        ldr     r7, [r4], r5, lsr #4
+   97 00000118 E6137245        ldr     r7, [r3], -r5, asr #4
+   98 0000011C E6927065        ldr     r7, [r2], r5, rrx
+   99 00000120 E6927225        ldr     r7, [r2], r5, lsr #4
+  100 00000124 E6127245        ldr     r7, [r2], -r5, asr #4
+  101 00000128 E6927065        ldr     r7, [r2], r5, rrx
+  102 0000012C         ;;; example of each instruction, with a fixed addressing
+                        mode
+  103 0000012C 07957006        ldreq   r7, [r5, r6]
+  104 00000130 C7857006        strgt   r7, [r5, r6]
+  105 00000134 B7D57006        ldrltb  r7, [r5, r6]
+  106 00000138 17C57006        strneb  r7, [r5, r6]
+  107 0000013C         ;; translate not allowed in pre-indexed form
+  108 0000013C         ;; ldreqt r7, [r5, r6]
+  109 0000013C         ;; strgtt r7, [r5, r6]
+  110 0000013C         ;; ldrltbt r7, [r5, r6]
+  111 0000013C         ;; strnebt r7, [r5, r6]
+  112 0000013C 06B57006        ldreqt  r7, [r5], r6
+  113 00000140 C6A57006        strgtt  r7, [r5], r6
+  114 00000144 B6F57006        ldrltbt r7, [r5], r6
+  115 00000148 16E57006        strnebt r7, [r5], r6
+  116 0000014C         
+  117 0000014C         ;;; only 6 of the addressing modes are legal for these..
+                       
+  118 0000014C E1D010B0        ldrh    r1, [r0]
+  119 00000150         ;; undefined effect - destination same as written-back b
+                       ase
+  120 00000150         ;; ldrh r1, [r1], #5
+  121 00000150 E0D170B5        ldrh    r7, [r1], #5
+  122 00000154 E05210B9        ldrh    r1, [r2], #-9
+  123 00000158 E09B10B3        ldrh    r1, [r11], r3
+  124 0000015C E01410B5        ldrh    r1, [r4], -r5
+  125 00000160 E1D380B2        ldrh    r8, [r3, #2]
+  126 00000164 E15DC0B6        ldrh    r12, [r13, #-6]
+  127 00000168 E1F380B2        ldrh    r8, [r3, #2]!
+  128 0000016C E17DC0B6        ldrh    r12, [r13, #-6]!
+  129 00000170 E19570B6        ldrh    r7, [r5, r6]
+  130 00000174 E11570B6        ldrh    r7, [r5, -r6]
+  131 00000178 E1B570B6        ldrh    r7, [r5, r6]!
+  132 0000017C E13570B6        ldrh    r7, [r5, -r6]!
+  133 00000180 E0D930B2        ldrh    r3, [r9], #2
+  134 00000184         
+  135 00000184 E1D010F0        ldrsh   r1, [r0]
+  136 00000188 E0D170F5        ldrsh   r7, [r1], #5
+  137 0000018C E05210F9        ldrsh   r1, [r2], #-9
+  138 00000190 E09B10F3        ldrsh   r1, [r11], r3
+  139 00000194 E01410F5        ldrsh   r1, [r4], -r5
+  140 00000198 E1D380F2        ldrsh   r8, [r3, #2]
+  141 0000019C E15DC0F6        ldrsh   r12, [r13, #-6]
+  142 000001A0 E1F380B2        ldrh    r8, [r3, #2]!
+  143 000001A4 E17DC0F6        ldrsh   r12, [r13, #-6]!
+  144 000001A8 E19570F6        ldrsh   r7, [r5, r6]
+  145 000001AC E11570F6        ldrsh   r7, [r5, -r6]
+  146 000001B0 E1B570F6        ldrsh   r7, [r5, r6]!
+  147 000001B4 E13570F6        ldrsh   r7, [r5, -r6]!
+  148 000001B8 E0D930F2        ldrsh   r3, [r9], #2
+  149 000001BC         
+  150 000001BC E1D010D0        ldrsb   r1, [r0]
+  151 000001C0 E0D170D5        ldrsb   r7, [r1], #5
+  152 000001C4 E05210D9        ldrsb   r1, [r2], #-9
+  153 000001C8 E09310D9        ldrsb   r1, [r3], r9
+  154 000001CC E01410D5        ldrsb   r1, [r4], -r5
+  155 000001D0 E1D380D2        ldrsb   r8, [r3, #2]
+  156 000001D4 E15DC0D6        ldrsb   r12, [r13, #-6]
+  157 000001D8 E1F380D2        ldrsb   r8, [r3, #2]!
+  158 000001DC E17DC0D6        ldrsb   r12, [r13, #-6]!
+  159 000001E0 E19570D6        ldrsb   r7, [r5, r6]
+  160 000001E4 E11570D6        ldrsb   r7, [r5, -r6]
+  161 000001E8 E1B570D6        ldrsb   r7, [r5, r6]!
+  162 000001EC E13570D6        ldrsb   r7, [r5, -r6]!
+  163 000001F0 E0D930D2        ldrsb   r3, [r9], #2
+  164 000001F4         
+  165 000001F4 E1C020B0        strh    r2, [r0]
+  166 000001F8 E0C170B5        strh    r7, [r1], #5
+  167 000001FC E04210B9        strh    r1, [r2], #-9
+  168 00000200 E08710B3        strh    r1, [r7], r3
+  169 00000204 E00410B5        strh    r1, [r4], -r5
+  170 00000208 E1C528B0        strh    r2, [r5, #0x80]
+  171 0000020C E14620B8        strh    r2, [r6, #-8]
+  172 00000210 E1E728B0        strh    r2, [r7, #0x80]!
+  173 00000214 E16820B8        strh    r2, [r8, #-8]!
+  174 00000218 E18570B6        strh    r7, [r5, r6]
+  175 0000021C E10570B6        strh    r7, [r5, -r6]
+  176 00000220 E1A570B6        strh    r7, [r5, r6]!
+  177 00000224 E12570B6        strh    r7, [r5, -r6]!
+  178 00000228 E107A0B4        strh    r10, [r7, -r4]
+  179 0000022C         
+  180 0000022C                 END
