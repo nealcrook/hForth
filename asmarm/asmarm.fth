@@ -6,12 +6,15 @@
 \ - from any ANS Forth compiler, it can be used as a way of generating
 \   binary op-codes from ARM assembler source
 \ - from hForth running on an ARM system, it can be used to generate new
-\   definitions using CODE END-CODE
+\   definitions using CODE ;CODE and END-CODE
 \
 \ Refer to asmarm.txt for documentation
 \
 \
 \ $Log$
+\ Revision 1.5  1998/10/08 20:35:11  crook
+\ add conditional hForth stuff.
+\
 \ Revision 1.4  1998/10/06 00:28:00  crook
 \ added check for legal shifter immediate.
 \
@@ -62,7 +65,6 @@ VARIABLE 'ASM,32	: ASM,32 'ASM,32 @ EXECUTE ;
 VARIABLE 'ASM.		: ASM. 'ASM. @ EXECUTE ;
 
 \ .. do a 32-bit store to an address in the target image code space
-\ TODO -- in Forth source make sure this is *only* used for code space access
 VARIABLE 'ASM!		: ASM! 'ASM! @ EXECUTE ;
 
 \ .. do a 32-bit fetch from an address in the target image code space
@@ -182,12 +184,13 @@ msg" Failed to find [ ] in SWAP addressing mode."
 msg" Cannot generate zero-size puddle for literal pool." \ 18
 msg" Need a literal pool but none has been defined."
 msg" Literal pool is full." \ 1A
-msg" Fatal internal error - bad literal pool offset."
+msg" Literal pool is unreachable."
 msg" Label number out of range." \ 1C
 msg" Unresolved forward references table is full."
 msg" Label value is already defined." \ 1E
-msg" Unresolved labels - use DUMP-SYM-TABLE for details."
+msg" Unresolved labels - use SYM-STATS for details."
 msg" Cannot use unresolved label as an immediate." \ 20
+msg" Bad operands for =, pseudo-op."
 ALIGN
 
 \ print the nth message from the array of error strings
@@ -839,11 +842,11 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 	2 CELLS * OVER + SWAP DO FFFFFFFF I ! 2 CELLS +LOOP ;
 
 \ create space for and initialise a symbol table. The symbol table is stored
-\ in data space (created HERE using ALLOT) and supports n global labels,
-\ n' local labels and n'' forward references. Add a pointer for each section of
-\ the table in order to make the local/global handling code the same.
+\ in data space (created HERE using ALLOT) and supports n-g global labels,
+\ n-l local labels and n-f forward references. Add a pointer for each section
+\ of the table in order to make the local/global handling code the same.
 VARIABLE SYM-TABLE
-: MK-SYM-TABLE ( n n' n'' -- )
+: MK-SYM-TABLE ( n-g n-l n-f -- )
 	HERE SYM-TABLE !
 	DUP , HERE 5 CELLS + , 2 CELLS * >R \ forward references
 	DUP , HERE 3 CELLS + R@ + , CELLS R> + >R \ local labels
@@ -851,19 +854,46 @@ VARIABLE SYM-TABLE
 	SYM-TABLE @ DUP DUP clr-unres 2 CELLS + clr-labels 4 CELLS + clr-labels
 ;
 
-\ TODO: show high-water mark information for the symbol table
-: SYM-TABLE-STATS
-	SYM-TABLE @
-	CR ." Symbol table has space for:"
-	DUP @ CR U. ." Unresolved forward references"
-	DUP 2 CELLS + @ CR U. ." Local labels"
-	4 CELLS + @ CR U. ." Global labels" ;
+\ print 32-bit value in hex in the format " 0xVVVV.VVVV"
+: .hex4.4 ( n -- )
+	BASE @ SWAP HEX ." 0x" S>D <# ## ## ## ## [CHAR] . HOLD ## ## ## ## #>
+	TYPE BASE ! ;
 
-\ TODO this needs to be defined in the normal word list so it can be found
-\ when it is needed
-: DUMP-SYM-TABLE
- CR ." TODO.."
-;
+\ print symbol table at address n; the addressed cell points to the list of
+\ label values and the next cell holds the number of labels in the list. In
+\ printout, label prefix is ASCII code c. Only print valid labels; those whose
+\ value is not DEADFEED
+: dump-labels ( n c -- )
+	SWAP DUP CELL+ @ SWAP @ \ char address-of-1st #labels
+	0 DO
+		DUP I CELLS + @ DEADFEED <> IF
+			CR ." .." 1 PICK EMIT I S>D <# ## ## #> TYPE ." : "
+			DUP I CELLS + @ .hex4.4
+		THEN
+	LOOP 2DROP ;
+
+\ print list of unresolved labels. n addresses a cell that holds the address
+\ of the start of the table. The next cell holds the number of unresolved
+\ entries. Each entry in the table occupies 2 cells.
+: dump-unresolved ( n -- )
+	DUP CELL+ @ SWAP @ \ address-of-1st #unresolved
+	0 DO
+		DUP I 1 LSHIFT CELLS + @ DUP FFFFFFFF <> IF
+			CR ." ..Forward reference to "
+			DUP 80000000 AND IF ." G" ELSE ." L" THEN
+			7FFFFFFF AND S>D <# ## ## #> TYPE ."  at address "
+			DUP I 1 LSHIFT CELLS + CELL+ @ .hex4.4
+		ELSE DROP THEN
+	LOOP DROP ;
+
+\ TODO: show high-water mark information for the symbol table ?
+: SYM-STATS
+	CR ." Unresolved forward references (room for "
+	SYM-TABLE @ DUP @ U. ." ) :" dump-unresolved
+	CR ." Local labels (room for "
+	SYM-TABLE @ 2 CELLS + DUP @ U. ." ) :" [CHAR] L dump-labels
+	CR ." Global labels (room for "
+	SYM-TABLE @ 4 CELLS + DUP @ U. ." ) :" [CHAR] G dump-labels ;
 
 \ create a word whose run-time action is to scan the forward ref area and
 \ generate an error if any unresolved labels exist. Clear out the labels and
@@ -878,7 +908,7 @@ VARIABLE SYM-TABLE
 		\ entry is label_number or FFFFFFFF (unused). tos holds a
 		\ flag telling us what to look for. Search the whole table and
 		\ abort if unexpected forward references exist
-		I @ FFFFFFFF = INVERT IF
+		I @ FFFFFFFF <> IF
 			\ unresolved label
 			I @ 80000000 AND OVER = IF 1F huh THEN
 		THEN
@@ -941,7 +971,7 @@ VARIABLE SYM-TABLE
 			\ resolve this label
 			DUP 80000000 AND IF I @ G# ELSE I @ L# THEN \ get value
 			I CELL+ @ DUP ASM@
-\ ." Resolve:" .S			\ label value patch-address cur-value
+			\ label value patch-address cur-value
 			0A000000 AND 0A000000 = IF
 				\ it's a branch
 				OVER OVER - 8 - 2 RSHIFT DUP FF000000 AND
@@ -951,7 +981,6 @@ VARIABLE SYM-TABLE
 				\ label value patch-address offset
 				FFFFFF AND OVER ASM@ OR SWAP ASM! DROP
 			ELSE
-\ ." Literal ref" .S
 				\ change patch address to address of literal
 				DUP ASM@ 0FFF AND - 8 +
 				ASM! \ and patch it
@@ -1021,7 +1050,7 @@ VARIABLE SYM-TABLE
 	ELSE 18 huh THEN ;
 
 : LTORG-STATS
-	CR ." Literal pool statistics"
+	CR ." Literal pool statistics:"
 	LTORG-HEAD @
 	BEGIN
 		DUP 0<>
@@ -1034,9 +1063,10 @@ VARIABLE SYM-TABLE
 	REPEAT
 	DROP CR ." (End of literal pool)" CR ;
 
-\ reserve an entry in the literal pool; return address of the entry. The
-\ entry will have been set to 0 when the pool was created.
-\ TODO: Caller must determine if the entry is reachable..
+\ Reserve an entry in the most recently created puddle of the literal pool;
+\ return the address (an address in target space) of the entry. The value of
+\ the entry will have been set to 0 when the puddle was created. No attempt
+\ is made to determine whether the entry is reachable by a 12-bit offset.
 : RESLIT ( -- n )
 	LTORG-HEAD @ DUP 0= IF 19 huh THEN
 	CELL+ >R R@ ASM@ R@ CELL+ ASM@ = IF 1A huh THEN
@@ -1045,9 +1075,9 @@ VARIABLE SYM-TABLE
 	\ and return the address of the allocated entry
 	R> DUP ASM@ 1+ CELLS + ;
 
-\ Put a value n into the literal pool and return its address n'. The literal
+\ Put a value n-v into the literal pool and return its address n-a. The literal
 \ may be new or shared. Error if literal pool is full
-: NEWLIT ( n -- n' )
+: NEWLIT ( n-v -- n-a )
 	LTORG-HEAD @
 	BEGIN
 		DUP >R 0<> \ real puddle? 
@@ -1055,8 +1085,9 @@ VARIABLE SYM-TABLE
 		\ is reachable (a conservative approximation)
 		ASM. R@ - 1004 <
 		AND
-	WHILE	\ reachable puddle.. search all used entries in it
-		\ .. need ?DO here as there may be *no* used entries
+	WHILE	\ reachable puddle.. search all used entries in it to see if
+		\ we can share an existing entry .. need ?DO here as there may
+		\ be *no* used entries in the puddle
 		R@ SWAP R@ CELL+ ASM@ 3 + CELLS R@ + R> 3 CELLS + ?DO
 			DUP I ASM@ = IF
 				( ." [Shared literal]" )
@@ -1066,40 +1097,36 @@ VARIABLE SYM-TABLE
 		4 +LOOP	SWAP ASM@ \ n address-of-next-puddle
 	REPEAT
 	\ no match found in any reachable puddle so create new entry .. value
-	\ is still at tos. This may result in a reachable entry being created
-	\ in the current literal pool even though the earlier calculation
-	\ concluded that the current literal pool was unreachable
+	\ is still at tos. Three situations may arise:
+	\ 1. Start of the puddle is reachable. In this case, the new entry
+	\    is guaranteed reachable so all is well.
+	\ 2. Start of the puddle is unreachable, but the actual entry we
+	\    just created *is* reachable (since the reachability test above
+	\    is conservative). In this case, all is well, but we may have
+	\    missed a chance to share an entry.
+	\ 3. The new entry is unreachable.
+	\ Reachability is tested by ABS2OS.
 	R> DROP RESLIT SWAP OVER ASM! ;
 
-\ TODO: there's no range test in RESLIT so the "fatal internal error" here
-\ is the escape from generating an illegal offset. Need to change the
-\ message here or else move the test to RESLIT.
 \ Create an offset for an LDR instruction for loading from a literal pool
 \ earlier in memory; the offset is -ve, and the appropriate flag is
 \ set in the op-in-progress later on. The op-code is going to go at . (dot),
-\ the value at tos is the location to be referenced.
+\ the value at tos is the location to be referenced. Error if the offset is
+\ out of range.
 : ABS2OS ( a -- o/s )
 	ASM. - 8 -
-	\ value gets range-checked in ldrstr but we should already know
-	\ that the literal is within reach so do a sanity test here
 	DUP ABS FFFFF000 AND 0 <> IF 1B huh THEN ;
 
-\ TODO: bug
-\ FF # R1 =, will map to a MOV and will generate a "too many immediates"
-\ error, ?because the =, checks and sets the immediate bit?
-\ FFFF # R1 =, will need a literal pool entry and map to an LDR
-\ but will NOT generate an error. The presence or absence of the #
-\ makes no difference to the code that is produced. The syntax ought NOT to
-\ require the #, I think. In any case, it ought to be consistent.
-
-\ attempt to translate a line of the format: immediate Rn =,
+\ Attempt to translate a line of the format: immediate Rn =,
 \ this will map into one of:
 \ MOV Rn,#immediate
 \ MVN Rn,#immediate
 \ LDR Rn,[R15,offset]
-: =, ( n -- ) \ TODO check stack behaviour.. 
+\ The immediate is on the stack. Note that the immediate does NOT require a
+\ # after it (same as ARM's assembler) and to have one will cause an error.
+: =, ( n -- )
+  this-op @ FF000000 AND IF 21 huh THEN
   this-op @ 800000 AND IF
-	\ ." =, is unresolved forward reference"
 	\ unresolved forward reference. This will have created an entry in the
 	\ forward reference table, with a value that points to . (dot) Need
 	\ to allocate a literal pool entry and emit an LDR here that points to
@@ -1130,12 +1157,6 @@ VARIABLE SYM-TABLE
 	THEN
   THEN ;
 
-\ ******************* Implementation-dependent end for CODE and ;CODE
-: END-CODE
-\ TODO pfe equivalent plus conditional
-\    linkLast
-    LOCAL-RESOLVED \ ensure all forward references are resolved
-    PREVIOUS ;
 
 \ ******************* Useful macros for hForth
 4 CONSTANT CELLL
@@ -1206,7 +1227,7 @@ CHAR " PARSE hforth" ENVIRONMENT?
 FORTH-WORDLIST SET-CURRENT	\ add the following words in FORTH-WORDLIST
 
 \ TODO -- should NOT be in FORTH-WORDLIST.. should be in FORTH
-\ .. fix up the wordlist stuff.
+\ .. fix up the wordlist stuff. ??huh??
 
 
 \   CODE	( '<spaces>name' -- )           \ TOOLS EXT
@@ -1224,13 +1245,12 @@ FORTH-WORDLIST SET-CURRENT	\ add the following words in FORTH-WORDLIST
 \		name Execution:( i*x --- j*x )
 \		Execute the machine code sequence that was generated
 \		following CODE.
-: CODE ( "<spaces>name" -- )    \ TOOLS EXT
-\ TODO xhere accesses should use the ASM words
-    xhere ALIGNED DUP TOxhere   \ align code address
-    head,			  \ register a word in dictionary
-    ALSO ASSEMBLER
-    init-asm
-;
+: CODE	( "<spaces>name" -- )    \ TOOLS EXT
+	-1 TO notNONAME?
+\ TODO xhere accesses should use the ASM words?
+	xhere ALIGNED DUP TOxhere	\ align code address
+	head,				\ register a word in dictionary
+	ALSO ASSEMBLER init-asm ;
 
 \   ;CODE	Compilation: ( C: colon-sys -- )	\ TOOLS EXT
 \		Interpretation: Interpretation semantics for this word
@@ -1257,10 +1277,17 @@ FORTH-WORDLIST SET-CURRENT	\ add the following words in FORTH-WORDLIST
 \		Perform the machine code sequence that was generated
 \		following ;CODE.
 : ;CODE
-    bal @ IF -22 THROW THEN
-    POSTPONE pipe POSTPONE [
-    ALSO ASSEMBLER init-asm
-; IMMEDIATE COMPILE-ONLY
+	bal 1- IF -22 THROW THEN        \ control structure mismatch
+	NIP 1+ IF -22 THROW THEN        \ colon-sys type is -1
+	bal- POSTPONE [
+\ TODO xhere accesses should use the ASM words?
+	xhere 2 CELLS - TOxhere
+	ALSO ASSEMBLER init-asm ; COMPILE-ONLY IMMEDIATE
+
+\ ******************* Implementation-dependent end for CODE and ;CODE
+: END-CODE
+	LOCAL-RESOLVED \ ensure all forward references are resolved
+	PREVIOUS notNONAME? IF linklast 0 to notNONAME THEN ;
 
 [THEN]
 
@@ -1271,13 +1298,3 @@ SET-ORDER  SET-CURRENT
 CR DEPTH 1- -
 [IF] .( asmarm affected DEPTH) ABORT [THEN] CR .( ..asmarm loaded OK)
 BASE !
-
-\ TODO: need to revisit and revise the usage of xhere and HERE. All data
-\ structures should be at HERE, except the literal pool, which should be
-\ at xhere because it is accessed by code. That means that we need a
-\ mechanism for accessing all spaces.. OK for the ARM, but hard for
-\ a segmented machine like the 8086.
-
-
-
-
