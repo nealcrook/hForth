@@ -5,6 +5,9 @@
 ;; $Id$
 ;;
 ;; $Log$
+;; Revision 1.2  1997/01/13 09:52:58  crook
+;; added comments on progress of debug
+;;
 ;; Revision 1.1  1997/01/13 09:44:59  crook
 ;; Initial revision
 ;;
@@ -848,24 +851,22 @@ ResetDriver     MOV     r3, #SerialChipBase
 
 		$CODE   7,'SETBAUD',SETBAUD,_SLINK
 
-		popD	r0
-
 	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
 
-DriverSpeed     SUBS	r0,r0,#1	; test for 9600
+DriverSpeed     SUBS	tos,tos,#1	; test for 9600
 		BEQ	Set9600
-		SUBS	r0,r0,#1	; and 19200
+		SUBS	tos,tos,#1	; and 19200
 		BEQ	Set19200
 	;; So we want 38400
-		LDR	r0,=Baud38400low
+		LDR	tos,=Baud38400low
 		LDR	r1,=Baud38400high
 		B	SetRate
 
-Set19200	LDR	r0,=Baud19200low
+Set19200	LDR	tos,=Baud19200low
 		LDR	r1,=Baud19200high
 		B	SetRate
 
-Set9600		LDR	r0,=Baud9600low
+Set9600		LDR	tos,=Baud9600low
 		LDR	r1,=Baud9600high
 
 SetRate		IOBADDR	r4,(COM2Port+IntEnable)	; Prevent serial interrupts while setting divisor
@@ -878,14 +879,13 @@ SetRate		IOBADDR	r4,(COM2Port+IntEnable)	; Prevent serial interrupts while setti
 	
 	;; Set the actual rate in the divisor.
 		IOBADDR	r2,(COM2Port+Dllsb)
-		STRB	r0,[r2]
+		STRB	tos,[r2]
 		IOBADDR	r2,(COM2Port+Dlmsb)
 		STRB	r1,[r2]
 
 		LDR	r1,=WordLen8		; Clear divisor access
 		IOBADDR	r2,(COM2Port+LineCntl)
 		STRB	r1,[r2]
-
 	ENDIF
 
 	IF (TARGET = "PIE")
@@ -895,16 +895,16 @@ DriverSpeed	MOV     r3, #SerialChipBase
                 TST     r1, #SRTxEmpty ; finished sending ?
                 BEQ     %B01
 
-                CMP     r0, #0 ; really change it ?
+                CMP     tos, #0 ; really change it ?
                 BLE     NoChange
 
                 MOV     r1, #DisableRxTx
                 STR     r1, [r3, #CMDR]
 
                 MOV     r1, #Baud9600 ; default baud rate
-                CMP     r0, #2
+                CMP     tos, #2
                 MOVEQ   r1, #Baud19200
-                CMP     r0, #3
+                CMP     tos, #3
                 MOVEQ   r1, #Baud38400
 
                 ORR     r1, r1, r1, LSL #4
@@ -924,7 +924,7 @@ DriverSpeed	MOV     r3, #SerialChipBase
                 STR     r1, [r3, #CMDR]
 NoChange
 	ENDIF
-
+		popD	tos
 		$NEXT
 
 
@@ -937,18 +937,18 @@ NoChange
 
 		;Demon actually, *waits* for a key across the link from
 		;the host to the target. Therefore, always returns TRUE
-		mvn	r0, #0			;push -1 (TRUE)..
-		pushD	r0
+		pushD	tos
+		mvn	tos, #0			;push -1 (TRUE)..
 	ENDIF
 
 	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
 
+		pushD	tos			;make room
 		IOBADDR	r0, (COM2Port+LineStatus)
-		LDRB	r1, [r0]		;look for a character, note that reading this
-		TST	r1, #LineDRMsk		;register also clears any errors
-		mov	r1, #0			;predict no char available
-		subne	r1, r1, #1		;change flag to -1 (TRUE)
-		pushD	r1			;push flag
+		LDRB	tos, [r0]		;look for a character, note that reading this
+		TST	tos, #LineDRMsk		;register also clears any errors
+		mov	tos, #0			;predict no char available
+		subne	tos, tos, #1		;change flag to -1 (TRUE)
 	ENDIF
 
 	IF (TARGET = "PIE")
@@ -956,13 +956,12 @@ NoChange
 ; See if a character has been received. If char available, the Z flag is CLEAR.
 ; affects r0, r1, r3
 QGetChar
+		pushD	tos
                 MOV     r3, #SerialChipBase
 		LDR     r0, [r3, #SR]		;get the status register
                 TST     r0, #SRRxReady		;character arrived
-		mov	r1, #0			;predict no char available
-		subne	r1, r1, #1		;change flag to -1 (TRUE)
-		pushD	r1			;push flag
-
+		mov	tos, #0			;predict no char available
+		subne	tos, tos, #1		;change flag to -1 (TRUE)
 	ENDIF
 		$NEXT
 
@@ -971,28 +970,28 @@ QGetChar
 
                 $CODE   3,'RX@',RXFetch,_SLINK
 
+		pushD	tos			; make room
+
 	IF ((TARGET = "EBSADEMON") :LOR: (TARGET = "PIEDEMON"))
 
-		swi	4			;SWI_ReadC
-						;return byte in r0
-		pushD	r0			;push char value
+		swi	4			;SWI_ReadC - byte is in r0
+		mov	tos,r0
 	ENDIF
 
 	IF (TARGET = "EBSABOOT") :LOR: (TARGET = "EBSAFLASH")
 
 		IOBADDR	r0, (COM2Port+LineStatus)
 		IOBADDR	r0, (COM2Port+Rx)	;Read the character
-		LDRB	r0, [r0]			
-		pushD	r0			;push char value
+		LDRB	tos, [r0]			
 	ENDIF
 
 	IF (TARGET = "PIE")
 
                 MOV     r3, #SerialChipBase
 		LDR     r0, [r3, #RHR]		;get the character
-                AND     r0, r0, #&ff		;only keep ASCII code
-		pushD	r0			;push char value
+                AND     tos, r0, #&ff		;only keep ASCII code
 	ENDIF
+
 		$NEXT
 
 ;   TX?         ( -- flag )
@@ -1007,7 +1006,8 @@ QGetChar
 
                 $CODE   3,'TX!',TXStore,_SLINK
 
-		ldr	r0, [dsp], #CELLL	;pop character
+		mov	r0, tos			;pop character to r0
+		popD	tos
 
 	IF ((TARGET = "EBSADEMON") :LOR: (TARGET = "PIEDEMON"))
 		swi	0			;SWI_WriteC - write character
@@ -1028,7 +1028,6 @@ PutByteLoop	LDRB	r2,[r1]
 
 	IF (TARGET = "PIE")
 		; affects r1, r3
-		popD	r0			;pop character
 		MOV     r3, #SerialChipBase
 PutByteLoop	LDR     r1, [r3, #SR]		;get the status register
 		TST     r1, #SRTxReady		;space for the next character?
@@ -1088,11 +1087,8 @@ PutByteLoop	LDR     r1, [r3, #SR]		;get the status register
 
                 $COLON  2,'hi',HI,_SLINK
                 DW      CR
-;;;NAC gets here OK but goes wrong returning from DoSQuote
                 D$      DoSQuote,'systemID'
-;;;NAC at this point dstack should hold (address length) for string
                 DW      ENVIRONMENTQuery,DROP,TYPEE,SPACE,DoLIT,'v',EMIT
-;;;NAC gone wrong by here because it never prints the system id
                 D$      DoSQuote,'version'
                 DW      ENVIRONMENTQuery,DROP,TYPEE
                 D$      DoDotQuote,' by Wonyong Koh, 1995'
@@ -1570,6 +1566,7 @@ QCALL1:         DW      Zero,EXIT
 ; ALGN1:          DW      Plus,EXIT
 
                 $CODE   7,'ALIGNED',ALIGNED,_FLINK
+		add	tos,tos,#3
 		and	tos, tos, #0FFFFFFFCH ;*** fix modsyntx.awk
                 $NEXT
 
@@ -2230,10 +2227,6 @@ _VAR		SETA _VAR +CELLL
                 $COLON  COMPO+4,'do."',DoDotQuote,_SLINK
                 DW      RFrom,COUNT,TwoDUP,TYPEE,Plus,ALIGNED,ToR,EXIT
 
-
-;;;NAC:	goes wrong in this routine.. when it comes to EXIT, the value on the
-;;;NAC:	return stack is wrong; one celll too small. HAven't worked out which
-;;;NAC: of the words here is going wrong.
 ;NAC documentation bug: stack-action is actually ( -- c-addr u)
 ;   doS"        ( -- c-addr )
 ;               Run-time function of S" .
