@@ -16,6 +16,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.7  1997/03/25 09:54:44  crook
+# auto-generate labels for VAR and VALUE locations
+#
 # Revision 1.6  1997/03/01 18:43:13  crook
 # change THROWMSG expansion so it doesn't require a label in the source --
 # brings it in line with Wonyong's latest.
@@ -61,6 +64,7 @@ BEGIN {
 
   foffset = " "
   soffset = " "
+  eoffset = " "
 
 # TODO: express the variables in terms of offsets from their values in
 # the original source.
@@ -171,11 +175,13 @@ function do_envir_header() {
   string_cells = int(calc_length / celll)
   #print(param[2] " requires " string_cells " cells")
   dict_pc -= (( string_cells + 3) * celll)
-  printf(";--- org 0x%x %s = 0x%x\n", dict_pc, nameoffset, dict_pc - 232) > datafile
-  printf("\t\tDCD\tENVIR%x, 0x%x %s\n", envlink, envlink, nameoffset) > datafile
+  printf(";--- org 0x%x %s = 0x%x\n", dict_pc, eoffset, dict_pc - 232) > datafile
+  printf("\t\tDCD\tENVIR%x, 0x%x %s\n", envlink, envlink, eoffset) > datafile
   envlink = dict_pc + (2 * celll)
   # length and name. 
   printf("\t\tDCB\t" param[1] "," quot param[2] quot "\n") > datafile
+
+  eoffset = nameoffset # space first time around => offset is 0
 }
 
 
