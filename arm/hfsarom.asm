@@ -2,8 +2,7 @@
 
 ;;PAGE 62,132	  ;62 lines per page, 132 characters per line
 
-;; TODO ----- this doesn't have the memory map or io equates from
-;; Carey's cogent port.
+;; TODO ----- add memory map and io equates from Carey's cogent port.
 
 ;; TODO ----- For cogent, only support MEMMAP=DEMON at the moment
 
@@ -15,12 +14,16 @@
 
 ;; TODO
 ;; 1. code trivial words (marked *) and important words (marked **)
-;; 2. merge in Wonyong's latest change to trapfpc (in mail folder)
-;; 3. can I specify flushing of an specific Icache block? (in IDflushline)
-;; 4. test coding of IDflushline xt, 2@ 2! /string um* m* name>xt 2SWAP
-;; 5. test coding of chars count D+ I J INVERT NEGATE NIP <-- at least one of these has an error.
-;; 6. there's a bug in CODE version of linklast -- should be fixed now !no! need another indirection on current
+;; 2. report bug in pack" -- uses MaxChar as though it represents
+;;    maximum *length* of counted string.
+;; 4. test coding of backslash 2@ 2! /string um* m* name>xt
+;; 5. test alias $CODE versions of (then promote) ROT UNLOOP 2OVER doS"
+;;    pack" (test THROW paths) HOLD S>D U< C, FILL (test case where fill length is 0)
+;;    .prompt
+;; 6. test error path entry to THROW in (search-wordlist)
 ;; 7. find out why double.f doesn't load and see if coreext.f loads.
+;; 8. review coding and see if use of the N (sign) flag would optimise some
+;;    arithmetic
 ;; 10. add ABORTQ" to eforth Flash programming code
 ;; 11. revamp Flash code to NOT need DRAM (or to check that it's initialised)
 ;; 12. add word FREE? (or somesuch) to determine free space in code and data areas
@@ -36,6 +39,7 @@
 ;; 20. reword descriptions at start about different build options
 ;; 21. When doing a BYE back to DEMON, flush and turn off the caches so that a
 ;;     new image can be loaded safely.
+;; 22. Add some macros that allow me to flip from code to Forth words and vice-versa.
 ;;
 ;; Issues
 ;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
@@ -105,6 +109,9 @@
 ;; generate a fatal error at build time.
 
 ;; $Log$
+;; Revision 1.12  1997/03/07 09:27:41  crook
+;; more native-coded words
+;;
 ;; Revision 1.11  1997/03/05 20:19:44  crook
 ;; revamped I/O (mostly working), some more native coded words
 ;;
@@ -1119,10 +1126,6 @@ txstoreno
 
 		$NEXT
 
-		LTORG				; assembler-generated literals
-						; are stored here.
-
-
 ;   CR		( -- )				\ CORE
 ;		Carriage return and linefeed.
 ;
@@ -1139,7 +1142,6 @@ txstoreno
 	IF (MEMMAP = "DEMON")
 		swi	011h			;SWI_Exit - halt execution and
 						;return to debugger
-		$ALIGN
 	ELSE
 		bl	DoLIST			;fake a colon definition
 		$INSTR	' Sorry - nowhere to go!'
@@ -1552,8 +1554,6 @@ coffm		EQU &ffffefff
 		popD	tos
 		$NEXT
 
-		LTORG
-
 ;   IDflushline  ( a-addr -- )
 ;		Ensure cache coherency after generating a new op-code
 ;		at a-addr. For machines with unified caches this is a DROP but
@@ -1602,17 +1602,17 @@ coffm		EQU &ffffefff
 		popD	r1		;c-addr1
 		orrs	tos, tos, tos
 		beq	SAME1	;null string always matches; exit with tos=0
-		;could have done that with a dollar-NEXT-EQ
 SAME2		ldrb	r2, [r0], #1	;char at c-addr2
 		ldrb	r3, [r1], #1	;char at c-addr1
 		cmp	r2, r3		;flags for c2>c1
-		movgt	tos, #1
-		movlt	tos, #-1
-		bne	SAME1		;mismatch. dollar-NEXT-NE would do
+		bne	SAME1		;mismatch
 		subs	tos, tos, #1
 		bne	SAME2		;match so far, more string to do
 		;match, tos=0
+		$NEXT			;could simply fall through the movCOND
 SAME1
+		movgt	tos, #1
+		movlt	tos, #-1
 		$NEXT
 
 ;   (search-wordlist)	( c-addr u wid -- 0 | xt f 1 | xt f -1)
@@ -1850,7 +1850,6 @@ QCALL1		DW	Zero,EXIT
 		movne	pc, r0			; a DOES> address.. go there
 						; (and never come back)
 		$NEXT				; no DOES> actions
-		$ALIGN
 
 ;   doTO	( x -- )
 ;		Run-time routine of TO. Store x at the address in the
@@ -1880,7 +1879,8 @@ QCALL1		DW	Zero,EXIT
 		add	tos, tos, r1
 		$NEXT
 
-		LTORG
+		LTORG				; assembler-generated literals
+						; are stored here.
 
 ;   doLIST	( -- ) ( R: -- nest-sys )
 ;		Process colon list.
@@ -1912,7 +1912,7 @@ QCALL1		DW	Zero,EXIT
 		ldr	fpc, [fpc]		;get branch dest. to loop again
 		$NEXT
 01		add	fpc, fpc, #CELLL	;ignore branch offset
-		popR	r0			;;NAC what's this dropping??
+		popR	r0			;;NAC what's this dropping?? -- can just bump rsp rather than doing memory access
 		$NEXT
 
 ;;NAC in above could delete the branch and run the other instructions
@@ -1924,14 +1924,14 @@ QCALL1		DW	Zero,EXIT
 
 		$CODE	COMPO+7,'do+LOOP',DoPLOOP,_SLINK
 		popR	r0			;loop count
-		adds	r1, r1, tos
+		adds	r0, r0, tos
 		popD	tos
 		bvs	%f01			;overflow -> end loop
 		pushR	r0			;update loop count
 		ldr	fpc, [fpc]		;loop again
 		$NEXT
 01		add	fpc, fpc, #CELLL	;ignore branch offset
-		popR	r0			;;NAC what's this dropping?
+		popR	r0			;;NAC what's this dropping? -- can just bump rsp rather than doing memory access
 		$NEXT
 
 ;   0branch	( flag -- )
@@ -2006,8 +2006,17 @@ QCALL1		DW	Zero,EXIT
 ;
 ;   : ALIGN	hereVar DUP @ ALIGNED SWAP ! ;
 
-		$COLON	5,'ALIGN',ALIGNN,_FLINK
-		DW	HereVar,DUPP,Fetch,ALIGNED,SWAP,Store,EXIT
+;		$COLON	5,'ALIGN',ALIGNN,_FLINK
+;		DW	HereVar,DUPP,Fetch,ALIGNED,SWAP,Store,EXIT
+
+		$CODE	5,'ALIGN',ALIGNN,_FLINK
+		ldr	r0,=LocHereVar
+		ldr	r1,[r0]	;point to ROM or RAM pointer
+		ldr	r2,[r1]	;get its value
+		add	r2,r2,#3
+		and	r2,r2,#0fffffffch	; round it down
+		str	r2,[r1]
+		$NEXT
 
 ;   ALIGNED	( addr -- a-addr )		\ CORE
 ;		Align address to the cell boundary.
@@ -2024,7 +2033,7 @@ QCALL1		DW	Zero,EXIT
 
 		$CODE	7,'ALIGNED',ALIGNED,_FLINK
 		add	tos, tos,#3
-		and	tos, tos, #0FFFFFFFCH ;*** fix modsyntx.awk
+		and	tos, tos, #0FFFFFFFCH ;
 		$NEXT
 
 ;   CELLS	( n1 -- n2 )			\ CORE
@@ -2073,11 +2082,12 @@ QCALL1		DW	Zero,EXIT
 		popD	tos			;clear up stack
 		$NEXT
 
-;TODO test this. Think immediate value can be 31 rather than 32
+;TODO test this. Think immediate value should be 31 rather than 32
 ;   0<		( n -- flag )			\ CORE
 ;		Return true if n is negative.
 
 		$CODE	2,'0<',ZeroLess,_FLINK
+		;TODO if I used OR below I need not load r0 -- it could be X
 		mov	r0, #0			;get zeroes for dummy arg
 		add	tos, r0, tos, asr #32	;echo bit 32 value through r1
 		$NEXT
@@ -2165,7 +2175,6 @@ QCALL1		DW	Zero,EXIT
 		mov	r1,tos
 		popD	tos
 		mov	pc,r1			;jump to the code address
-		$ALIGN
 
 ;   EXIT	( -- ) ( R: nest-sys -- )	\ CORE
 ;		Return control to the calling definition.
@@ -2337,7 +2346,6 @@ AddrNPVar	EQU	_VAR -CELLL
 ;		Point to the RAM/ROM data space pointer. Used by , or ALLOT.
 
 		$VALUE	7,'hereVar',HereVar,_SLINK
-AddrHereVar	EQU	_VAR -CELLL
 
 ;   'doWord	( -- a-addr )
 ;		Execution vectors for 'interpret'.
@@ -2406,7 +2414,6 @@ _VAR		SETA _VAR +OrderDepth*CELLL   ;search order stack
 ;		Point to the wordlist to be extended.
 
 		$VAR	7,'current',Current,_SLINK
-Addrcurrent	EQU	_VAR -CELLL
 
 ;   FORTH-WORDLIST   ( -- wid ) 		\ SEARCH
 ;		Return wid of Forth wordlist.
@@ -2624,20 +2631,40 @@ DOTO1		DW	EXIT
 		$COLON	7,'.prompt',DotPrompt,_SLINK
 		DW	TickPrompt,EXECUTE,EXIT
 
+		$CODE	7,'.Prompt',xDotPrompt,_SLINK
+		ldr	r0,=AddrTprompt
+		ldr	r1,[r0]
+		mov	pc,r1
+	
 ;   0		( -- 0 )
 ;		Return zero.
 
-		$CONST	1,'0',Zero,0,_SLINK
+;		$CONST	1,'0',Zero,0,_SLINK
+
+		$CODE	1,'0',Zero,_SLINK
+		pushD	tos
+		mov	tos,#0
+		$NEXT
 
 ;   1		( -- 1 )
 ;		Return one.
 
-		$CONST	1,'1',One,1,_SLINK
+;		$CONST	1,'1',One,1,_SLINK
+
+		$CODE	1,'1',One,_SLINK
+		pushD	tos
+		mov	tos,#1
+		$NEXT
 
 ;   -1		( -- -1 )
 ;		Return -1.
 
-		$CONST	2,'-1',MinusOne,-1,_SLINK
+;		$CONST	2,'-1',MinusOne,-1,_SLINK
+
+		$CODE	2,'-1',MinusOne,_SLINK
+		pushD	tos
+		mov	tos,#-1
+		$NEXT
 
 ;   abort"msg	( -- a-addr )
 ;		Abort" error message string address.
@@ -2675,6 +2702,8 @@ _VAR		SETA _VAR +CELLL
 		str	r1,[r0]
 		$NEXT
 
+		LTORG
+
 ;   cell-	( a-addr1 -- a-addr2 )
 ;		Return previous aligned cell address.
 ;
@@ -2687,6 +2716,7 @@ _VAR		SETA _VAR +CELLL
 		sub	tos, tos, #CELLL
 		$NEXT		
 
+;*?
 ;   COMPILE-ONLY   ( -- )
 ;		Make the most recent definition an compile-only word.
 ;
@@ -2702,6 +2732,15 @@ _VAR		SETA _VAR +CELLL
 
 		$COLON	COMPO+4,'doS"',DoSQuote,_SLINK
 		DW	RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
+
+		$CODE	COMPO+4,'DoS"',doSQuote,_SLINK
+		popR	r0
+		pushD	r0		;next addr is start of string
+		add	r0,r0,tos	;point to end of string
+		add	r0,r0,#3	;and align
+		and	r0,r0,#0fffffffch ;
+		pushR	r0
+		$NEXT
 
 ;*
 ;   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
@@ -2914,25 +2953,24 @@ DOUBC1		DW	LITERAL,EXIT
 		add	tos,tos,#(CELLL*2)
 		$NEXT
 
-;***
 ;   linkLast	( -- )
 ;		Link the word being defined to the current wordlist.
 ;		Do nothing if the last definition is made by :NONAME .
 ;
 ;   : linkLast	lastName GET-CURRENT ! ;
 
-		$COLON	8,'linkLast',LinkLast,_SLINK
-		DW	LastName,GET_CURRENT,Store,EXIT
+;		$COLON	8,'linkLast',LinkLast,_SLINK
+;		DW	LastName,GET_CURRENT,Store,EXIT
 
-;		$CODE	8,'linkLast',LinkLast,_SLINK
-;		ldr	r0,=AddrNPVar
-;		ldr	r1,[r0]
-;		ldr	r2,[r1]
-;		add	r2,r2,#(CELLL*2) ;address of last definition name
-;		ldr	r0,=Addrcurrent
-;		ldr	r1,[r0]		;wid of compilation wordlist
-;		str	r1,[r2]		;gets bumped up by new addition
-;		$NEXT
+		$CODE	8,'linkLast',LinkLast,_SLINK
+		ldr	r0,=AddrNPVar
+		ldr	r1,[r0]
+		ldr	r2,[r1]
+		add	r2,r2,#(CELLL*2) ;address of last definition name
+		ldr	r0,=LocCurrent
+		ldr	r1,[r0]		;wid of compilation wordlist
+		str	r2,[r1]		;gets bumped up by new addition
+		$NEXT
 
 ;   name>xt	( c-addr -- xt )
 ;		Return execution token using counted string at c-addr.
@@ -2947,9 +2985,6 @@ DOUBC1		DW	LITERAL,EXIT
 		ldr	tos,[r0]		;get the xt
 		$NEXT
 
-		LTORG
-
-;**
 ;   pack"	( c-addr u a-addr -- a-addr2 )
 ;		Place a string c-addr u at a-addr and gives the next
 ;		cell-aligned address. Fill the rest of the last cell with
@@ -2969,14 +3004,39 @@ PACKQ1		DW	TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
 		DW	TwoDUP,CStore,CHARPlus,SWAP
 		DW	CHARS,MOVE,RFrom,EXIT
 
-;**
+		$CODE	COMPO+5,'Pack"',xPackQuote,_SLINK
+		;assume strings don't overlap
+		popD	r0	;u
+		popD	r1	;c-addr
+		cmp	r0,#MaxChar
+		movle	tos,#-18
+		ble	THROW
+01		ldrb	r2,[r1], #CHARR
+		strb	r2,[tos], #CHARR
+		subs	r0, r0, #CHARR
+		bne	%b01
+		;next address is in tos. Need to align, filling any
+		;space with 0. r0 holds 0
+		rsb	r1,r1,#4	;take 4-r1
+		ands	r1,tos,#3	;how many bytes to fill; EQ if aligned
+02		strneb	r0,[tos], #CHARR
+		subnes	r1,r1,#1
+		bne	%b02
+;drop through if no bytes to fill or at end
+		$NEXT
+
 ;   PARSE-WORD	( "<spaces>ccc<space>" -- c-addr u )
 ;		Skip leading spaces and parse a word. Return the name.
 ;
 ;   : PARSE-WORD   BL skipPARSE ;
 
-		$COLON	10,'PARSE-WORD',PARSE_WORD,_SLINK
-		DW	BLank,SkipPARSE,EXIT
+;		$COLON	10,'PARSE-WORD',PARSE_WORD,_SLINK
+;		DW	BLank,SkipPARSE,EXIT
+
+		$CODE	10,'PARSE-WORD',PARSE_WORD,_SLINK
+		pushD	tos
+		mov	tos,#SPC
+		b	SkipPARSE
 
 ;   pipe	( -- ) ( R: xt -- )
 ;		Connect most recently defined word to code following DOES>.
@@ -3043,6 +3103,7 @@ RAKE2		DW	RakeVar,Store,DROP
 		DW	One,BalPlus,THENN
 RAKE3		DW	BalMinus,EXIT
 
+;* should be easy
 ;   rp0 	( -- a-addr )
 ;		Pointer to bottom of the return stack.
 ;
@@ -3084,6 +3145,7 @@ SEARCH1 	DW	EXIT
 		$VAR   9,'sourceVar',SourceVar,_SLINK
 _VAR		SETA _VAR +CELLL
 
+;* should be trivial
 ;   sp0 	( -- a-addr )
 ;		Pointer to bottom of the data stack.
 ;
@@ -3097,25 +3159,47 @@ _VAR		SETA _VAR +CELLL
 ;
 ;   : TOxhere	cpVar ! ;
 
-		$COLON	7,'TOxhere',TOXHere,_SLINK
-		DW	CPVar,Store,EXIT
+;		$COLON	7,'TOxhere',TOXHere,_SLINK
+;		DW	CPVar,Store,EXIT
+
+		$CODE	7,'TOxhere',TOXHere,_SLINK
+		ldr	r0,=LocCPVar
+		ldr	r1,[r0]
+		str	tos,[r1]
+		popD	tos
+		$NEXT
 
 ;   xhere	( -- a-addr )
 ;		Return next available code space address.
 ;
 ;   : xhere	cpVar @ ;
 
-		$COLON	5,'xhere',XHere,_SLINK
-		DW	CPVar,Fetch,EXIT
+;		$COLON	5,'xhere',XHere,_SLINK
+;		DW	CPVar,Fetch,EXIT
 
-;*
+		$CODE	5,'xhere',XHere,_SLINK
+		pushD	tos
+		ldr	r0,=LocCPVar
+		ldr	r1,[r0]
+		ldr	tos,[r1]
+		$NEXT
+
 ;   code,	( x -- )
 ;		Reserve one cell in code space and store x in it.
 ;
 ;   : code,	xhere DUP CELL+ TOxhere ! ;
 
-		$COLON	5,'code,',CodeComma,_SLINK
-		DW	XHere,DUPP,CELLPlus,TOXHere,Store,EXIT
+;		$COLON	5,'code,',CodeComma,_SLINK
+;		DW	XHere,DUPP,CELLPlus,TOXHere,Store,EXIT
+
+		$CODE	5,'code,',CodeComma,_SLINK
+		ldr	r0,=LocCPVar
+		ldr	r1,[r0]
+		ldr	r2,[r1]
+		str	tos,[r2],#CELLL
+		popD	tos
+		str	r2,[r1]
+		$NEXT
 
 ;
 ; Words for multitasking
@@ -3171,6 +3255,7 @@ _VAR		SETA _VAR +CELLL
 		DW	TwoDROP,HLD,Fetch,XHere,DoLIT,PADSize*CHARR,Plus
 		DW	OVER,Minus,OneCharsSlash,EXIT
 
+;* - replicate the code for # within a loop
 ;   #S		( ud -- 0 0 )			\ CORE
 ;		Convert ud until all digits are added to the output string.
 ;
@@ -3219,15 +3304,23 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 		popD	tos
 		$NEXT
 
-;*
 ;   ,		( x -- )			\ CORE
 ;		Reserve one cell in RAM or ROM data space and store x in it.
 ;
 ;   : , 	HERE ! cell-size hereVar +! ;
 
-		$COLON	1,',',Comma,_FLINK
-		DW	HERE,Store
-		DW	DoLIT,CELLL,HereVar,PlusStore,EXIT
+;		$COLON	1,',',Comma,_FLINK
+;		DW	HERE,Store
+;		DW	DoLIT,CELLL,HereVar,PlusStore,EXIT
+
+		$CODE	1,',',Comma,_FLINK
+		ldr	r0,=LocHereVar
+		ldr	r1,[r0]	;point to ROM or RAM pointer
+		ldr	r2,[r1] ;get its value
+		str	tos,[r2],#CELLL
+		popD	tos
+		str	r2,[r1]
+		$NEXT
 
 ;   -		( n1|u1 n2|u2 -- n3|u3 )	\ CORE
 ;		Subtract n2|u2 from n1|u1, giving the difference n3|u3.
@@ -3242,6 +3335,7 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 		sub	tos,r1,tos
 		$NEXT
 
+;* replicate S>D code and b to DDot
 ;   .		( n -- )			\ CORE
 ;		Display a signed number followed by a space.
 ;
@@ -3258,8 +3352,7 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 		$COLON	1,'/',Slash,_FLINK
 		DW	SlashMOD,NIP,EXIT
 
-;** fyi: can code the initial part then JMP to FM/MOD, assuming that is CODE too
-;** -- in fact, it may even work if the destination is COLON..
+;** code the initial part then b to FM/MOD
 ;   /MOD	( n1 n2 -- n3 n4 )		\ CORE
 ;		Divide n1 by n2, giving single-cell remainder n3 and
 ;		single-cell quotient n4.
@@ -3441,6 +3534,7 @@ SEMI3		DW	DoLIT,EXIT,COMPILEComma
 		DW	DROP,ZeroLess,EXIT
 LESS1		DW	Minus,ZeroLess,EXIT
 
+;* easy
 ;   <#		( -- )				\ CORE
 ;		Initiate the numeric output conversion process.
 ;		||xhere>WORD/#-work-area|
@@ -3523,6 +3617,7 @@ TONUM3		DW	EXIT
 		strne	tos, [dsp, # - CELLL]!	;pushD if ne
 		$NEXT
 
+;* trivial
 ;   ABORT	( i*x -- ) ( R: j*x -- )	\ EXCEPTION EXT
 ;		Reset data stack and jump to QUIT.
 ;
@@ -3647,15 +3742,17 @@ AGAIN1		DW	DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 		add	tos, tos, #CHARR
 		$NEXT
 
-;*
 ;   COMPILE,	( xt -- )			\ CORE EXT
 ;		Compile the execution token on data stack into current
 ;		colon definition.
 ;
 ;   : COMPILE,	code, ; COMPILE-ONLY
 
-		$COLON	COMPO+8,'COMPILE,',COMPILEComma,_FLINK
-		DW	CodeComma,EXIT
+;		$COLON	COMPO+8,'COMPILE,',COMPILEComma,_FLINK
+;		DW	CodeComma,EXIT
+
+		$CODE	COMPO+8,'COMPILE,',COMPILEComma,_FLINK
+		b	CodeComma
 
 ;   CONSTANT	( x "<spaces>name" -- ) 	\ CORE
 ;		name Execution: ( -- x )
@@ -3681,7 +3778,7 @@ CONST1		DW	DoLIT,DoCONST,xtComma,HeadComma,CodeComma,LinkLast,EXIT
 ;		DW	DUPP,CHARPlus,SWAP,CFetch,EXIT
 
 		$CODE	5,'COUNT',COUNT,_FLINK
-		ldr	r0,[tos]	;u
+		ldrb	r0,[tos]	;u
 		add	tos,tos,#1
 		pushD	tos
 		mov	tos,r0
@@ -3708,7 +3805,6 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 		DW	ALIGNN,HERE,SWAP,CELLPlus,Store
 		DW	LinkLast,EXIT
 
-;*
 ;   D+		( d1|ud1 d2|ud2 -- d3|ud3 )	\ DOUBLE
 ;		Add double-cell numbers.
 ;
@@ -3719,8 +3815,7 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 ;		DW	RFrom,RFrom,Plus,Plus,EXIT
 
 		$CODE	2,'D+',DPlus,_FLINK
-		;tos = d2H
-		popD	r0	;d2L
+		popD	r0	;d2L (tos is d2H)
 		popD	r1	;d1H
 		popD	r2	;d1L
 		adds	r3,r0,r2
@@ -3736,6 +3831,7 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 		$COLON	2,'D.',DDot,_FLINK
 		DW	ParenDDot,TYPEE,SPACE,EXIT
 
+;* trivial
 ;   DECIMAL	( -- )				\ CORE
 ;		Set the numeric conversion radix to decimal 10.
 ;
@@ -3744,6 +3840,7 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 		$COLON	7,'DECIMAL',DECIMAL,_FLINK
 		DW	DoLIT,10,BASE,Store,EXIT
 
+;*
 ;   DEPTH	( -- +n )			\ CORE
 ;		Return the depth of the data stack.
 ;
@@ -3753,16 +3850,24 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 		DW	SPFetch,SPZero,SWAP,Minus
 		DW	DoLIT,CELLL,Slash,EXIT
 
-;*
 ;   DNEGATE	( d1 -- d2 )			\ DOUBLE
 ;		Two's complement of double-cell number.
 ;
 ;   : DNEGATE	INVERT >R INVERT 1 um+ R> + ;
 
-		$COLON	7,'DNEGATE',DNEGATE,_FLINK
-		DW	INVERT,ToR,INVERT
-		DW	One,UMPlus
-		DW	RFrom,Plus,EXIT
+;		$COLON	7,'DNEGATE',DNEGATE,_FLINK
+;		DW	INVERT,ToR,INVERT
+;		DW	One,UMPlus
+;		DW	RFrom,Plus,EXIT
+
+		$CODE	7,'DNEGATE',DNEGATE,_FLINK
+		popD	r0
+		mvn	tos,tos	;1's complement of high part
+		mvn	r0,r0	;1's complement of lo part
+		adds	r0,r0,#1
+		adc	tos,tos,#0
+		pushD	r0
+		$NEXT
 
 ;   EKEY	( -- u )			\ FACILITY EXT
 ;		Receive one keyboard event u.
@@ -3773,14 +3878,18 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 EKEY1		DW	PAUSE,EKEYQuestion,ZBranch,EKEY1
 		DW	TickEKEY,EXECUTE,EXIT
 
-;*
 ;   EMIT	( x -- )			\ CORE
 ;		Send a character to the output device.
 ;
 ;   : EMIT	'emit EXECUTE ;
 
-		$COLON	4,'EMIT',EMIT,_FLINK
-		DW	TickEMIT,EXECUTE,EXIT
+;		$COLON	4,'EMIT',EMIT,_FLINK
+;		DW	TickEMIT,EXECUTE,EXIT
+
+		$CODE	4,'EMIT',EMIT,_FLINK
+		ldr	r0,=AddrTEMIT
+		ldr	r1,[r0]
+		mov	pc,r1
 
 ;**
 ;   FM/MOD	( d n1 -- n2 n3 )		\ CORE
@@ -3814,6 +3923,7 @@ FMMOD6		DW	EXIT
 FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		DW	DoLIT,-11,THROW
 
+;*
 ;   GET-CURRENT   ( -- wid )			\ SEARCH
 ;		Return the indentifier of the compilation wordlist.
 ;
@@ -3827,10 +3937,16 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 ;
 ;   : HERE	hereVar @ ;
 
-		$COLON	4,'HERE',HERE,_FLINK
-		DW	HereVar,Fetch,EXIT
+;		$COLON	4,'HERE',HERE,_FLINK
+;		DW	HereVar,Fetch,EXIT
 
-;**
+		$CODE	4,'HERE',HERE,_FLINK
+		pushD	tos
+		ldr	r0,=LocHereVar
+		ldr	r1,[r0]	;point to ROM or RAM pointer
+		ldr	tos,[r1] ;get its value
+		$NEXT
+
 ;   HOLD	( char -- )			\ CORE
 ;		Add char to the beginning of pictured numeric output string.
 ;
@@ -3840,7 +3956,14 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		DW	HLD,Fetch,DoLIT,0-CHARR,Plus
 		DW	DUPP,HLD,Store,CStore,EXIT
 
-;*
+		$CODE	4,'hOLD',xHOLD,_FLINK
+		ldr	r0,=LocHLD
+		ldr	r1,[r0]
+		sub	r1,r1,#CHARR
+		strb	tos,[r1]
+		str	r1,[r0]
+		$NEXT
+
 ;   I		( -- n|u ) ( R: loop-sys -- loop-sys )	\ CORE
 ;		Push the innermost loop index.
 ;
@@ -3853,8 +3976,8 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 
 		$CODE	COMPO+1,'I',I,_FLINK
 		pushD	tos
-		ldr	r0,[rsp, #CELLL]
-		ldr	tos,[rsp, #(CELLL*2)]
+		ldr	r0,[rsp] ; note we're one CELLL closer to the tos in CODE
+		ldr	tos,[rsp, #CELLL]
 		add	tos,tos,r0
 		$NEXT
 
@@ -3883,6 +4006,7 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		$CODE	6,'INVERT',INVERT,_FLINK
 		mvn	tos,tos
 		$NEXT
+
 ;*
 ;   KEY 	( -- char )			\ CORE
 ;		Receive a character. Do not display char.
@@ -3892,6 +4016,7 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		$COLON	3,'KEY',KEY,_FLINK
 		DW	EKEY,DoLIT,MaxChar,ANDD,EXIT
 
+;* easy
 ;   LITERAL	Compilation: ( x -- )		\ CORE
 ;		Run-time: ( -- x )
 ;		Append following run-time semantics. Put x on the stack on
@@ -3926,6 +4051,8 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		$CODE	3,'NIP',NIP,_FLINK
 		popD	r0
 		$NEXT
+
+		LTORG
 
 ;**
 ;   PARSE	( char "ccc<char>"-- c-addr u ) 	\ CORE EXT
@@ -4008,7 +4135,6 @@ REFIL1		DW	NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 		DW	DoLIT,PADSize*CHARR,ACCEPT,SourceVar,TwoStore
 		DW	Zero,ToIN,Store,MinusOne,EXIT
 
-;*
 ;   ROT 	( x1 x2 x3 -- x2 x3 x1 )	\ CORE
 ;		Rotate the top three data stack items.
 ;
@@ -4017,7 +4143,14 @@ REFIL1		DW	NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 		$COLON	3,'ROT',ROT,_FLINK
 		DW	ToR,SWAP,RFrom,SWAP,EXIT
 
-;*
+		$CODE	3,'rOT',rOT,_FLINK
+		popD	r0	;x2 (tos=x3)
+		popD	r1	;x1
+		pushD	r0
+		pushD	tos
+		mov	tos,r1
+		$NEXT
+
 ;   S>D 	( n -- d )			\ CORE
 ;		Convert a single-cell number n to double-cell number.
 ;
@@ -4025,6 +4158,14 @@ REFIL1		DW	NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 
 		$COLON	3,'S>D',SToD,_FLINK
 		DW	DUPP,ZeroLess,EXIT
+
+		$CODE	3,'s>D',xSToD,_FLINK
+		pushD	tos
+		mov	r1,#0
+		;sign-extend tos into tos to form ms of double
+		;TODO if I used OR below I need not load r1 -- it could be X
+		add	tos,r1,tos,asr #32	;should this be 31?
+		$NEXT
 
 ;   SEARCH-WORDLIST	( c-addr u wid -- 0 | xt 1 | xt -1)	\ SEARCH
 ;		Search word list for a match with the given name.
@@ -4050,6 +4191,7 @@ SRCHW1		DW	EXIT
 		DW	DoLIT,'-',HOLD
 SIGN1		DW	EXIT
 
+;*
 ;   SOURCE	( -- c-addr u ) 		\ CORE
 ;		Return input buffer string.
 ;
@@ -4058,14 +4200,18 @@ SIGN1		DW	EXIT
 		$COLON	6,'SOURCE',SOURCE,_FLINK
 		DW	SourceVar,TwoFetch,EXIT
 
-;*
 ;   SPACE	( -- )				\ CORE
 ;		Send the blank character to the output device.
 ;
 ;   : SPACE	32 EMIT ;
 
-		$COLON	5,'SPACE',SPACE,_FLINK
-		DW	BLank,EMIT,EXIT
+;		$COLON	5,'SPACE',SPACE,_FLINK
+;		DW	BLank,EMIT,EXIT
+
+		$CODE	5,'SPACE',SPACE,_FLINK
+		pushD	tos
+		mov	tos,#SPC
+		b	EMIT
 
 ;   STATE	( -- a-addr )			\ CORE
 ;		Return the address of a cell containing compilation-state flag
@@ -4120,7 +4266,6 @@ THROW1		DW	EXIT
 TYPE1		DW	DUPP,CFetch,EMIT,CHARPlus,DoLOOP,TYPE1
 TYPE2		DW	DROP,EXIT
 
-;**
 ;   U<		( u1 u2 -- flag )		\ CORE
 ;		Unsigned compare of top two items. True if u1 < u2.
 ;
@@ -4131,6 +4276,13 @@ TYPE2		DW	DROP,EXIT
 		DW	ZBranch,ULES1
 		DW	NIP,ZeroLess,EXIT
 ULES1		DW	Minus,ZeroLess,EXIT
+
+		$CODE	2,'u<',xULess,_FLINK
+		popD	r0	;u1
+		cmp	r0,tos
+		ldrlt	tos,=TRUEE
+		ldrge	tos,=FALSEE
+		$NEXT
 
 ;   UM* 	( u1 u2 -- ud ) 		\ CORE
 ;		Unsigned multiply. Return double-cell product.
@@ -4185,7 +4337,6 @@ UMM3		DW	RFrom,DoLOOP,UMM1
 UMM5		DW	DoLIT,-10,THROW
 UMM4		DW	DoLIT,-11,THROW
 
-;*
 ;   UNLOOP	( -- ) ( R: loop-sys -- )	\ CORE
 ;		Discard loop-control parameters for the current nesting level.
 ;		An UNLOOP is required for each nesting level before the
@@ -4195,6 +4346,13 @@ UMM4		DW	DoLIT,-11,THROW
 
 		$COLON	COMPO+6,'UNLOOP',UNLOOP,_FLINK
 		DW	RFrom,RFrom,RFrom,TwoDROP,ToR,EXIT
+
+;note: code version doesn't save fpc on return stack and so
+; it doesn't have to do the same save/restore as the colon version
+		$CODE	COMPO+6,'uNLOOP',uNLOOP,_FLINK
+		popR	r0
+		popR	r0	;TODO can just bump it up
+		$NEXT
 
 ;*
 ;   WITHIN	( n1|u1 n2|n2 n3|u3 -- flag )	\ CORE EXT
@@ -4212,16 +4370,28 @@ UMM4		DW	DoLIT,-11,THROW
 ;
 ;   : [ 	0 STATE ! ; COMPILE-ONLY IMMEDIATE
 
-		$COLON	IMMED+COMPO+1,'[',LeftBracket,_FLINK
-		DW	Zero,STATE,Store,EXIT
+;		$COLON	IMMED+COMPO+1,'[',LeftBracket,_FLINK
+;		DW	Zero,STATE,Store,EXIT
+
+		$CODE	IMMED+COMPO+1,'[',LeftBracket,_FLINK
+		ldr	r0,=LocSTATE
+		mov	r1,#0
+		str	r1,[r0]
+		$NEXT
 
 ;   ]		( -- )				\ CORE
 ;		Enter compilation state.
 ;
 ;   : ] 	-1 STATE ! ;
 
-		$COLON	1,']',RightBracket,_FLINK
-		DW	MinusOne,STATE,Store,EXIT
+;		$COLON	1,']',RightBracket,_FLINK
+;		DW	MinusOne,STATE,Store,EXIT
+
+		$CODE	1,']',RightBracket,_FLINK
+		ldr	r0,=LocSTATE
+		mov	r1,#-1
+		str	r1,[r0]
+		$NEXT
 
 ;;;;;;;;;;;;;;;;
 ; Rest of CORE words and two facility words, EKEY? and EMIT?
@@ -4293,7 +4463,6 @@ UMM4		DW	DoLIT,-11,THROW
 		$COLON	IMMED+COMPO+2,'."',DotQuote,_FLINK
 		DW	SQuote,DoLIT,TYPEE,COMPILEComma,EXIT
 
-;*
 ;   2OVER	( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )	  \ CORE
 ;		Copy cell pair x1 x2 to the top of the stack.
 ;
@@ -4301,6 +4470,13 @@ UMM4		DW	DoLIT,-11,THROW
 
 		$COLON	5,'2OVER',TwoOVER,_FLINK
 		DW	ToR,ToR,TwoDUP,RFrom,RFrom,TwoSWAP,EXIT
+
+		$CODE	5,'2oVER',TwooVER,_FLINK
+		pushD	tos
+		ldr	r0, [dsp, #-(CELLL*3)] ;x1
+		ldr	tos, [dsp, #-(CELLL*2)] ;x2
+		pushD	r0
+		$NEXT
 
 ;   >BODY	( xt -- a-addr )		\ CORE
 ;		Push data field address of CREATEd word.
@@ -4338,7 +4514,7 @@ TBODY1		DW	DoLIT,-31,THROW
 		DW	ELSEE,DoLIT,TwoDROP,COMPILEComma ; ELSE and THEN are
 		DW	THENN,EXIT			 ; immediate
 
-;*
+;* can I just AND with 7ffff.ffff to knock off the sign bit?
 ;   ABS 	( n -- u )			\ CORE
 ;		Return the absolute value of n.
 ;
@@ -4354,8 +4530,17 @@ ABS1		DW	EXIT
 ;
 ;   : ALLOT	hereVar +! ;
 
-		$COLON	5,'ALLOT',ALLOT,_FLINK
-		DW	HereVar,PlusStore,EXIT
+;		$COLON	5,'ALLOT',ALLOT,_FLINK
+;		DW	HereVar,PlusStore,EXIT
+
+		$CODE	5,'ALLOT',ALLOT,_FLINK
+		ldr	r0,=LocHereVar
+		ldr	r1,[r0]	;point to ROM or RAM pointer
+		ldr	r2,[r1] ;get its value
+		add	r2,tos,r2
+		popD	tos
+		str	r2,[r1]
+		$NEXT
 
 ;   BEGIN	( C: -- dest )			\ CORE
 ;		Start an infinite or indefinite loop structure. Put the next
@@ -4373,8 +4558,17 @@ ABS1		DW	EXIT
 ;
 ;   : C,	HERE C! char-size hereVar +! ;
 
-		$COLON	2,'C,',CComma,_FLINK
-		DW	HERE,CStore,DoLIT,CHARR,HereVar,PlusStore,EXIT
+;		$COLON	2,'C,',CComma,_FLINK
+;		DW	HERE,CStore,DoLIT,CHARR,HereVar,PlusStore,EXIT
+
+		$CODE	2,'C,',CComma,_FLINK
+		ldr	r0,=LocHereVar
+		ldr	r1,[r0]	;point to ROM or RAM pointer
+		ldr	r2,[r1]	;get its value
+		strb	tos,[r2],#CHARR
+		str	r2,[r1]
+		popD	tos
+		$NEXT
 
 ;   CHAR	( "<spaces>ccc" -- char )	\ CORE
 ;		Parse next word and return the value of first character.
@@ -4453,7 +4647,6 @@ ENVRN1		DW	RFrom,EXIT
 		DW	RFrom,DoTO,AddrSOURCE_ID
 		DW	RFrom,ToIN,Store,RFrom,RFrom,SourceVar,TwoStore,EXIT
 
-;*
 ;   FILL	( c-addr u char -- )		\ CORE
 ;		Store char in each of u consecutive characters of memory
 ;		beginning at c-addr.
@@ -4465,6 +4658,16 @@ ENVRN1		DW	RFrom,EXIT
 		DW	Zero,DoDO
 FILL1		DW	TwoDUP,CStore,CHARPlus,DoLOOP,FILL1
 FILL2		DW	TwoDROP,EXIT
+
+		$CODE	4,'fILL',xFILL,_FLINK
+		popD	r0	;count
+		popD	r1	;dest
+		orrs	r0,r0,r0;drop straight through if length is 0
+01		strneb	tos,[r1],#CHARR
+		subnes	r0,r0,#CHARR
+		bne	%b01
+		popD	tos
+		$NEXT
 
 ;   FIND	( c-addr -- c-addr 0 | xt 1 | xt -1)	 \ SEARCH
 ;		Search dictionary for a match with the given counted name.
@@ -4479,6 +4682,7 @@ FILL2		DW	TwoDROP,EXIT
 		DW	NIP,ROT,DROP,EXIT
 FIND1		DW	TwoDROP,Zero,EXIT
 
+;* like compile-only
 ;   IMMEDIATE	( -- )				\ CORE
 ;		Make the most recent definition an immediate word.
 ;
@@ -4499,8 +4703,8 @@ FIND1		DW	TwoDROP,Zero,EXIT
 
 		$CODE	COMPO+1,'J',J,_FLINK
 		pushD	tos
-		ldr	r0,[rsp, #(CELLL*3)]
-		ldr	tos,[rsp, #(CELLL*4)]
+		ldr	r0,[rsp, #(CELLL*2)] ;note that we're one CELLL closer to the tos in CODE
+		ldr	tos,[rsp, #(CELLL*3)]
 		add	tos,tos,r0
 		$NEXT
 
@@ -4558,27 +4762,37 @@ FIND1		DW	TwoDROP,Zero,EXIT
 		pushD	r1			;ms 32-bits are at top of stack
 		$NEXT
 
-;*
 ;   MAX 	( n1 n2 -- n3 ) 		\ CORE
 ;		Return the greater of two top stack items.
 ;
 ;   : MAX	2DUP < IF SWAP THEN DROP ;
 
-		$COLON	3,'MAX',MAX,_FLINK
-		DW	TwoDUP,LessThan,ZBranch,MAX1
-		DW	SWAP
-MAX1		DW	DROP,EXIT
+;		$COLON	3,'MAX',MAX,_FLINK
+;		DW	TwoDUP,LessThan,ZBranch,MAX1
+;		DW	SWAP
+;MAX1		DW	DROP,EXIT
 
-;*
+		$CODE	3,'MAX',MAX,_FLINK
+		popD	r0
+		cmp	r0,tos
+		movgt	tos,r0
+		$NEXT
+
 ;   MIN 	( n1 n2 -- n3 ) 		\ CORE
 ;		Return the smaller of top two stack items.
 ;
 ;   : MIN	2DUP > IF SWAP THEN DROP ;
 
-		$COLON	3,'MIN',MIN,_FLINK
-		DW	TwoDUP,GreaterThan,ZBranch,MIN1
-		DW	SWAP
-MIN1		DW	DROP,EXIT
+;		$COLON	3,'MIN',MIN,_FLINK
+;		DW	TwoDUP,GreaterThan,ZBranch,MIN1
+;		DW	SWAP
+;MIN1		DW	DROP,EXIT
+
+		$CODE	3,'MIN',MIN,_FLINK
+		popD	r0
+		cmp	r0,tos
+		movlt	tos,r0
+		$NEXT
 
 ;   MOD 	( n1 n2 -- n3 ) 		\ CORE
 ;		Divide n1 by n2, giving the single cell remainder n3.
@@ -4589,6 +4803,7 @@ MIN1		DW	DROP,EXIT
 		$COLON	3,'MOD',MODD,_FLINK
 		DW	SlashMOD,DROP,EXIT
 
+;*
 ;   PICK	( x_u ... x1 x0 u -- x_u ... x1 x0 x_u )	\ CORE EXT
 ;		Remove u and copy the uth stack item to top of the stack. An
 ;		ambiguous condition exists if there are less than u+2 items
@@ -4751,8 +4966,13 @@ TO1		DW	DoLIT,-32,THROW
 ;
 ;   : U.	0 D. ;
 
-		$COLON	2,'U.',UDot,_FLINK
-		DW	Zero,DDot,EXIT
+;		$COLON	2,'U.',UDot,_FLINK
+;		DW	Zero,DDot,EXIT
+
+		$CODE	2,'U.',UDot,_FLINK
+		pushD	tos
+		mov	tos,#0
+		b	DDot
 
 ;   UNTIL	( C: dest -- )			\ CORE
 ;		Terminate a BEGIN-UNTIL indefinite loop structure.
@@ -4848,6 +5068,15 @@ VARIA1		DW	DoLIT,DoCONST,xtComma,HeadComma
 
 		$COLON	IMMED+1,'\',Backslash,_FLINK
 		DW	SOURCE,ToIN,Store,DROP,EXIT
+
+		$CODE	IMMED+1,'%',xBackslash,_FLINK
+		ldr	r0,=LocSourceVar
+		ldr	r1,[r0]
+		ldr	r3,=LocToIN
+		str	r1,[r3]
+		$NEXT
+
+		LTORG
 
 ; Optional Facility words
 
