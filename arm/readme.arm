@@ -1,5 +1,37 @@
 $Id$
 
+
+Change History
+==============
+
+18-Aug-1997 1st release
+??-Jan-1999 Revised release. Updated hForth source to match Dr Koh's
+	    latest code. Minor bug fixes in ARM port. Added support
+ 	    for Angel debug monitor. Added support for LSI Logic
+	    EB-AMCU board.
+
+
+Contents
+========
+
+* Change History
+* Contents
+* File List
+* What is Forth?
+* What it hForth?
+* This implementation
+* Supported Targets
+* Getting Started
+* Loading New Definitions
+* Modifying hForth
+* Known Bugs
+* Further Reading
+* Warranty and Kudos
+* Appendix: Terminal setup
+
+File List
+=========
+
 hf.tar contains these files:
 
 readme.arm	- this file.
@@ -17,8 +49,18 @@ hf110bl.aif	- executable for the EBSA-110. Can be blown into
 hf110dm.aif	- executable for the EBSA-110. Can be run from
 		  the ARMulator or on a board using DEMON
 		  remote-debug stub.
+hf110an.aif	- executable for the EBSA-110. Can be run from
+		  the ARMulator or on a board using Angel
+		  remote-debug stub.
 hf285bl.aif	- executable for the EBSA-285. Can be blown into
 		  any Flash block.
+hfmcubo.bin     - executable for the EB-AMCU. Can be blown into
+		  boot block and run from reset, or blown into
+ 		  any other block and loaded by the EB-AMCU
+		  Diagnostic/PIL.
+hfmcuan.aif	- executable for the EB-AMCU. Can be run from
+		  the ARMulator or on a board using Angel
+		  remote-debug stub. Loads and runs at 0x8000
 
 hfsarom.asm	- assembler source file.
 build		- UNIX sh script to rebuild from source.
@@ -36,7 +78,7 @@ optional.f	}
 285_hu.f	- Forth definitions for the EBSA-285 board.
 
 
-What is FORTH?
+What is Forth?
 ==============
 
     Forth is an unusual computer programming language. It is a stack-based
@@ -61,7 +103,7 @@ What is FORTH?
     'debug monitor' functions whilst allowing target-specific additions.
     
 
-What is hFORTH
+What is hForth
 ==============
 
     hForth is derived from eForth by Dr. Wonyong Koh. Refer to readme.eng
@@ -90,7 +132,6 @@ This implementation
     the port.
 
 
-
 Supported Targets
 =================
 
@@ -112,54 +153,63 @@ Supported Targets
     with DMA controllers, UART, interrupt controller, timers and other
     useful functions.
 
-    Image files are provided for both of these boards.
+    I later ported the code to run on the EB-AMCU, which uses the
+    ARM7TDMI core within an LSI Logic ASIC called the AMCU. This
+    board is supported:
 
-    The build file allows you to rebuild the code for some other
+    EB-AMCU - this is an evaluation board for the LSI Logic AMCU
+    chip.
+
+    Image files are provided for all of these boards, but only
+    the EB-AMCU images have been tested in this release. The
+    build file allows you to rebuild the code for some other
     targets, but these are untested and may not work correctly.
 
     If you build the code to run on an older version of the ARM
-    architecture, don;t try to use the memory-management words
+    architecture, don't try to use the memory-management words
     or the 16-bit loads and stores; these will attempt to execute
     instructions that are not implemented!
-    
-    For more information on Digital Semiconductor products:
-    - visit http://www.digital.com/semiconductor
-    - email semiconductor@digital.com
 
 
 Getting Started
 ===============
 
-    Pre-build images are provided for the EBSA-285 and EBSA-110. The
-    basic process is:
+    Pre-build images are provided for the EBSA-285, EBSA-110
+    and EB-AMCU. The basic process is:
 
     - use the Flash Management Utility (FMU) to program the image
       into a spare Flash ROM block
-    - change the jumpers/swicth on the board to make the Primary
+    - change the jumpers/switch on the board to make the Primary
       Boot Loader (PBL) start up the new image
     - connect a terminal emulator to the board and reset.
 
     Read the Reference Manual for the board for more information on
     the PBL and FMU.
 
-    A suitable terminal emulator is the Windows terminal emulator.
-    You need a null-modem cable and a terminal set to 9600baud,
-    XON/XOFF flow control, no parity, 8-bit, 1 stop bit. When you
-    reset the system you should see a sign-on message like this:
+    Connect to the COM1 port of your target board using a null-modem
+    cable and run a terminal emulator on your host (refer to the
+    appendix for suitable configurations of terminal emulator). When
+    you reset the system you should see a sign-on message like this:
  
-hForth StrongARM ROM Model v0.9.9 by Wonyong Koh, 1997
-StrongARM port by neal.crook@reo.mts.dec.com
+hForth ARM ROM Model v0.9.9 by Wonyong Koh, 1997
+ARM7TDMI/StrongARM port by nac@forth.org
 All noncommercial and commercial uses are granted.
 Please send comment, bug report and suggestions to:
   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr
 
 
-    On the EBSA-285, the yellow and green LEDs should be illuminated.
-    On the EBSA-110, the red LED should be extinguished. If you get
+    EBSA-285: the yellow and green LEDs should be illuminated.
+    If you get the sign-on message but cannot get any response
+    when you press return on the terminal, check that the
+    terminal/cable are set up correctlyt and that the
+    Stand-Alone link is set correctly.
+
+    EBSA-110: the red LED should be extinguished. If you get
     some other behaviour, check that you have set the image
-    jumpers/switch correctly. If, on the EBSA-285, you get the
-    sign-on message but cannot get any response when you press return
-    on the terminal, check that the Stand-Alone link is set correctly.
+    jumpers/switch correctly. 
+
+    If you see no response and you are confident that the cable
+    and host end are OK, try connecting to COM2 instead..
 
     Note that there is no prompt. This is another way that Forth is
     unusual; *after* it has done something it reports whether it was
@@ -187,7 +237,9 @@ Please send comment, bug report and suggestions to:
     The hForth programmed into Flash 'understands' a limited set of commands.
     You can expand its 'vocabulary' by downloading additional definitions
     as described in a later section. Load the definitions optional.f and
-    coreext.f before continuing with the examples in this section.
+    coreext.f before continuing with the examples in this section (refer to
+    the next section "Loading New Definitions" to find out how to load these
+    files).
 
     Use the command WORDS to find out what has been defined:
 
@@ -327,14 +379,8 @@ Loading New Definitions
 =======================
 
     If you are communicating with hForth through a terminal emulator
-    then you can easily download new definitions from a file. Use a
-    terminal emulator like the one provided with Microsoft Windows,
-    and set it up like this:
-
-    settings => communications: * 9600baud * XON/XOFF flow control *
-    no parity * 8 bit * 1 stop bit
-
-    settings => text transfers: * standard flow control
+    then you can easily download new definitions from a file. Refer
+    to the appendix for terminal setup information.
 
     To download a file, type FILE <return>, select Transfers => send text
     file on the terminal emulator and select the file to be sent to the
@@ -358,13 +404,17 @@ Loading New Definitions
     You can use this technique to download the .f files provided in the
     kit. Download them one-at-a-time in this order:
 
-    optional.f coreext.f multi.f 285_hu.f
+    optional.f coreext.f multi.f
 
-    (for the EBSA-110, download 110_hu.f instead of 285_hu.f)
+    then a board-specific file:
+    EBSA-285: 285_hu.f
+    EBSA-110: 110_hu.f
+    EB-AMCU:  amcu_hu.f
 
     The _hu files provide utilities for accessing the Flash ROM. The
-    EBSA-110 version is quite crude but the EBSA-285 version provides
-    most of the same functions as the Flash Management Utility. Try
+    EBSA-110 version is quite crude but the EBSA-285 and EB-AMCU
+    versions provide most of the same functions as the board's
+    Flash Management Utility. Try
     typing .FLI-LIST and .FLB-LIST
 
     On the EBSA-285 you can type:
@@ -499,7 +549,65 @@ Further Reading
     documentation is incomplete. Also, try looking through the .f files
     for examples of Forth code.
 
+
+Warranty and Kudos
+==================
+
+    This code is supplied under the same conditions as Dr Koh's original:
+    ALL commerical and non-commercial uses are granted.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+    Thanks to Dr Koh for writing hForth in the first place, and supporting
+    my porting efforts by answering questings and making changes to his
+    code to facilitate portability.
+
+    Thanks to David Brash at Digital Equipment Corporation, for permission
+    to release some information pertaining to the SA-110 and 21285 into
+    the public domain.
+
+    Thanks to Bob Van Steenburgh at LSI Logic Corporation for permission
+    to release some information pertaining to the AMCU into the public
+    domain.
+
     Enjoy Forth!
 
-    Neal Crook              neal.crook@reo.mts.dec.com    
+    Neal Crook              nac@forth.org
+
+
+Appendix: Terminal Setup
+========================
+
+    -------------------------------------------------------------
+    To use a the terminal emulator provided with Microsoft Windows
+    3.11, set it up like this:
+
+    settings => communications: * 9600baud * XON/XOFF flow control *
+    no parity * 8 bit * 1 stop bit
+
+    settings => text transfers: * standard flow control
+
+    -------------------------------------------------------------
+    To use the terminal emulator provided with Windows 95,
+    "hyperterm". Set up a session to connect to an external COM
+    port and configure it thus:
+    speed 9600 baud
+    data 8-bit
+    parity none
+    stop bit 1
+    flow control xon/xoff
+
+    in the "settings" dialogue set terminal type to "auto-detect"
+
+    GOTCHA: if you just reconfigure Hyperterminal to set a new baud 
+    rate it doesn't seem to work; you have to save the configuration
+    and then reload it. This is pretty typical of the overall poor
+    quality of this terminal emulator (try using the scroll-bar!)
+
+    GOTCHA: if you can't find hyperterminal on your system go to
+    the control panel and select "add new software" and look
+    under Windows 95 communications options.
+
 [end]
