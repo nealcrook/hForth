@@ -12,6 +12,9 @@
 \
 \
 \ $Log$
+\ Revision 1.7  1999/07/11 10:08:05  crook
+\ removed :CODE stuff .. should be in application.
+\
 \ Revision 1.6  1998/10/23 05:27:05  crook
 \ add sym-table dump, fix a couple of bugs and tidy up comments
 \
@@ -1204,37 +1207,14 @@ VARIABLE SYM-TABLE
 	FFF AND ASM. 1 CELLS - 8 + SWAP - @
 	<> IF ." Error: literal mismatch" CR THEN ;
 
-\ ******************* Set up code access vectors - for hForth only
-
-CHAR " PARSE hforth" ENVIRONMENT?
-[IF]
-  \ code is assembled for the local (host) system and emitted in host code
-  \ space using COMPILE,
-  ' COMPILE, 'ASM,32 !
-
-  \ code is emitted using COMPILE, and the PC cannot be determined in a
-  \ "standard" way. For hForth, xhere is the pointer to code space.
-  ' xhere 'ASM. !
-
-  \ do a 32-bit store in local (host) code space
-  ' ! 'ASM! !
-
-  \ do a 32-bit fetch in local (host) code space
-  ' @ 'ASM@ !
-[THEN]
-
-\ ******************* Standard words for using the assembler
-
-\ (Deleted - define in application.)
-
-\ ******************* Implementation-dependent end for CODE and ;CODE
-
-\ (Deleted - define in application. Here is an example of what you
-\ might include:
-\ : END-CODE
-\	LOCAL-RESOLVED \ ensure all forward references are resolved
-\	PREVIOUS notNONAME? IF linklast 0 to notNONAME THEN ;
-\ )
+\ ******************* To Use..
+\
+\ - set up the vectors for 'ASM,32 'ASM. 'ASM! 'ASM@
+\ - define the standard words for using the assembler ( CODE ;CODE )
+\ - define a word for ending an assembler definition, for
+\   example, END-CODE. The functions of this word should include
+\   a call to LOCAL-RESOLVED to ensure all forward references
+\   within the definition are resolved.
 
 \ ******************* Tidy up
 
