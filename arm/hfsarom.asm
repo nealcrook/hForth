@@ -2,35 +2,19 @@
 
 ;;PAGE 62,132	  ;62 lines per page, 132 characters per line
 
-;; TODO ----- add memory map and io equates from Carey's cogent port.
-
-;; TODO ----- For cogent, only support MEMMAP=DEMON at the moment
-
-;; TODO ----- currently IOBYTE allows switch between DEMON and a COM port and
-;; allows the baud rate to be changed on the COM port, but doesn't allow the
-;; COM port to be changed. The most efficient way of doing this is to
-;; use the vectors to point to the correct I/O routines and to store the base
-;; port address in a register.
-
 ;; TODO
 ;; 1. code trivial words (marked *) and important words (marked **)
 ;; 2. report bug in pack" -- uses MaxChar as though it represents
 ;;    maximum *length* of counted string.
-;; 4. test coding of backslash 2@ 2! /string um* m* name>xt
-;; 5. test alias $CODE versions of (then promote) ROT UNLOOP 2OVER doS"
-;;    pack" (test THROW paths) HOLD S>D U< C, FILL (test case where fill length is 0)
-;;    .prompt
+;; 4. test coding of 2@ 2! /STRING um* m* name>xt ABORT
+;; 5. test alias $CODE versions of (then promote) UNLOOP 2OVER doS"
+;;    pack" (test THROW paths) U< C, FILL (test case where fill length is 0)  <# ABS
 ;; 6. test error path entry to THROW in (search-wordlist)
 ;; 7. find out why double.f doesn't load and see if coreext.f loads.
 ;; 8. review coding and see if use of the N (sign) flag would optimise some
 ;;    arithmetic
-;; 10. add ABORTQ" to eforth Flash programming code
-;; 11. revamp Flash code to NOT need DRAM (or to check that it's initialised)
 ;; 12. add word FREE? (or somesuch) to determine free space in code and data areas
-;; 13. debug eforth flash and ethernet words to work with caches on
-;; 14. port whole eforth utils to hforth.
-;; 15. add cogent serial port support
-;; 16. add cogent ROM support
+;; 15. add cogent serial port and ROM support
 ;; 17. write porting guide
 ;; 18. Bugfix for MMU stuff; turning OFF cache requires
 ;;     cache clean/flush/disable to be an atomic operation.
@@ -39,7 +23,13 @@
 ;; 20. reword descriptions at start about different build options
 ;; 21. When doing a BYE back to DEMON, flush and turn off the caches so that a
 ;;     new image can be loaded safely.
-;; 22. Add some macros that allow me to flip from code to Forth words and vice-versa.
+;; 22. add memory map and io equates from Carey's cogent port.
+;; 23. For cogent, only support MEMMAP=DEMON at the moment
+;; 24. currently IOBYTE allows switch between DEMON and a COM port and allows
+;;     the baud rate to be changed on the COM port, but doesn't allow the
+;;     COM port to be changed. The most efficient way of doing this is to use
+;;     the vectors to point to the correct I/O routines and to store the base
+;;     port address in a register.
 ;;
 ;; Issues
 ;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
@@ -109,6 +99,9 @@
 ;; generate a fatal error at build time.
 
 ;; $Log$
+;; Revision 1.13  1997/03/26 14:08:20  crook
+;; more native-coded words
+;;
 ;; Revision 1.12  1997/03/07 09:27:41  crook
 ;; more native-coded words
 ;;
@@ -380,9 +373,10 @@ MASKK		EQU	1Fh		;lexicon bit mask
 					;extended character set
 					;maximum name length = 1Fh
 
-;NAC: added SPC, XON
+;NAC: added SPC, XON, XOFF
 SPC		EQU	32		;space (blank)
 XON		EQU	17		;CTRL-Q - flow control for FILE
+XOFF		EQU	19		;CTRL-S
 BKSPP		EQU	8		;backspace
 TABB		EQU	9		;tab
 LFF		EQU	10		;line feed
@@ -1055,8 +1049,7 @@ STOdone
 ;		Receive one keyboard event u.
 
 		$CODE	3,'RX@',RXFetch,_SLINK
-
-		pushD	tos			; make room
+		pushD	tos			;make room
 		IOBADDR r0, (COM2Port+Rx)	;Read the character
 		LDRB	tos, [r0]			
 		$NEXT
@@ -1068,8 +1061,8 @@ STOdone
 		pushD	tos			; make room
 		swi	4			;SWI_ReadC - byte is in r0
 		mov	tos,r0
-;There is a BUG (IMO) in ARM's terminal emulator that it will never return a CR -- only
-;a LF. Since we expect CR to signal end-of-line, do a substitution here.
+;There is a BUG (IMO) in ARM's terminal emulator that it will never return CR
+; - only LF. Since we expect CR to signal end-of-line, do a substitution here.
 		ldr	r0,=LFF
 		cmp	tos,r0
 		ldreq	tos,=CRR
@@ -1090,27 +1083,21 @@ STOdone
 
 
 ;   TX! 	( u -- )
-;		Send char to the output device. Have to wait until the output device is ready
-;		because TX? is NOT called first
+;		Send char to the output device. Have to wait until the output
+;		device is ready	because TX? is NOT called first
 ;TODO looks as though it's hard to use the TX FIFO in polled mode
 ;because the only status you get is when the FIFO is empty -- really
 ;want to know when it is not-full. The only way to do this seems to
 ;be to enable the interrupt then poll the interrupt status register.
 
 		$CODE	3,'TX!',TXStore,_SLINK
-		mov	r0, tos 		;pop character to r0
-		popD	tos
-		ldr	r1,=AddrIOBYTES 	;find out whether to emit it
-		ldr	r2,[r1]
-		ands	r2,r2,#&10000000
-		bne	txstoreno		;no, just trash the char
 		IOBADDR r1, (COM2Port+LineStatus)
 txstoreloop	LDRB	r2,[r1]
 		TST	r2,#LineTHREMsk 	;Wait until ready to queue character
 		beq	txstoreloop
 		IOBADDR r1,(COM2Port+Tx)	;Queue the character
-		STRB	r0,[r1]
-txstoreno
+		strb	tos,[r1]
+		popD	tos
 		$NEXT
 
 ;   DTX!	( u -- )
@@ -1119,11 +1106,7 @@ txstoreno
 		$CODE	4,'DTX!',DTXStore,_SLINK
 		mov	r0, tos 		;pop character to r0
 		popD	tos
-		ldr	r1,=AddrIOBYTES 	;find out whether to emit it
-		ldr	r2,[r1]
-		ands	r2,r2,#&10000000	;eq => print it
-		swieq	0			;SWI_WriteC - write character
-
+		swi	0			;SWI_WriteC - write character
 		$NEXT
 
 ;   CR		( -- )				\ CORE
@@ -1138,7 +1121,6 @@ txstoreno
 ;		Return control to the host operation system, if any.
 
 		$CODE	3,'BYE',BYE,_FLINK
-
 	IF (MEMMAP = "DEMON")
 		swi	011h			;SWI_Exit - halt execution and
 						;return to debugger
@@ -1236,103 +1218,46 @@ COLD1		DW	SPZero,SPStore,RPZero,RPStore
 		DW	DoLIT,FTRUE,DoTO,AddrTEKEYQ
 SETIOV2 	DW	EXIT
 
-;   PACE	( -- )
-;		Send an XON character for the file downloading process.
-;   : PACE	IOBYTES EFFFFFFF AND TO IOBYTES XON EMIT
-;		IOBYTES 10000000 OR TO IOBYTES ;
-
-		$COLON	4,'PACE',PACE,_SLINK
-		DW	DoLIT,AddrIOBYTES,Fetch,DoLIT,0efffffffh,ANDD
-		DW	DoTO,AddrIOBYTES,DoLIT,XON,EMIT
-		DW	DoLIT,AddrIOBYTES,Fetch,DoLIT,010000000h,ORR
-		DW	DoTO,AddrIOBYTES,EXIT
-
 ;   FILE	( -- )
-;		Impose flow control to allow host file download without
-;		input overflow
-;   : FILE	' PACE TO 'prompt IOBYTES 10000000 OR TO IOBYTES ;
+;		Set FILE bit in IOBYTES to disable local echo and impose
+;		XON/XOFF flow control for host file download
+;   : FILE	IOBYTES 10000000 OR TO IOBYTES ;
 
 		$COLON 4,'FILE',FILE,_SLINK
-		DW	DoLIT,PACE,DoTO,AddrTprompt
 		DW	DoLIT,AddrIOBYTES,Fetch,DoLIT,010000000h,ORR
 		DW	DoTO,AddrIOBYTES,EXIT
 
 ;   HAND	( -- )
-;		Restore system prompt and text echo after FILE
-;   : HAND	' DotOK 'prompt IOBYTES EFFFFFFF AND TO IOBYTES ;
+;		Clear FILE bit in IOBYTES to turn off XON/XOFF handshake
+;		and turn on local echo
+;   : HAND	IOBYTES EFFFFFFF AND TO IOBYTES ;
 
 		$COLON 4,'HAND',HAND,_SLINK
-		DW	DoLIT,DotOK,DoTO,AddrTprompt,DoLIT,AddrIOBYTES
+		DW	DoLIT,AddrIOBYTES
 		DW	Fetch,DoLIT,0efffffffh,ANDD,DoTO,AddrIOBYTES,EXIT
+
+;   FLOW-ON	( -- )
+;		Send an XON character for the file downloading process.
+;   : FLOW-ON	XON# EMIT ;
+
+		$COLON	7,'FLOW-ON',FLOW_ON,_SLINK
+		DW	DoLIT,XON,EMIT,EXIT
+
+;   FLOW-OFF	( -- )
+;		Send an XOFF character for the file downloading process; ONLY
+;		if FILE bit is set
+;   : FLOW-OFF	IOBYTES 10000000 AND IF XOFF EMIT THEN ;
+
+		$COLON	8,'FLOW-OFF',FLOW_OFF,_SLINK
+		DW	DoLIT,AddrIOBYTES,Fetch,DoLIT,010000000h,ANDD
+		DW	ZBranch,FLOF1
+		DW	DoLIT,XOFF,EMIT
+FLOF1		DW	EXIT
 
 ;;;;;;;;;;;;;;;;
 ; MS-DOS only words -- not necessary for other systems.
 ;;;;;;;;;;;;;;;;
-; File input using MS-DOS redirection function without using FILE words.
-
-;   redirect	( c-addr -- flag )
-;		Redirect standard input from the device identified by ASCIIZ
-;		string stored at c-addr. Return error code.
-
-		$CODE	8,'redirect',Redirect,_SLINK
-;NAC: this code is unused for a non-DOS target
-;		 MOV	 DX,BX
-;		 MOV	 AX,Redirect1stQ
-;		 OR	 AX,AX
-;		 JZ	 REDIRECT2
-;		 MOV	 AH,03Eh
-;		 MOV	 BX,RedirHandle
-;		 INT	 021h		 ; close previously opend file
-REDIRECT2
-;		 MOV	 AX,03D00h	 ; open file read-only
-;		 MOV	 Redirect1stQ,AX ; set Redirect1stQ true
-;		 INT	 021h
-;		 JC	 REDIRECT1	 ; if error
-;		 MOV	 RedirHandle,AX
-;		 XOR	 CX,CX
-;		 MOV	 BX,AX
-;		 MOV	 AX,04600H
-;		 INT	 021H
-;		 JC	 REDIRECT1
-;		 XOR	 AX,AX
-REDIRECT1
-;		 MOV	 BX,AX
-		$NEXT
-Redirect1stQ	DW	0		; true after the first redirection
-RedirHandle	DS	CELLL		; redirect file handle
-
-;   asciiz	( ca1 u -- ca2 )
-;		Return ASCIIZ string.
-;
-;   : asciiz	xhere SWAP 2DUP + 0 SWAP C! CHARS MOVE xhere ;
-
-		$COLON	6,'asciiz',ASCIIZ,_SLINK
-		DW	XHere,SWAP,TwoDUP,Plus,Zero
-		DW	SWAP,CStore,CHARS,MOVE,XHere,EXIT
-
-;   stdin	( ca u -- )
-;
-;   : stdin	asciiz redirect ?DUP
-;		IF -38 THROW THEN ; COMPILE-ONLY
-
-		$COLON	5,'stdin',STDIN,_SLINK
-		DW	ASCIIZ,Redirect,QuestionDUP,ZBranch,STDIN1
-		DW	DoLIT,-38,THROW
-STDIN1		DW	EXIT
-
-;   <<		( "<spaces>ccc" -- )
-;		Redirect input from the file 'ccc'. Should be used only in
-;		interpretation state.
-;
-;   : <<	STATE @ IF ." Do not use '<<' in a definition." ABORT THEN
-;		PARSE-WORD stdin SOURCE >IN !  DROP ; IMMEDIATE
-
-		$COLON	IMMED+2,'<<',FROM,_SLINK
-		DW	STATE,Fetch,ZBranch,FROM1
-		DW	CR
-		$INSTR	'Do not use << in a definition.'
-		DW	TYPEE,ABORT
-FROM1		DW	PARSE_WORD,STDIN,SOURCE,ToIN,Store,DROP,EXIT
+;NAC: deleted
 
 ;;;;;;;;;;;;;;;;
 ; Non-Standard words - Processor-dependent definitions
@@ -2611,27 +2536,25 @@ PTICK1		DW	ErrWord,TwoStore,DoLIT,-13,THROW
 PARDD1		DW	LessNumberSign,NumberSignS,ROT
 		DW	SIGN,NumberSignGreater,EXIT
 
-;NAC: made this state-smart (used to be done in QUIT) to allow FILE/HAND to work
 ;   .ok 	( -- )
 ;		Display 'ok'.
 ;
-;   : .ok	STATE @ INVERT IF ." ok" THEN ;
+;   : .ok	." ok" ;
 
 		$COLON	3,'.ok',DotOK,_SLINK
-		DW	STATE,Fetch,INVERT,ZBranch,DOTO1
 		$INSTR	'ok'
 		DW	TYPEE
-DOTO1		DW	EXIT
+		DW	EXIT
 
 ;   .prompt	    ( -- )
 ;		Display Forth prompt. This word is vectored.
 ;
 ;   : .prompt	'prompt EXECUTE ;
 
-		$COLON	7,'.prompt',DotPrompt,_SLINK
-		DW	TickPrompt,EXECUTE,EXIT
+;		$COLON	7,'.prompt',DotPrompt,_SLINK
+;		DW	TickPrompt,EXECUTE,EXIT
 
-		$CODE	7,'.Prompt',xDotPrompt,_SLINK
+		$CODE	7,'.prompt',DotPrompt,_SLINK
 		ldr	r0,=AddrTprompt
 		ldr	r1,[r0]
 		mov	pc,r1
@@ -2716,14 +2639,25 @@ _VAR		SETA _VAR +CELLL
 		sub	tos, tos, #CELLL
 		$NEXT		
 
-;*?
 ;   COMPILE-ONLY   ( -- )
 ;		Make the most recent definition an compile-only word.
 ;
 ;   : COMPILE-ONLY   lastName [ =comp ] LITERAL OVER @ OR SWAP ! ;
 
-		$COLON	12,'COMPILE-ONLY',COMPILE_ONLY,_SLINK
-		DW	LastName,DoLIT,COMPO,OVER,Fetch,ORR,SWAP,Store,EXIT
+;		$COLON	12,'COMPILE-ONLY',COMPILE_ONLY,_SLINK
+;		DW	LastName,DoLIT,COMPO,OVER,Fetch,ORR,SWAP,Store,EXIT
+
+		$CODE	12,'COMPILE-ONLY',COMPILE_ONLY,_SLINK
+		ldr	r0,=AddrNPVar
+		ldr	r1,[r0]
+		ldr	r2,[r1]
+		add	r2,r2,#(CELLL*2)	;Lastname
+		ldr	r3,[r2]			;get length
+		orr	r3,r3,#COMPO		;set flag
+		str	r3,[r2]
+		$NEXT
+
+		LTORG
 
 ;   doS"	( u -- c-addr u )
 ;		Run-time function of S" .
@@ -3103,14 +3037,21 @@ RAKE2		DW	RakeVar,Store,DROP
 		DW	One,BalPlus,THENN
 RAKE3		DW	BalMinus,EXIT
 
-;* should be easy
 ;   rp0 	( -- a-addr )
 ;		Pointer to bottom of the return stack.
 ;
 ;   : rp0	userP @ CELL+ CELL+ @ ;
 
-		$COLON	3,'rp0',RPZero,_SLINK
-		DW	UserP,Fetch,CELLPlus,CELLPlus,Fetch,EXIT
+;		$COLON	3,'rp0',RPZero,_SLINK
+;		DW	UserP,Fetch,CELLPlus,CELLPlus,Fetch,EXIT
+
+		$CODE	3,'rp0',RPZero,_SLINK
+		pushD	tos
+		ldr	r0,=AddrUserP
+		ldr	r1,[r0]
+		add	r1,r1,#(CELLL*2)
+		ldr	tos,[r1]
+		$NEXT
 
 ;   search-word ( c-addr u -- c-addr u 0 | xt f 1 | xt f -1)
 ;		Search dictionary for a match with the given name. Return
@@ -3145,14 +3086,21 @@ SEARCH1 	DW	EXIT
 		$VAR   9,'sourceVar',SourceVar,_SLINK
 _VAR		SETA _VAR +CELLL
 
-;* should be trivial
 ;   sp0 	( -- a-addr )
 ;		Pointer to bottom of the data stack.
 ;
 ;   : sp0	userP @ CELL+ @ ;
 
-		$COLON	3,'sp0',SPZero,_SLINK
-		DW	UserP,Fetch,CELLPlus,Fetch,EXIT
+;		$COLON	3,'sp0',SPZero,_SLINK
+;		DW	UserP,Fetch,CELLPlus,Fetch,EXIT
+
+		$CODE	3,'sp0',SPZero,_SLINK
+		pushD	tos
+		ldr	r0,=AddrUserP
+		ldr	r1,[r0]
+		add	r1,r1,#CELLL
+		ldr	tos,[r1]
+		$NEXT
 
 ;   TOxhere	( a-addr -- )
 ;		Set the next available code space address as a-addr.
@@ -3335,14 +3283,21 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 		sub	tos,r1,tos
 		$NEXT
 
-;* replicate S>D code and b to DDot
 ;   .		( n -- )			\ CORE
 ;		Display a signed number followed by a space.
 ;
 ;   : . 	S>D D. ;
 
-		$COLON	1,'.',Dot,_FLINK
-		DW	SToD,DDot,EXIT
+;		$COLON	1,'.',Dot,_FLINK
+;		DW	SToD,DDot,EXIT
+
+		$CODE	1,'.',Dot,_FLINK
+		pushD	tos
+		mov	r1,#0
+		;sign-extend tos into tos to form ms of double
+		;TODO if I used OR below I need not load r1 -- it could be X
+		add	tos,r1,tos,asr #32	;should this be 31?
+		b	DDot
 
 ;   /		( n1 n2 -- n3 ) 		\ CORE
 ;		Divide n1 by n2, giving single-cell quotient n3.
@@ -3534,7 +3489,6 @@ SEMI3		DW	DoLIT,EXIT,COMPILEComma
 		DW	DROP,ZeroLess,EXIT
 LESS1		DW	Minus,ZeroLess,EXIT
 
-;* easy
 ;   <#		( -- )				\ CORE
 ;		Initiate the numeric output conversion process.
 ;		||xhere>WORD/#-work-area|
@@ -3543,6 +3497,15 @@ LESS1		DW	Minus,ZeroLess,EXIT
 
 		$COLON	2,'<#',LessNumberSign,_FLINK
 		DW	XHere,DoLIT,PADSize*CHARR,Plus,HLD,Store,EXIT
+
+		$CODE	3,'x<#',xLessNumberSign,_FLINK
+		ldr	r0,=LocCPVar
+		ldr	r1,[r0]
+		ldr	r2,[r1]	;xhere address
+		add	r2,r2,#(PADSize*CHARR)
+		ldr	r3,=LocHLD
+		str	r2,[r3]
+		$NEXT
 
 ;   =		( x1 x2 -- flag )		\ CORE
 ;		Return true if top two are equal.
@@ -3617,55 +3580,61 @@ TONUM3		DW	EXIT
 		strne	tos, [dsp, # - CELLL]!	;pushD if ne
 		$NEXT
 
-;* trivial
 ;   ABORT	( i*x -- ) ( R: j*x -- )	\ EXCEPTION EXT
 ;		Reset data stack and jump to QUIT.
 ;
 ;   : ABORT	-1 THROW ;
 
-		$COLON	5,'ABORT',ABORT,_FLINK
-		DW	MinusOne,THROW
+;		$COLON	5,'ABORT',ABORT,_FLINK
+;		DW	MinusOne,THROW
 
+		$CODE	5,'ABORT',ABORT,_FLINK
+		pushD	tos
+		mov	tos,#-1
+		b	THROW
+
+;NAC mods for handshaking: FLOW-ON at start, FLOW-OFF at end and use EMITE for
+;all output in between.
 ;   ACCEPT	( c-addr +n1 -- +n2 )		\ CORE
 ;		Accept a string of up to +n1 chars. Return with actual count.
 ;		Implementation-defined editing. Stops at EOL# .
 ;		Supports backspace and delete editing.
 ;
-;   : ACCEPT	>R 0
+;   : ACCEPT	FLOW-ON >R 0
 ;		BEGIN  DUP R@ < 		\ ca n2 f  R: n1
 ;		WHILE  EKEY max-char AND
 ;		       DUP BL <
-;		       IF   DUP  cr# = IF ROT 2DROP R> DROP EXIT THEN
+;		       IF   DUP  cr# = IF ROT 2DROP R> DROP FLOW-OFF EXIT THEN
 ;			    DUP  tab# =
-;			    IF	 DROP 2DUP + BL DUP EMIT SWAP C! 1+
+;			    IF	 DROP 2DUP + BL DUP EMITE SWAP C! 1+
 ;			    ELSE DUP  bsp# =
 ;				 SWAP del# = OR
 ;				 IF DROP DUP
 ;					\ discard the last char if not 1st char
-;				 IF 1- bsp# EMIT BL EMIT bsp# EMIT THEN THEN
+;				 IF 1- bsp# EMITE BL EMITE bsp# EMITE THEN THEN
 ;			    THEN
-;		       ELSE >R 2DUP CHARS + R> DUP EMIT SWAP C! 1+  THEN
+;		       ELSE >R 2DUP CHARS + R> DUP EMITE SWAP C! 1+  THEN
 ;		       THEN
-;		REPEAT SWAP  R> 2DROP ;
+;		REPEAT SWAP  R> 2DROP FLOW-OFF ;
 
 		$COLON	6,'ACCEPT',ACCEPT,_FLINK
-		DW	ToR,Zero
+		DW	FLOW_ON,ToR,Zero
 ACCPT1		DW	DUPP,RFetch,LessThan,ZBranch,ACCPT5
 		DW	EKEY,DoLIT,MaxChar,ANDD
 		DW	DUPP,BLank,LessThan,ZBranch,ACCPT3
 		DW	DUPP,DoLIT,CRR,Equals,ZBranch,ACCPT4
-		DW	ROT,TwoDROP,RFrom,DROP,EXIT
+		DW	ROT,TwoDROP,RFrom,DROP,FLOW_OFF,EXIT
 ACCPT4		DW	DUPP,DoLIT,TABB,Equals,ZBranch,ACCPT6
-		DW	DROP,TwoDUP,Plus,BLank,DUPP,EMIT,SWAP,CStore,OnePlus
+		DW	DROP,TwoDUP,Plus,BLank,DUPP,EMITE,SWAP,CStore,OnePlus
 		DW	Branch,ACCPT1
 ACCPT6		DW	DUPP,DoLIT,BKSPP,Equals
 		DW	SWAP,DoLIT,DEL,Equals,ORR,ZBranch,ACCPT1
 		DW	DUPP,ZBranch,ACCPT1
-		DW	OneMinus,DoLIT,BKSPP,EMIT,BLank,EMIT,DoLIT,BKSPP,EMIT
+		DW	OneMinus,DoLIT,BKSPP,EMITE,BLank,EMITE,DoLIT,BKSPP,EMITE
 		DW	Branch,ACCPT1
-ACCPT3		DW	ToR,TwoDUP,CHARS,Plus,RFrom,DUPP,EMIT,SWAP,CStore
+ACCPT3		DW	ToR,TwoDUP,CHARS,Plus,RFrom,DUPP,EMITE,SWAP,CStore
 		DW	OnePlus,Branch,ACCPT1
-ACCPT5		DW	SWAP,RFrom,TwoDROP,EXIT
+ACCPT5		DW	SWAP,RFrom,TwoDROP,FLOW_OFF,EXIT
 
 ;   AGAIN	( C: dest -- )			\ CORE EXT
 ;		Resolve backward reference dest. Typically used as
@@ -3831,14 +3800,19 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 		$COLON	2,'D.',DDot,_FLINK
 		DW	ParenDDot,TYPEE,SPACE,EXIT
 
-;* trivial
 ;   DECIMAL	( -- )				\ CORE
 ;		Set the numeric conversion radix to decimal 10.
 ;
 ;   : DECIMAL	10 BASE ! ;
 
-		$COLON	7,'DECIMAL',DECIMAL,_FLINK
-		DW	DoLIT,10,BASE,Store,EXIT
+;		$COLON	7,'DECIMAL',DECIMAL,_FLINK
+;		DW	DoLIT,10,BASE,Store,EXIT
+
+		$CODE	7,'DECIMAL',DECIMAL,_FLINK
+		ldr	r0,=LocBASE
+		mov	r1,#10
+		str	r1,[r0]
+		$NEXT
 
 ;*
 ;   DEPTH	( -- +n )			\ CORE
@@ -3887,9 +3861,27 @@ EKEY1		DW	PAUSE,EKEYQuestion,ZBranch,EKEY1
 ;		DW	TickEMIT,EXECUTE,EXIT
 
 		$CODE	4,'EMIT',EMIT,_FLINK
-		ldr	r0,=AddrTEMIT
+EMIT01		ldr	r0,=AddrTEMIT
 		ldr	r1,[r0]
 		mov	pc,r1
+
+;NAC added for file handshake. TODO should it be slink instead?
+;   EMITE	( x -- )
+;		Send a character to the output device unless FILE bit
+;		is set in IOBYTES
+;
+;   : EMITE	IOBYTES 10000000 AND 
+;		IF 'emit EXECUTE THEN DROP ;
+
+;TODO test that high-level definition
+
+		$CODE	5,'EMITE',EMITE,_FLINK
+		ldr	r0,=AddrIOBYTES 	;find out whether to emit it
+		ldr	r1,[r0]
+		ands	r1,r1,#&10000000
+		beq	EMIT01			;yes, do it
+		popD	tos
+		$NEXT
 
 ;**
 ;   FM/MOD	( d n1 -- n2 n3 )		\ CORE
@@ -3952,16 +3944,17 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 ;
 ;   : HOLD	hld @  1 CHARS - DUP hld ! C! ;
 
-		$COLON	4,'HOLD',HOLD,_FLINK
-		DW	HLD,Fetch,DoLIT,0-CHARR,Plus
-		DW	DUPP,HLD,Store,CStore,EXIT
+;		$COLON	4,'HOLD',HOLD,_FLINK
+;		DW	HLD,Fetch,DoLIT,0-CHARR,Plus
+;		DW	DUPP,HLD,Store,CStore,EXIT
 
-		$CODE	4,'hOLD',xHOLD,_FLINK
+		$CODE	4,'HOLD',HOLD,_FLINK
 		ldr	r0,=LocHLD
 		ldr	r1,[r0]
 		sub	r1,r1,#CHARR
 		strb	tos,[r1]
 		str	r1,[r0]
+		popD	tos
 		$NEXT
 
 ;   I		( -- n|u ) ( R: loop-sys -- loop-sys )	\ CORE
@@ -4079,7 +4072,6 @@ PARSE3		DW	NIP,OVER,Minus,DUPP,OneCharsSlash,CHARPlus
 PARSE5		DW	ToIN,PlusStore
 PARSE4		DW	RFrom,DROP,EXIT
 
-;NAC: changed QUIT to always call prompt (used to be state-smart). 
 ;   QUIT	( -- ) ( R: i*x -- )		\ CORE
 ;		Empty the return stack, store zero in SOURCE-ID, make the user
 ;		input device the input source, and start text interpreter.
@@ -4088,7 +4080,7 @@ PARSE4		DW	RFrom,DROP,EXIT
 ;		  rp0 rp!  0 TO SOURCE-ID  0 TO bal  POSTPONE [
 ;		  BEGIN CR REFILL DROP SPACE	\ REFILL returns always true
 ;			['] interpret CATCH ?DUP 0=
-;		  WHILE .prompt
+;		  WHILE STATE @ 0= IF .prompt THEN
 ;		  REPEAT
 ;		  DUP -1 XOR IF 				\ ABORT
 ;		  DUP -2 = IF SPACE abort"msg 2@ TYPE	 ELSE	\ ABORT"
@@ -4105,6 +4097,7 @@ QUIT1		DW	RPZero,RPStore,Zero,DoTO,AddrSOURCE_ID
 QUIT2		DW	CR,REFILL,DROP,SPACE
 		DW	DoLIT,Interpret,CATCH,QuestionDUP,ZeroEquals
 		DW	ZBranch,QUIT3
+		DW      STATE,Fetch,ZeroEquals,ZBranch,QUIT2
 		DW	DotPrompt,Branch,QUIT2
 QUIT3		DW	DUPP,MinusOne,XORR,ZBranch,QUIT5
 		DW	DUPP,DoLIT,-2,Equals,ZBranch,QUIT4
@@ -4140,10 +4133,10 @@ REFIL1		DW	NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 ;
 ;   : ROT	>R SWAP R> SWAP ;
 
-		$COLON	3,'ROT',ROT,_FLINK
-		DW	ToR,SWAP,RFrom,SWAP,EXIT
+;		$COLON	3,'ROT',ROT,_FLINK
+;		DW	ToR,SWAP,RFrom,SWAP,EXIT
 
-		$CODE	3,'rOT',rOT,_FLINK
+		$CODE	3,'ROT',ROT,_FLINK
 		popD	r0	;x2 (tos=x3)
 		popD	r1	;x1
 		pushD	r0
@@ -4156,10 +4149,10 @@ REFIL1		DW	NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
 ;
 ;   : S>D	DUP 0< ;
 
-		$COLON	3,'S>D',SToD,_FLINK
-		DW	DUPP,ZeroLess,EXIT
+;		$COLON	3,'S>D',SToD,_FLINK
+;		DW	DUPP,ZeroLess,EXIT
 
-		$CODE	3,'s>D',xSToD,_FLINK
+		$CODE	3,'S>D',SToD,_FLINK
 		pushD	tos
 		mov	r1,#0
 		;sign-extend tos into tos to form ms of double
@@ -4277,6 +4270,7 @@ TYPE2		DW	DROP,EXIT
 		DW	NIP,ZeroLess,EXIT
 ULES1		DW	Minus,ZeroLess,EXIT
 
+;TODO this doesn't work -- it does a SIGNED Compare.
 		$CODE	2,'u<',xULess,_FLINK
 		popD	r0	;u1
 		cmp	r0,tos
@@ -4514,7 +4508,6 @@ TBODY1		DW	DoLIT,-31,THROW
 		DW	ELSEE,DoLIT,TwoDROP,COMPILEComma ; ELSE and THEN are
 		DW	THENN,EXIT			 ; immediate
 
-;* can I just AND with 7ffff.ffff to knock off the sign bit?
 ;   ABS 	( n -- u )			\ CORE
 ;		Return the absolute value of n.
 ;
@@ -4524,6 +4517,10 @@ TBODY1		DW	DoLIT,-31,THROW
 		DW	DUPP,ZeroLess,ZBranch,ABS1
 		DW	NEGATE
 ABS1		DW	EXIT
+
+		$CODE	3,'aBS',xABSS,_FLINK
+		and	tos,tos,#07fffffffh	;
+		$NEXT
 
 ;   ALLOT	( n -- )			\ CORE
 ;		Allocate n bytes in RAM or ROM data space.
@@ -4682,14 +4679,23 @@ FILL2		DW	TwoDROP,EXIT
 		DW	NIP,ROT,DROP,EXIT
 FIND1		DW	TwoDROP,Zero,EXIT
 
-;* like compile-only
 ;   IMMEDIATE	( -- )				\ CORE
 ;		Make the most recent definition an immediate word.
 ;
 ;   : IMMEDIATE   lastName [ =imed ] LITERAL OVER @ OR SWAP ! ;
 
-		$COLON	9,'IMMEDIATE',IMMEDIATE,_FLINK
-		DW	LastName,DoLIT,IMMED,OVER,Fetch,ORR,SWAP,Store,EXIT
+;		$COLON	9,'IMMEDIATE',IMMEDIATE,_FLINK
+;		DW	LastName,DoLIT,IMMED,OVER,Fetch,ORR,SWAP,Store,EXIT
+
+		$CODE	9,'IMMEDIATE',IMMEDIATE,_FLINK
+		ldr	r0,=AddrNPVar
+		ldr	r1,[r0]
+		ldr	r2,[r1]
+		add	r2,r2,#(CELLL*2)	;Lastname
+		ldr	r3,[r2]			;get length
+		orr	r3,r3,#IMMED		;set flag
+		str	r3,[r2]
+		$NEXT
 
 ;   J		( -- n|u ) ( R: loop-sys -- loop-sys )	\ CORE
 ;		Push the index of next outer loop.
@@ -5066,10 +5072,10 @@ VARIA1		DW	DoLIT,DoCONST,xtComma,HeadComma
 ;
 ;   : \ 	SOURCE >IN ! DROP ; IMMEDIATE
 
-		$COLON	IMMED+1,'\',Backslash,_FLINK
-		DW	SOURCE,ToIN,Store,DROP,EXIT
+;		$COLON	IMMED+1,'\',Backslash,_FLINK
+;		DW	SOURCE,ToIN,Store,DROP,EXIT
 
-		$CODE	IMMED+1,'%',xBackslash,_FLINK
+		$CODE	IMMED+1,'\',xBackslash,_FLINK
 		ldr	r0,=LocSourceVar
 		ldr	r1,[r0]
 		ldr	r3,=LocToIN
