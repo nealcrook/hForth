@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.6  1998/09/02 20:41:28  crook
+\ minor tweaks.
+\
 \ Revision 1.5  1998/09/01 22:26:19  crook
 \ minor tweaks.
 \
@@ -83,6 +86,9 @@ LOAD-ASM
 : hCONSTANT CONSTANT ;
 : hVALUE VALUE ;
 
+\ name to save meta-compiled image to
+: meta-built S" meta_img.bin" ;
+
 \ TODO the pieces below determine the target machine, mem-map, comm port
 \ and baud rate. This all needs to be rationalised somewhat.
 TRUE  hCONSTANT TAR_EBSA110 \ Targets
@@ -103,8 +109,8 @@ FF  hCONSTANT IO_DEFIO
 \ 7    - 56K
 4     hCONSTANT IO_DEFBAUD 
 
-( TRUE) FALSE hCONSTANT MM_DEMON \ MEMMAP 
-( FALSE) TRUE hCONSTANT MM_BOOT
+TRUE  hCONSTANT MM_DEMON \ MEMMAP 
+FALSE hCONSTANT MM_BOOT
 FALSE hCONSTANT MM_PBLOADED
 
 
@@ -246,4 +252,6 @@ CR .( Space is 0x) _NAME _CODE - U.
 ALSO its-words FUNRESOLVED @ TUNRESOLVED @ PREVIOUS
 CR .( High-level forward references not found in target image dictionary 0x) U.
 CR .( High-level forward references resolved by FORTDEF 0x) U.
+image-wr
+CR .( Image saved as ) meta-built TYPE CR
 
