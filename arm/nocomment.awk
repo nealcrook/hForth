@@ -1,10 +1,6 @@
 # nocomment.awk
 # remove comments from file
 
-# $Id$
-#
-# $Log$
-
 BEGIN {
   print ("\\ comments autoremoved by nocomment.awk")
 }
