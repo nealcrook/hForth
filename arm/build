@@ -3,6 +3,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.5  1997/04/30 20:32:43  crook
+# first working 21285 port
+#
 # Revision 1.3  1997/03/03 09:51:13  crook
 # update for new build options in hfsarom.asm
 #
@@ -22,8 +25,8 @@
 # yes, I could have used make, but it didn't seem to give any advantage here.
 #
 
-#default_target=ebsa110flash
-default_target=ebsa285f0
+#default_target=ebsa110pbl
+default_target=ebsa285pbl
 
 target=${1:-$default_target}
 
@@ -32,71 +35,26 @@ target=${1:-$default_target}
 # build some images -nodebug to make them smaller? need KEEP in assembler source to make a difference
 
 
-if [ $target = all ] || [ $target = pie ] ; then
-  echo
-  echo building pie.aif for PIE card, native I/O
-  rm -f eforth.lst eforth.o
-  gawk -f modsntx.awk eforth.mac
-  gawk -v dict_pc=97248 -f makesrc.awk eforth.macs
-  armasm -ARCH 4 eforth.macsw -PD 'TARGET SETS "PIE"'
-  armlink -aif -bin -base 0x8000 -entry 0x8000 -debug -output pie.aif eforth.o
-fi
-
-if [ $target = all ] || [ $target = piedemon ] ; then
-  echo
-  echo building piedemn.aif for PIE card, I/O through DEMON
-  rm -f eforth.lst eforth.o
-  gawk -f modsntx.awk eforth.mac
-  gawk -v dict_pc=97248 -f makesrc.awk eforth.macs
-  armasm -ARCH 4 eforth.macsw -PD 'TARGET SETS "PIEDEMON"'
-  armlink -aif -bin -base 0x8000 -entry 0x8000 -debug -output piedemn.aif eforth.o
-fi
-
 if [ $target = all ] || [ $target = ebsa110demon ] ; then
   echo
-  echo building ebsademn.aif for EBSA-110, I/O through DEMON
-  rm -f eforth.lst eforth.o
-  gawk -f modsntx.awk eforth.mac
-  gawk -v dict_pc=97248 -f makesrc.awk eforth.macs
-  armasm -ARCH 4 eforth.macsw -PD 'TARGET SETS "EBSA110DEMON"'
-  armlink -aif -bin -base 0x8000 -entry 0x8000 -debug -output ebsademn.aif eforth.o
+  echo building hf110bl.aif for EBSA-110, for loading and starting via PBL
+  rm -f hfsarom.lst hfsarom.o
+  gawk -f modsntx.awk hfsarom.asm
+  gawk -v dict_pc=1073807360 -f makesrc.awk hfsarom.asms
+  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA110"' -PD 'MEMMAP SETS "DEMON"' -PD 'DEFIO SETS "COMDSWI"' -PD 'DEFBAUD SETA 4'
+  armlink -aif -bin -base 0x40000000 -entry 0x40000000 -nodebug -output hf110dm.aif hfsarom.o
 fi
 
-if [ $target = all ] || [ $target = ebsa110boot ] ; then
+if [ $target = all ] || [ $target = ebsa110pbl ] ; then
   echo
-  echo building ebsarom.bin for EBSA-110 boot EPROM
-  rm -f eforth.lst eforth.o
-  gawk -f modsntx.awk eforth.mac
-  gawk -v dict_pc=1073806304 -f makesrc.awk eforth.macs
-  armasm -ARCH 4 eforth.macsw -PD 'TARGET SETS "EBSA110BOOT"'
-  armlink -bin -base 0x40000000 -entry 0x40000000 -output ebsarom.bin eforth.o
-fi
-
-if [ $target = all ] || [ $target = ebsa110flash ] ; then
-  echo
-  echo building hfebfl.aif for EBSA-110, for programming into Flash
+  echo building hf110bl.aif for EBSA-110, for loading and starting via PBL
   rm -f hfsarom.lst hfsarom.o
   gawk -f modsntx.awk hfsarom.asm
 #  gawk -v udebug=1 dict_pc=1073807360 -f makesrc.awk hfsarom.asms
   gawk -v dict_pc=1073807360 -f makesrc.awk hfsarom.asms
 #  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA110"' -PD 'MEMMAP SETS "DEMON"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
   armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA110"' -PD 'MEMMAP SETS "PBLOADED"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
-  armlink -aif -bin -base 0x400000c0 -entry 0x400000c0 -nodebug -output hfebfl.aif hfsarom.o
-fi
-
-# this might work but the fmu won't allow us to try it; when it programs it in to
-# flash block 0 it infers that it needs to be copied to 100c0 and therefore
-# it tags the fmu header with a nop, so we can't start up properly
-# only solution is to program it to a Known Block and then jump into it from edu
-if [ $target = all ] || [ $target = ebsa285f0 ] ; then
-  echo
-  echo building hf285f0.aif for EBSA-285, for programming into Flash block 0
-  rm -f hfsarom.lst hfsarom.o
-  gawk -f modsntx.awk hfsarom.asm
-#  gawk -v udebug=1 dict_pc=131072 -f makesrc.awk hfsarom.asms
-  gawk -v dict_pc=131072 -f makesrc.awk hfsarom.asms
-  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA285"' -PD 'MEMMAP SETS "FLASH0"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
-  armlink -aif -bin -base 0x000100c0 -entry 0x000100c0 -nodebug -output hf285f0.aif hfsarom.o
+  armlink -aif -bin -base 0x400000c0 -entry 0x400000c0 -nodebug -output hf110bl.aif hfsarom.o
 fi
 
 if [ $target = all ] || [ $target = ebsa285pbl ] ; then
@@ -109,6 +67,45 @@ if [ $target = all ] || [ $target = ebsa285pbl ] ; then
   armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA285"' -PD 'MEMMAP SETS "PBLOADED"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
   armlink -aif -bin -base 0x000100c0 -entry 0x000100c0 -nodebug -output hf285bl.aif hfsarom.o
 fi
+
+
+
+
+if [ $target = release ]  ; then
+  echo
+  echo building set of release files in release
+  rm -rf release/*
+  co build modsntx.awk dat2tad.awk makesrc.awk
+  cp build modsntx.awk dat2tad.awk makesrc.awk release
+
+  co optional.f coreext.f multi.f muldemo.f double.f 110_hu.f 285_hu.f
+  cp optional.f coreext.f multi.f muldemo.f double.f 110_hu.f 285_hu.f release
+
+  co hfsarom.asm
+  cp hfsarom.asm release
+
+  ./build ebsa285pbl
+  ./build ebsa110pbl
+  ./build ebsa110demon
+  cp hf285bl.aif hf110bl.aif hf110dm.aif release
+
+  co readme.eng readme.kor readme.ks
+  cp readme.eng readme.kor readme.ks release
+
+  co whatsnew.eng whatsnew.kor whatsnew.ks
+  cp whatsnew.eng whatsnew.kor whatsnew.ks release
+
+  co hforth.html
+  cp hforth.html release
+  co readme.arm
+  cp readme.arm release
+
+  tar cf hf.tar release
+  gzip hf.tar
+  uuencode hf.tar.gz hf.tar.gz > hfarm.uu
+fi
+
+rm hfsarom.o hfsarom.asms hfsarom.asmsc hfsarom.asmsd hfsarom.asmst hfsarom.asmsw mucca.txt
 
 exit 0
 
