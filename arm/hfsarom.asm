@@ -5,6 +5,9 @@
 ;; $Id$
 ;;
 ;; $Log$
+;; Revision 1.3  1997/01/14 11:05:40  crook
+;; get as far as REFILL in QUIT
+;;
 ;; Revision 1.2  1997/01/13 09:52:58  crook
 ;; added comments on progress of debug
 ;;
@@ -15,7 +18,7 @@
 ;===============================================================
 ;
 ;       hForth ARM ROM model v0.9.7 by Neal Crook,
-;	ported from 8086 model by Wonyong Koh, 1995
+;	ported from: 8086 model by Wonyong Koh, 1995
 ; 
 ; 1996. 5. 21.
 ;	Start ARM version derived from 8086 version v0.9.7
@@ -690,13 +693,13 @@ ULAST:
         $THROWSTR   THROWMsg_13,'undefined word'
         $THROWSTR   THROWMsg_14,'interpreting a compile-only word'
         $THROWSTR   THROWMsg_15,'invalid FORGET'
-        $THROWSTR   THROWMsg_16,'attempt to use zero-length THROWSTRing as a name'
-        $THROWSTR   THROWMsg_17,'pictured numeric output THROWSTRing overflow'
-        $THROWSTR   THROWMsg_18,'parsed THROWSTRing overflow'
+        $THROWSTR   THROWMsg_16,'attempt to use zero-length string as a name'
+        $THROWSTR   THROWMsg_17,'pictured numeric output string overflow'
+        $THROWSTR   THROWMsg_18,'parsed string overflow'
         $THROWSTR   THROWMsg_19,'definition name too long'
         $THROWSTR   THROWMsg_20,'write to a read-only location'
         $THROWSTR   THROWMsg_21,'unsupported operation (e.g., AT-XY on a too-dumb terminal)'
-        $THROWSTR   THROWMsg_22,'control THROWSTRucture mismatch'
+        $THROWSTR   THROWMsg_22,'control structure mismatch'
         $THROWSTR   THROWMsg_23,'address alignment exception'
         $THROWSTR   THROWMsg_24,'invalid numeric argument'
         $THROWSTR   THROWMsg_25,'return stack imbalance'
@@ -1205,6 +1208,70 @@ FROM1:          DW      PARSE_WORD,STDIN,SOURCE,ToIN,Store,DROP,EXIT
 ;       32-bit Forth for ARM RISC
 ;***************
 
+;***************
+; microdebugger for debugging hForth ports
+;
+; The major problemn with debugging Forth code at the assembler level is that
+; most of the definitions are lists of execution tokens that get interpreted
+; (using doList) rather than executed directly. As far as the native processor
+; is concerned, these xt are data, and a debugger cannot be set to trap on
+; them.
+;
+; The solution to that problem would seem to be to trap on the native-machine
+; 'call' instruction at the start of each definition. The problem with this
+; approach is that many definitions use (and are used) repeatedly through
+; the code. Simply trapping on the 'call' leads to multiple unwanted traps.
+;
+; Consider, for example, the code for doS" --
+;
+;          DW      RFrom,COUNT,TwoDUP,Plus,ALIGNED,ToR,EXIT
+;
+; It would be useful to run each word in turn; at the end of each word the
+; effect upon the stacks could be checked until the faulty word is found.
+;
+; This technique allows you to do exactly that.
+;
+; All definitions end with $NEXT -- either directly (code definitons) or
+; indirectly (colon definitions terminating in EXIT, which is itself a code
+; definition.
+;
+; $NEXT has the fpc for the next word, and jumps to the xt at the fpc
+;
+; - replace the $NEXT expansion with a jump to a new routine, UDEBUG
+; (this requires you to reassemble the code)
+
+udebug		ldr r0,=TRAPFPC
+		ldr r1,[r0]
+		cmps r1,fpc		; compare the stored address with
+					; the address we're about to get the
+					; next xt from
+		ldrne pc, [fpc], #CELLL	; not the trap address, so we're done
+		add r1,fpc,#CELLL	; next time trap on the next xt
+		str r1, [r0]
+		ldr pc, [fpc], #CELLL	; make debugger TRAP at this address
+
+TRAPFPC		DW 0
+
+
+; When you want to debug a word, trap at the CALL doLIST at the start of the
+; word and then load the location TRAPFPC with the address of the first xt
+; of the word. Make your debugger trap when you execute the final instruction
+; in the UDEBUG routine. Now execute your code and your debugger will trap
+; after the completion of the first xt in the definition. To stop debugging,
+; simply set TRAPFPC to 0.
+
+; Limitations
+; - It is an assumption that an xt of 0 is illegal
+; - You cannot automatically debug a code stream that includes inline string
+;   definitions. You must step into the word that includes thye definition
+;   and hand-edit the appropriate value into NEXTFPC
+; - You cannot automatically debug a code stream that includes an
+;   inline literal
+; Clearly, you could overcome these limitations by making UDEBUG more
+; complex -- but then you run the risk of introducing bugs in that code.
+;***************
+
+
 ;   same?       ( c-addr1 c-addr2 u -- -1|0|1 )
 ;               Return 0 if two strings, ca1 u and ca2 u, are same; -1 if
 ;               string, ca1 u is smaller than ca2 u; 1 otherwise. Used by
@@ -1350,7 +1417,7 @@ QCALL1:         DW      Zero,EXIT
                 DW      XHere,ALIGNED,DUPP,TOXHere,SWAP
 		DW	XHere,Minus,CellMinus,CellMinus,DoLIT,2,RSHIFT
 		DW	DoLIT,0FFFFFFH,ANDD
-		DW	CALLL,ORR,CodeComma,Iflushline,EXIT
+		DW	DoLIT,CALLL,ORR,CodeComma,Iflushline,EXIT
 
 ;   doLIT       ( -- x )
 ;               Push an inline literal.
@@ -1399,7 +1466,7 @@ QCALL1:         DW      Zero,EXIT
 		ldr	r0, [tos], #CELLL
 		ldr	tos, [tos]		; want this whatever happens
 		adds	r0, r0, #0		; set flags..
-		movne	r15, r0			; go there if it wasn't 0
+		movne	pc, r0			; go there if it wasn't 0
 		$NEXT
                 $ALIGN
 
@@ -1423,7 +1490,8 @@ QCALL1:         DW      Zero,EXIT
 		pushD	tos
 		ldr	tos, [r14]
 		ldr	r0, = AddrUserP
-		add	tos, tos, r0
+		ldr	r1,[r0]
+		add	tos, tos, r1
                 $NEXT
 
 		LTORG
@@ -1456,17 +1524,19 @@ QCALL1:         DW      Zero,EXIT
 		adds	r0, r0, #1
 		bvs	%f01			;overflow -> end loop
 		pushR	r0			;update loop count
-		ldr	fpc, [fpc]		;loop again
+		ldr	fpc, [fpc]		;get branch dest. to loop again
 		$NEXT
 01		add	fpc, fpc, #CELLL	;ignore branch offset
-		popR	r0			;clear up return stack
 		$NEXT
+
+;;NAC in above could delete the branch and run the other instructions
+;;NAC conditionally.. just need a conditional version of pushR
 
 ;   do+LOOP     ( n -- ) ( R: loop-sys1 -- | loop-sys2 )
 ;               Run time routine for +LOOP.
 
                 $CODE   COMPO+7,'do+LOOP',DoPLOOP,_SLINK
- 		popR	r0
+ 		popR	r0			;loop count
 		adds	r1, r1, tos
 		popD	tos
 		bvs	%f01			;overflow -> end loop
@@ -1474,7 +1544,6 @@ QCALL1:         DW      Zero,EXIT
 		ldr	fpc, [fpc]		;loop again
 		$NEXT
 01		add	fpc, fpc, #CELLL	;ignore branch offset
-		popR	r0			;clear up return stack
 		$NEXT
 
 ;   0branch     ( flag -- )
@@ -1566,7 +1635,7 @@ QCALL1:         DW      Zero,EXIT
 ; ALGN1:          DW      Plus,EXIT
 
                 $CODE   7,'ALIGNED',ALIGNED,_FLINK
-		add	tos,tos,#3
+		add	tos, tos,#3
 		and	tos, tos, #0FFFFFFFCH ;*** fix modsyntx.awk
                 $NEXT
 
@@ -1577,7 +1646,7 @@ QCALL1:         DW      Zero,EXIT
 ;   : CELLS     2* ;            \ fast, must be redefined for each system
 
                 $COLON  5,'CELLS',CELLS,_FLINK
-                DW      TwoStar,EXIT
+                DW     	TwoStar,TwoStar,EXIT	; multiply by 4 for ARM
 
 ;   CHARS       ( n1 -- n2 )                    \ CORE
 ;               Calculate number of address units for n1 characters.
@@ -1725,7 +1794,7 @@ QCALL1:         DW      Zero,EXIT
 01		add	r0, r0, tos	;point past the last bytes
 		add	r1, r1,	tos
 		ldrb	r2, [r1, #-1]!	;load with predecrement
-		strb	r3, [r0, #-1]!
+		strb	r2, [r0, #-1]!
 		subs	tos, tos, #1
 		bne	%b01
 		popD	tos
