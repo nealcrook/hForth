@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.6  1998/08/20 22:32:41  crook
+\ tidy-ups
+\
 \ Revision 1.5  1998/08/18 22:13:35  crook
 \ all but a few tiny parts of the source now compile
 \
@@ -532,53 +535,43 @@ ALSO ASSEMBLER \ make BL, available
 	\ emit the value of the offset (at tos) inline
 	meta-asm,32 ; \ TODO -- meta-asm,32 is really target COMPILE,
 
-\ TODO - may be better to perform this in the true compiler.
-\ Compile an inline string
-\ .. definitely would be.
-: $INSTR'
-	DoLIT meta-asm,32
-	[CHAR] ' PARSE
-	DUP DUP >R meta-asm,32		\ emit count and save on R for later
-	DoSQuote meta-asm,32		\ doS"
-\ TODO - need new version of CMOVE that can move to Target space directly
-	_CODE t2h SWAP CMOVE		\ store string
-	R> _CODE + $ALIGN TO _CODE ;	\ update code pointer
-
+\ $ENVSTR" name" <constant-name>
+\ Used for building a named string in name space for environment queries
+\ TODO this routine does not align the string to any boundary. Any
+\ subsequent name will align so will definitely be OK. ARM can handle
+\ unaligned strings but some other processors (68K) cannot, so should
+\ add an option to align by decrementing _NAME by a multiple of the cell
+\ size and leaving space at the end of the string.
+: $ENVSTR"
+	hPOSTPONE S" \ leave address and length of string
+	_NAME OVER - 1- \ leave room for counted string
+	DUP CONSTANT \ create a constant that points to the named string
+	DUP TO _NAME
+	\ TODO -- CHAR+ may not be portable for some host/target pairs
+	t2h 2DUP .S C! CHAR+ SWAP CMOVE ; \ store string
 
 PREVIOUS \ take ASSEMBLER off search order
 
-META-TODO [IF]
-
-;       Compile a environment query string header.
-
-$ENVIR  MACRO   LEX,NAME
-	$ALIGN                                  ;force to cell boundary
-	_CODE   = $                             ;save code pointer
-	_LEN    = (LEX AND MASKK)/CELLL         ;string cell count, round down
-	_NAME   = _NAME-((_LEN+3)*CELLL)        ;new header on cell boundary
-ORG     _NAME                                   ;set name pointer
-	DW      _CODE,_ENVLINK                  ;token pointer and link
-	_ENVLINK = $                            ;link points to a name string
-	DB      LEX,NAME                        ;name string
-ORG     _CODE
-	NOP
-	CALL    DoLIST
-	ENDM
-
-[THEN]
 
 
 CR .( *** Make : invoke t: and ; invoke t; )
-ALSO it-words
-\ put these into FORTH
+\ compilation wordlist is FORTH
+
+ALSO it-words \ find these in it-words and put them into FORTH
 : h: : ;
 : h; hPOSTPONE ; ; hIMMEDIATE
 : : t: ;
-\ put this into it-words
-ALSO it-words DEFINITIONS
+
+ALSO it-words DEFINITIONS \ put this into it-words
 h: ; nit; h; hIMMEDIATE
-PREVIOUS DEFINITIONS
-PREVIOUS
+
+PREVIOUS PREVIOUS DEFINITIONS \ compilation wordlist back to FORTH
+
+\ doesn't really matter what the compilation wordlist is at this point
+\ As long as these words are the the search order:
+\ : IMMEDIATE COMPILE-ONLY ]  
+\ the target definitions can (and do) change the compilation and search
+\ wordlists as they see fit.
 
 
 CR .( *** Main entry points and COLD start data)
@@ -787,68 +780,68 @@ UZERO0          DW      RXQ
 \ how it got there.. could be a bug in the awk scripts.
 _NAME NumTHROWMsgs CELLL * - 3 - TO _NAME
 
-	$STR' StrongARM' CPUStr
-	$STR' ROM Model' ModelStr
-	$STR' 0.9.9' VersionStr
-								\ THROW code
-	$THROWMSG' ABORT'                                         \ -01
-	$THROWMSG' ABORT"'                                        \ -02
-	$THROWMSG' stack overflow'                                \ -03
-	$THROWMSG' stack underflow'                               \ -04
-	$THROWMSG' return stack overflow'                         \ -05
-	$THROWMSG' return stack underflow'                        \ -06
-	$THROWMSG' do-loops nested too deeply during execution'   \ -07
-	$THROWMSG' dictionary overflow'                           \ -08
-	$THROWMSG' invalid memory address'                        \ -09
-	$THROWMSG' division by zero'                              \ -10
-	$THROWMSG' result out of range'                           \ -11
-	$THROWMSG' argument type mismatch'                        \ -12
-	$THROWMSG' undefined word'                                \ -13
-	$THROWMSG' interpreting a compile-only word'              \ -14
-	$THROWMSG' invalid FORGET'                                \ -15
-	$THROWMSG' attempt to use zero-length string as a name'   \ -16
-	$THROWMSG' pictured numeric output string overflow'       \ -17
-	$THROWMSG' parsed string overflow'                        \ -18
-	$THROWMSG' definition name too long'                      \ -19
-	$THROWMSG' write to a read-only location'                 \ -20
-	$THROWMSG' unsupported operation (e.g., AT-XY on a too-dumb terminal)' \ -21
-	$THROWMSG' control structure mismatch'                    \ -22
-	$THROWMSG' address alignment exception'                   \ -23
-	$THROWMSG' invalid numeric argument'                      \ -24
-	$THROWMSG' return stack imbalance'                        \ -25
-	$THROWMSG' loop parameters unavailable'                   \ -26
-	$THROWMSG' invalid recursion'                             \ -27
-	$THROWMSG' user interrupt'                                \ -28
-	$THROWMSG' compiler nesting'                              \ -29
-	$THROWMSG' obsolescent feature'                           \ -30
-	$THROWMSG' >BODY used on non-CREATEd definition'          \ -31
-	$THROWMSG' invalid name argument (e.g., TO xxx)'          \ -32
-	$THROWMSG' block read exception'                          \ -33
-	$THROWMSG' block write exception'                         \ -34
-	$THROWMSG' invalid block number'                          \ -35
-	$THROWMSG' invalid file position'                         \ -36
-	$THROWMSG' file I/O exception'                            \ -37
-	$THROWMSG' non-existent file'                             \ -38
-	$THROWMSG' unexpected end of file'                        \ -39
-	$THROWMSG' invalid BASE for floating point conversion'    \ -40
-	$THROWMSG' loss of precision'                             \ -41
-	$THROWMSG' floating-point divide by zero'                 \ -42
-	$THROWMSG' floating-point result out of range'            \ -43
-	$THROWMSG' floating-point stack overflow'                 \ -44
-	$THROWMSG' floating-point stack underflow'                \ -45
-	$THROWMSG' floating-point invalid argument'               \ -46
-	$THROWMSG' compilation word list deleted'                 \ -47
-	$THROWMSG' invalid POSTPONE'                              \ -48
-	$THROWMSG' search-order overflow'                         \ -49
-	$THROWMSG' search-order underflow'                        \ -50
-	$THROWMSG' compilation word list changed'                 \ -51
-	$THROWMSG' control-flow stack overflow'                   \ -52
-	$THROWMSG' exception stack overflow'                      \ -53
-	$THROWMSG' floating-point underflow'                      \ -54
-	$THROWMSG' floating-point unidentified fault'             \ -55
-	$THROWMSG' QUIT'                                          \ -56
-	$THROWMSG' exception in sending or receiving a character' \ -57
-	$THROWMSG' [IF], [ELSE], or [THEN] exception'            \ -58
+$ENVSTR" StrongARM" CPUStr
+$ENVSTR" ROM Model" ModelStr
+$ENVSTR" 0.9.9" VersionStr
+							\ THROW code
+$THROWMSG' ABORT'                                         \ -01
+$THROWMSG' ABORT"'                                        \ -02
+$THROWMSG' stack overflow'                                \ -03
+$THROWMSG' stack underflow'                               \ -04
+$THROWMSG' return stack overflow'                         \ -05
+$THROWMSG' return stack underflow'                        \ -06
+$THROWMSG' do-loops nested too deeply during execution'   \ -07
+$THROWMSG' dictionary overflow'                           \ -08
+$THROWMSG' invalid memory address'                        \ -09
+$THROWMSG' division by zero'                              \ -10
+$THROWMSG' result out of range'                           \ -11
+$THROWMSG' argument type mismatch'                        \ -12
+$THROWMSG' undefined word'                                \ -13
+$THROWMSG' interpreting a compile-only word'              \ -14
+$THROWMSG' invalid FORGET'                                \ -15
+$THROWMSG' attempt to use zero-length string as a name'   \ -16
+$THROWMSG' pictured numeric output string overflow'       \ -17
+$THROWMSG' parsed string overflow'                        \ -18
+$THROWMSG' definition name too long'                      \ -19
+$THROWMSG' write to a read-only location'                 \ -20
+$THROWMSG' unsupported operation (e.g., AT-XY on a too-dumb terminal)' \ -21
+$THROWMSG' control structure mismatch'                    \ -22
+$THROWMSG' address alignment exception'                   \ -23
+$THROWMSG' invalid numeric argument'                      \ -24
+$THROWMSG' return stack imbalance'                        \ -25
+$THROWMSG' loop parameters unavailable'                   \ -26
+$THROWMSG' invalid recursion'                             \ -27
+$THROWMSG' user interrupt'                                \ -28
+$THROWMSG' compiler nesting'                              \ -29
+$THROWMSG' obsolescent feature'                           \ -30
+$THROWMSG' >BODY used on non-CREATEd definition'          \ -31
+$THROWMSG' invalid name argument (e.g., TO xxx)'          \ -32
+$THROWMSG' block read exception'                          \ -33
+$THROWMSG' block write exception'                         \ -34
+$THROWMSG' invalid block number'                          \ -35
+$THROWMSG' invalid file position'                         \ -36
+$THROWMSG' file I/O exception'                            \ -37
+$THROWMSG' non-existent file'                             \ -38
+$THROWMSG' unexpected end of file'                        \ -39
+$THROWMSG' invalid BASE for floating point conversion'    \ -40
+$THROWMSG' loss of precision'                             \ -41
+$THROWMSG' floating-point divide by zero'                 \ -42
+$THROWMSG' floating-point result out of range'            \ -43
+$THROWMSG' floating-point stack overflow'                 \ -44
+$THROWMSG' floating-point stack underflow'                \ -45
+$THROWMSG' floating-point invalid argument'               \ -46
+$THROWMSG' compilation word list deleted'                 \ -47
+$THROWMSG' invalid POSTPONE'                              \ -48
+$THROWMSG' search-order overflow'                         \ -49
+$THROWMSG' search-order underflow'                        \ -50
+$THROWMSG' compilation word list changed'                 \ -51
+$THROWMSG' control-flow stack overflow'                   \ -52
+$THROWMSG' exception stack overflow'                      \ -53
+$THROWMSG' floating-point underflow'                      \ -54
+$THROWMSG' floating-point unidentified fault'             \ -55
+$THROWMSG' QUIT'                                          \ -56
+$THROWMSG' exception in sending or receiving a character' \ -57
+$THROWMSG' [IF], [ELSE], or [THEN] exception'            \ -58
 
 \ NAC at this point need to ALIGN the value of _NAME, since we packed
 \ the strings of the throw table but  $CODE assumes that NAME is aligned.
@@ -2755,10 +2748,10 @@ META-HI [IF]
 CR .( *** ENVIRONMENT? Strings)
 ENV-DEF
 
-\ META-TODO - these strings are built in the NAME space..
-\ : CPU [ CPUStr ] LITERAL COUNT ;
-\ : model [ ModelStr ] LITERAL COUNT ;
-\ : version [ VersionStr ] LITERAL COUNT ;
+
+: CPU [ CPUStr ] LITERAL COUNT ;
+: model [ ModelStr ] LITERAL COUNT ;
+: version [ VersionStr ] LITERAL COUNT ;
 : /COUNTED-STRING [ MaxString ] LITERAL ;
 : /HOLD [ PADSize ] LITERAL ;
 : /PAD [ PADSize ] LITERAL ;
