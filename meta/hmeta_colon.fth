@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.11  1998/09/05 12:07:57  crook
+\ move target immediates to a separate file
+\
 \ Revision 1.10  1998/09/02 20:41:13  crook
 \ minor tweaks
 \
@@ -54,6 +57,9 @@
 \ 9. ? order of immediate words in hforth
 \ 10. When are immediate words first needed? Make it as late as possible
 \ 11. Tidy up use of wordlists
+\ 12. Review and document is when to use nit- and when/whether
+\     I really need it- --- it's very confusing at the moment when each are
+\     used.
 
 \ colon compiler and immediate words for hForth
 MARKER *hmc*
@@ -183,10 +189,12 @@ hForth INVERT [IF] : WORDLIST-NAME CONSTANT ; [THEN]
 WORDLIST WORDLIST-NAME t-words-WORDLIST
 WORDLIST WORDLIST-NAME it-words-WORDLIST
 WORDLIST WORDLIST-NAME its-words-WORDLIST
+WORDLIST WORDLIST-NAME tunresolved-words-WORDLIST
 \ add a wordlist to the search order; use with ALSO
 : t-words GET-ORDER NIP t-words-WORDLIST SWAP SET-ORDER ;
 : it-words GET-ORDER NIP it-words-WORDLIST SWAP SET-ORDER ;
 : its-words GET-ORDER NIP its-words-WORDLIST SWAP SET-ORDER ;
+: tunresolved-words GET-ORDER NIP tunresolved-words-WORDLIST SWAP SET-ORDER ;
 
 
 
@@ -222,9 +230,6 @@ CREATE order-! 5 CELLS ALLOT
 \ used in hmeta_colon -- before the words are defined in the target dict.
 \ used in "pipe"
 : [']-doCREATE 400005AC ;
-\ used in GetVaxAdr
-: [']-doCONST  40000590 ;
-: [']-doVALUE  4000059C ;
 
 
 ALSO t-words ALSO its-words DEFINITIONS
@@ -338,6 +343,7 @@ DECIMAL
 \		Take a run-time word xt1 for :NONAME , CONSTANT , VARIABLE and
 \		CREATE . Return xt2 of current definition.
 \
+\ TODO: need a check to see that the destination is reachable..
 BASE @ HEX
 : xt,       xhere ALIGNED DUP TOxhere SWAP
                xhere - CELL- CELL- 2 RSHIFT    \ get signed offset
@@ -474,20 +480,51 @@ t!             \ fill 0 at the end of string
 	cell- DUP TO _NAME t! ;          \ adjust name space pointer
 			                  \ and store xt at code field
 
+\ todo temp..
+BASE @ HEX
+ALSO tunresolved-words DEFINITIONS
+40001484 hCONSTANT doDO
+40000590 hCONSTANT doCONST
+4000059C hCONSTANT doVALUE
+40001BE0 hCONSTANT pipe
+40000CE0 hCONSTANT UNLOOP
+40002D78 hCONSTANT doS"
+400013FC hCONSTANT abort"msg
+400021A4 hCONSTANT TYPE
+40001B20 hCONSTANT COMPILE,
+40000AF4 hCONSTANT ROT
+40000B7C hCONSTANT 2!
+40000BB4 hCONSTANT 2DROP
+40000E18 hCONSTANT THROW
+PREVIOUS DEFINITIONS
+BASE !
+
+
+
 \   (')		( "<spaces>name" -- xt 1 | xt -1 )
 \		Parse a name, find it and return execution token and
 \		-1 or 1 ( IMMEDIATE) if found
 \
 BASE @ HEX
 : (')	PARSE-WORD search-word ?DUP IF NIP EXIT THEN
-\ not found in target dictionary. May be FORTDEF's in host t-words
-\ dictionary, but we can't be sure. Leave a dummy xt.. This should be
-\ fixable by changing the order of definitions in the target source
-\ think this should only arise due to "parsing words" in the source;
-\ POSTPONE etc. since all other words are located by the host searching
-\ t-words automatically
-  ." (Target unresolved)"
-  2DROP 1 TUNRESOLVED +! DEADBEEF -1 ;
+  \ not found in target dictionary. May be FORTDEF's in host t-words
+  \ dictionary, but we can't be sure. Leave a dummy xt.. This should be
+  \ fixable by changing the order of definitions in the target source
+  \ think this should only arise due to "parsing words" in the source;
+  \ POSTPONE etc. since all other words are located by the host searching
+  \ t-words automatically
+
+  \ See if it's been defined in the list of target unresolved constants
+  tunresolved-words-WORDLIST SEARCH-WORDLIST
+  \ 0 or xt 1 or xt -1 .. will never be 1
+  IF
+    EXECUTE \ convert CONSTANT's xt into the target's xt
+  ELSE
+    \ still not found.. bump the count and leave a bogus xt
+    CR ." >> Target unresolved:"
+    SOURCE TYPE
+    1 TUNRESOLVED +! DEADBEEF
+  THEN -1 ; \ always flag found, non-immediate
 BASE !
 \	errWord 2!      \ if not found error
 \ 	-13 THROW ;     \ undefined word
@@ -538,7 +575,7 @@ BASE !
 \ compiled into the definition of JANET (as though it was a non-immediate
 \ word).
 \
-\ The Standard specifies that POSTPONE is aparsing word; it parses at
+\ The Standard specifies that POSTPONE is a parsing word; it parses at
 \ compile time and must search the wordlists in effect at that time.
 \
 \ The current environment is really a cross-meta-compiler: it's running
@@ -700,6 +737,7 @@ ALSO t-words DEFINITIONS
 PREVIOUS DEFINITIONS \ back to Forth
 CR .( Check search order -> ) ORDER
 
+
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ Restore search order, which has been sitting on the stack since the
 \ start of this file.
@@ -726,8 +764,8 @@ ALSO its-words
 \ so we can look up the xt in the target dictionary and use this information
 \ to extract the address we're after.
 : GetVaxAdr   t' ?call
-	DUP [']-doCONST =
-	SWAP [']-doVALUE = OR	  \ CONST or VALUE marker?
+	DUP t['] doCONST =
+	SWAP t['] doVALUE = OR	  \ CONST or VALUE marker?
 	    IF t@ EXIT
 	    THEN -32 THROW ; \ invalid name argument
 
@@ -797,12 +835,23 @@ ALSO its-words
 : ]          -1 STATE ! tc-order ;
 
 
+CR .( >> TODO UNRESOLVED --  temp to resolve forward defn. in hmeta_colon )
+\ .. this one will get frigged in :NONAME. Really need to provide a way
+\ to resolved these in searches of the target dictionary
+BASE @ HEX
+400005EC hCONSTANT doLIST
+BASE !
+
+
+
 \   :NONAME     ( -- xt colon-sys )             \ CORE EXT
 \		Create an execution token xt, enter compilation state and
 \		start the current definition.
 \
 : :NONAME   bal IF -29 THROW THEN           \ compiler nesting
-	t['] doLIST xt, DUP -1
+\	t['] doLIST xt, DUP -1
+\ TODO temp to resolve forward defn.
+	doLIST xt, DUP -1
 	0 TO notNONAME?  1 TO bal ] ;
 
 

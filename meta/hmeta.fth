@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.7  1998/09/05 12:10:09  crook
+\ minor tweaks
+\
 \ Revision 1.6  1998/09/02 20:41:28  crook
 \ minor tweaks.
 \
@@ -255,3 +258,20 @@ CR .( High-level forward references resolved by FORTDEF 0x) U.
 image-wr
 CR .( Image saved as ) meta-built TYPE CR
 
+CR .( Checking forward references..)
+ALSO tunresolved-words
+' doDO doDO = .
+' doCONST doCONST = .
+' doVALUE doVALUE = .
+' pipe pipe = .
+' UNLOOP UNLOOP = .
+' doS" doS" = .
+' abort"msg abort"msg = .
+' TYPE TYPE = .
+' COMPILE, COMPILE, = .
+' ROT ROT = .
+' 2! 2! = .
+' 2DROP 2DROP = .
+' THROW THROW = .
+' doCREATE [']-doCREATE = . \ defn in hmeta_colon
+PREVIOUS

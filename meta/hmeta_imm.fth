@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.1  1998/09/05 12:06:36  crook
+\ Initial revision
+\
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 CR .( *** Immediate words for target system)
@@ -31,36 +34,6 @@ CR .( *** Immediate words for target system)
 \
 \ You need to understand the difference between tPOSTPONE and hPOSTPONE to
 \ understand why both are used in this subsequent section of code.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 \ come into here with standard compile and search order.
 CR .( Check search order -> ) ORDER
@@ -135,7 +108,6 @@ ALSO its-words
 	    tPOSTPONE pipe t['] doLIST xt, -1 ; hCOMPILE-ONLY
 : it-DOES> nit-DOES> ; hCOMPILE-ONLY hIMMEDIATE
 
-
 : nit-LEAVE tPOSTPONE UNLOOP tPOSTPONE branch
 	    xhere rakeVar DUP @ code, ! ; hCOMPILE-ONLY
 : it-LEAVE nit-LEAVE ; hCOMPILE-ONLY hIMMEDIATE
@@ -190,11 +162,14 @@ ALSO its-words
 \ Copy a string into target space along with the words that are needed
 \ at run-time in order to print it.
 : nit-SLITERAL
-\ TODO this has a tCOMPILE, that the "real" defn doesn't have, and
-\ it probably shouldn't be there, but it fixes a compile problem...
-	DUP tPOSTPONE LITERAL tCOMPILE, tPOSTPONE doS"
+	DUP nit-LITERAL tPOSTPONE doS"
+\ since LITERAL is immediate, tPOSTPONE LITERAL would emit LITERAL
+\ so we short-circuit this process by using nit-LITERAL. Since doS" is non-imm,
+\ tPOSTPONE doS" should emit doLIT doS" COMPILE,
 	CHARS xhere 2DUP + ALIGNED TOxhere
 	SWAP tMOVE ; hCOMPILE-ONLY
+
+
 : it-SLITERAL nit-SLITERAL ; hCOMPILE-ONLY hIMMEDIATE
 
 
@@ -236,7 +211,7 @@ ALSO its-words
 	\ non-immediate word. Make the target definition spit out the XT by
 	\ generating this code in the target code space:
 	\ <dolit> <xt> <compile,>
-	t['] LITERAL tCOMPILE, tCOMPILE,
+	t['] doLIT tCOMPILE, tCOMPILE,
 	t['] COMPILE,   \ non-IMMEDIATE
   THEN
   \ IMMEDIATE word - just spit out the XT in the target code space
@@ -244,12 +219,10 @@ ALSO its-words
   ; hCOMPILE-ONLY       \ IMMEDIATE
 : it-POSTPONE nit-POSTPONE ; hCOMPILE-ONLY hIMMEDIATE
 
-\ TODO that looks dodgy..
-: nit-ABORT"  tPOSTPONE S" tPOSTPONE ROT
-	    tPOSTPONE IF tPOSTPONE abort"msg tPOSTPONE 2!
-	    -2 tPOSTPONE LITERAL tPOSTPONE THROW
-	    tPOSTPONE ELSE tPOSTPONE 2DROP tPOSTPONE THEN
-	    ;  hCOMPILE-ONLY
+\ TODO that looks dodgy.. (maybe OK now..)
+: nit-ABORT"  nit-S" tPOSTPONE ROT nit-IF tPOSTPONE abort"msg
+  tPOSTPONE 2! -2 nit-LITERAL tPOSTPONE THROW nit-ELSE
+  tPOSTPONE 2DROP nit-THEN ;  hCOMPILE-ONLY
 : it-ABORT" nit-ABORT" ; hCOMPILE-ONLY hIMMEDIATE
 
 : nit-\ SOURCE >IN ! DROP ;
@@ -260,9 +233,22 @@ ALSO its-words
 \ effect as [ n ] LITERAL - which is normally redundant, but is needed when
 \ using the interpreter to target compile.
 : N#	CREATE , hIMMEDIATE DOES>
-	BASE @ >R @ BASE !
+	BASE @ >R @ BASE ! \ change BASE to value in defined word's para field
 	0 0 \ >NUMBER accumulates a DOUBLE
-	PARSE-WORD >NUMBER R> BASE ! 2DROP DROP
+	PARSE-WORD 
+	\ handle the possibility of -ve numbers..
+	OVER C@ [CHAR] - = DUP >R
+	IF
+	  1 - SWAP CHAR+ SWAP \ skip leading - but remember we had it
+	THEN
+	>NUMBER
+	IF
+	  \ one or more characters were unconverted
+	  SOURCE TYPE ABORT" -- unable to convert the number"
+	THEN
+	2DROP \ string address and the high part of the double number
+	\ (assumed to be 0..)
+	R> IF NEGATE THEN R> BASE !
 	nit-LITERAL ;
 
 PREVIOUS \ back to standard
@@ -306,15 +292,9 @@ ALSO its-words
 10 N# D#
 
 
-
-
 PREVIOUS DEFINITIONS \ back to FORTH
 CR .( Check search order -> ) ORDER
 CR .( *** End of target immediate words)
-
-
-
-
 
 
 \ now define all of the words that are needed interactively for compiling
@@ -322,12 +302,7 @@ CR .( *** End of target immediate words)
 \ clash with host words. Therefore, we make aliases for the host words
 \ first, so that they continue to be available to us.
 
-
-
-
 HEX
-
-
 
 PREVIOUS DEFINITIONS \ back to FORTH
 CR .( Check search order -> ) ORDER
