@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.6  1998/08/20 22:33:10  crook
+\ fixed tPOSTPONE. Many other tidy-ups
+\
 \ Revision 1.5  1998/08/18 22:14:18  crook
 \ many small fixes. POSTPONE is still a mess
 \ 0x42 unresolved forward references.
@@ -679,7 +682,7 @@ ALSO its-words
 
 \ In addition to this, the following words are used in the interpreter
 \ and affect the compilation in the target:
-\ : <wordlist control> IMMEDIATE COMPILE-ONLY VALUE CONSTANT VARIABLE
+\ : <wordlist control> IMMEDIATE COMPILE-ONLY VALUE CONSTANT VARIABLE ]
 \ Since they must be available in the interpreter, they are all defined
 \ right at the end of this file, to avoid conflict with host definitions
 \ by the same name (TODO the exceptions at the moment are the : definition,
