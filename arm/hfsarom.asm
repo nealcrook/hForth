@@ -3,6 +3,20 @@
 ;;PAGE 62,132     ;62 lines per page, 132 characters per line
 
 ;; TODO
+;;; Things I reported to Wonyong that he disputes, and I should fix:	
+;;;> \ .ok asm def not the same as high-level def. Equivalent hi-level def
+;;;> \  is S" ok" TYPE
+;;;
+;;;'." ok"' is equivalent of 'S" ok" TYPE'. See the defintion of ." .
+;;;
+;;;    : ."   POSTPONE S" POSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
+;;;
+;;;> \ cell-size-in-bits in UM* and UM/MOD and RSHIFT should be 
+;;;> \ [ CELLL 8 * ] LITERAL
+;;;
+;;;Address unit is not necessarily multiple of 8 bits. For example, the
+;;;word of MISC Forth processor is 20 bit wide.
+;;;	
 ;; -  fix code defn of pack" to match revised high-level source
 ;;; --- LEGO H8 port claims there's still a bug in pack" high-level source.
 ;; -  code more words in assembler. Eg ?call xt, doDO optiCOMPILE
@@ -28,15 +42,9 @@
 ;; the metacompiler work (all have been reported to Wonyong. This is a list
 ;; of those that have not yet been fixed in this source code)
 ;; 
-;;defn of RESET-SYSTEM requires definition of a new constant sysVar00, set
-;; to a value of UZERO0 (like sysVar0).
 ;;pack" fill-to-end part may attempt a ! to an unaligned address. Fix is
 ;; to be able to round-down the address.. that may be fixed in the latest
 ;; pack" .. but 
-;;-------------- bugs discovered after reporting the first set (all fixed in this source)
-;;in ACCEPT " IF DROP DUP IF 1-" should be "IF DUP IF 1-"
-;;in linklast, "do nothing" comment is wrong -- it *always* links in
-;;in ; "is not created by ':'" should read "is created by ':'"
 ;;
 ;; Issues
 ;; 1. Wonyong's STRdollar doesn't pack strings, but mine does.
@@ -106,6 +114,9 @@
 ;; build time.
 
 ;; $Log$
+;; Revision 1.21  1999/07/13 21:20:28  crook
+;; Mods for EB-AMCU; released by permission of Bob Van Steenburgh.
+;;
 ;; Revision 1.20  1999/01/05 21:46:04  crook
 ;; Documented bugs in the high-level words (reported to Wonyong) plus a few
 ;; minor ARM code optimisations.
@@ -178,6 +189,18 @@
 ;       hForth 8086 ROM model v0.9.9 by Wonyong Koh, 1997
 ;
 ;
+; 1999. 3. 5.
+;	Fix bugs reported by Mr. Neal Crook. Thank Neal Crook.
+;	Fix Forth definition of ACCEPT. 
+;	Add high-level definition of 2DROP and 2DUP.
+;	Remove superfluous THEN in optiCOMPILE,ACCEPT, and UM/MOD.
+;	LITERAL in the high-level definitions of doubleAlso, singleOnly,
+;		and SLITERAL should have been 'POSTPONE LITERAL'.
+;	S" in the high-level definitions of ABORT" should have been 
+;		'POSTPONE S"'.
+;       The hith-level definition of REPEAT should have been 
+;		'POSTPONE AGAIN POSTPONE THEN'.
+;	Add COMSTANT word 'sysVar00'.
 ; 1998. 1. 5.
 ;	Mr. Kwon Hyuk Kun reported several bugs. Thank Mr. Kwon.
 ;	Fix REFILL . 'Fetch' was missing in DW statement. Thank Kwon Hyuk Kun.
@@ -1645,7 +1668,7 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 ;		." ARM7TDMI/StrongARM port by nac@forth.org" CR ;
 ;		." ALL noncommercial and commercial uses are granted." CR
 ;		." Please send comment, bug report and suggestions to:" CR
-;		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR
+;		."   wykoh@pado.krict.re.kr or wykoh@free.xtel.com" CR ;
 
 		$COLON  2,'hi',HI,_SLINK
 		DW	CR
@@ -1665,7 +1688,7 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 		DW	TYPEE,CR
 		$INSTR	'Please send comment, bug report and suggestions to:'
 		DW	TYPEE,CR
-		$INSTR	'  wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr'
+		$INSTR	'  wykoh@pado.krict.re.kr or wykoh@free.xtel.com'
 		DW	TYPEE,CR,EXIT
 
 ;   INIT-BUS ( -- )
@@ -2778,6 +2801,11 @@ QCALL1		DW	Zero,EXIT
 
 		$CONST	7,'sysVar0',SysVar0,UZERO,_SLINK
 
+;   sysVar00	( -- a-addr )
+;		Start of backup copy of original value table of system variables.
+
+		$CONST	8,'sysVar00',SysVar00,UZERO0,_SLINK
+
 ;   sysVar0End	( -- a-addr )
 ;		End of initial value table of system variables.
 
@@ -3345,8 +3373,8 @@ INTERP4 	DW	DoLIT,-14,THROW
 ;		      2DROP EXIT THEN
 ;		    DUP CELL+ @ ['] EXIT = IF   \ if second word is EXIT
 ;		      @ DUP ['] doLIT XOR  \ make sure it is not literal value
-;		      IF SWAP THEN
-;		THEN THEN DROP COMPILE, ;
+;		      IF SWAP THEN  THEN
+;		THEN DROP COMPILE, ;
 
 		$COLON	12,'optiCOMPILE,',OptiCOMPILEComma,_SLINK
 		DW	DUPP,QCall,DoLIT,DoLIST,Equals,ZBranch,OPTC2
@@ -4181,8 +4209,7 @@ TONUM3		DW	EXIT
 ;			    IF	 DROP 2DUP + BL DUP EMITE SWAP C! 1+
 ;			    ELSE DUP [ BKSPP ] LITERAL =
 ;				 SWAP [ DEL ] LITERAL = OR
-;				 IF DUP
-;					\ discard the last char if not 1st char
+;				 IF DUP \ discard the last char if not 1st char
 ;					IF 1- [ BKSPP ] LITERAL EMITE BL EMITE [ BKSPP ] LITERAL EMITE THEN
 ;				 THEN
 ;			    THEN
@@ -4841,8 +4868,7 @@ TYPE2		DW	DROP,EXIT
 ;		   NEGATE [ CELLL 8 * ] LITERAL 0
 ;		   DO	>R DUP um+ >R >R DUP um+ R> + DUP
 ;			R> R@ SWAP >R um+ R> OR
-;			IF >R DROP 1+ R> ELSE DROP THEN
-;			R>
+;			IF  >R DROP 1+ R>  ELSE  DROP  THEN
 ;		   LOOP DROP SWAP EXIT
 ;		ELSE -11 THROW		\ result out of range
 ;		THEN ;
