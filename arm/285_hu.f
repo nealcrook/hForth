@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.1  1997/08/13 18:12:33  crook
+\ Initial revision
+\
 \
 \ ebsa-285 hForth utility words
 \ these utilities expect optional.f to be loaded; they require
@@ -15,14 +18,7 @@
 \ TODO in Flash routines
 \      - verify checksums in images as part of directory list
 \      - check that checksum gets written correctly
-
-
-\ TODO - HEX may not be defined
-\      - MARKER doesn't seem to work at the moment
-DECIMAL
-: HEX 16 BASE ! ;
-: MARKER CREATE DOES> ;
-
+\      - header source in FL-FORTH relies on being in X-Bus mode
 
 HEX
 MARKER STARTOF-UTILS
@@ -46,6 +42,33 @@ MARKER STARTOF-UTILS
    1 RSHIFT SWAP 1+ SWAP
  REPEAT
  DROP
+;
+
+
+: .CONFIG
+ \ report various interesting facts about the board
+ BASE @ HEX CR
+ ." SA-110 identification register reports 0x"
+ CHIPID S>D <# # # # #  # # # # #> TYPE CR
+ ." 21285 silicon revision is 0x"
+ 42000008 @ FF AND S>D <# # # #> TYPE CR
+ 4200013C @ 80000000 AND IF
+   ." 21285 is configured as CENTRAL FUNCTION" 
+ ELSE
+   ." 21285 is configured as non-CENTRAL FUNCTION"
+ THEN CR
+ ." EBSA-285 X-Bus/Arbiter is configured as "
+ 42000148 @ 100000 AND IF
+   ." Arbiter" CR
+ ELSE
+   ." X-Bus" CR
+   ." EBSA-285 Image Select switch is set to 0x"
+   40012000 @ DUP INVERT F AND S>D <# # # #> TYPE CR
+   40 AND IF
+     ." Stand-alone bit is SET (don't access PCI)"
+   THEN
+ THEN
+ BASE !
 ;
 
 
@@ -354,6 +377,7 @@ MARKER STARTOF-MM
 : SLOWDOWN ( -- )
 \ turn off the MMU and flush the caches
  MMUOFF CKSWOFF IFLUSH DFLUSH
+;
 
 \ end
 
