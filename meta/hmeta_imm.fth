@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.2  1998/09/30 23:57:15  crook
+\ first working binary.
+\
 \ Revision 1.1  1998/09/05 12:06:36  crook
 \ Initial revision
 \
@@ -38,7 +41,7 @@ CR .( *** Immediate words for target system)
 \ come into here with standard compile and search order.
 CR .( Check search order -> ) ORDER
 
-DECIMAL
+BASE @ DECIMAL
 ALSO its-words
 
 : nit--. -13 THROW ;
@@ -294,7 +297,8 @@ ALSO its-words
 
 PREVIOUS DEFINITIONS \ back to FORTH
 CR .( Check search order -> ) ORDER
-CR .( *** End of target immediate words)
+CR .( *** End of hmeta_imm.fth)
+BASE !
 
 
 \ now define all of the words that are needed interactively for compiling
@@ -302,8 +306,10 @@ CR .( *** End of target immediate words)
 \ clash with host words. Therefore, we make aliases for the host words
 \ first, so that they continue to be available to us.
 
-HEX
 
-PREVIOUS DEFINITIONS \ back to FORTH
-CR .( Check search order -> ) ORDER
-CR .( *** End of hmeta_imm.fth)
+
+
+
+
+
+

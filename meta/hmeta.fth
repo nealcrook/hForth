@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.9  1998/10/08 20:33:54  crook
+\ minor tidy-ups; first working asm version
+\
 \ Revision 1.8  1998/09/30 23:56:54  crook
 \ first working binary.
 \
@@ -45,8 +48,6 @@
 \ asmarm.fth - arm assembler
 \ hforth.fth - hfsarom.asm re-expressed wholly in Forth and meta-compiler
 \              structures
-\ compare.fth - words for loading a pre-build image, comparing against a new
-\              image and saving the new image.
 \ ?? - target-specific files to be included?
 \
 \
@@ -69,14 +70,13 @@
 MARKER *HMETA*
 HEX
 
-\ Load the assembler
-S" ../asmarm/asmarm.fth" INCLUDED
 
 : hCONSTANT CONSTANT ;
 : hVALUE VALUE ;
 
 \ name to save meta-compiled image to
 : meta-built S" meta_img.bin" ;
+
 
 \ TODO the pieces below determine the target machine, mem-map, comm port
 \ and baud rate. This all needs to be rationalised somewhat.
@@ -167,19 +167,18 @@ MM_PBLOADED [IF]
 [THEN] \ TAR_EBSA285
 
 
-
-\ Create an area of memory in which to generate the target image. This memory
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ Reserve an area of memory in which to generate the target image. This memory
 \ represents the ROM space, and will be dumped out as an image to load into
-\ the target. The RAM space is not represented in the host system, although
-\ there are obviously references to it.
-\ In this case, the image is created within the data space of the host
+\ the target. The RAM space is not (currently) represented in the host system,
+\ although there are obviously references to it.
+\ In this case, the target image is created within the data space of the host
 \ system but this is not a requirement. The only requirement is that there
-\ is a way of accessing locations within the image.
+\ is a way of accessing locations within the target image.
 CREATE TARGET-IMAGE ROMEnd ROM0 - ALLOT
 TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 
-
-\ take an address in target space and convert it to an address in host space
+\ Take an address in target space and convert it to an address in host space
 \ - check it for legality.
 : t2h ( n -- n )
 	DUP ROM0 ROMEnd WITHIN IF
@@ -194,7 +193,6 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 \ an address within the host's image of the target memory. 
 : ?ALIGNED ( -- )
   DUP 3 AND IF .S ABORT" Unaligned address for 32-bit access!" THEN ;
-
 : t@ ( n -- n ) ?ALIGNED t2h @ ;
 : tC@ ( n -- n ) t2h C@ ;
 : t! ( n n -- ) ?ALIGNED t2h ! ;
@@ -204,19 +202,42 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 : tCMOVE ( addr1 taddr2 u -- ) \ move to taddr2 in target address space
   SWAP t2h SWAP CMOVE ;
 
+\ The assembler needs an additional concept; that of a "PC" at which to
+\ emit code. In hForth this is the same as the code space pointer.
+4		hCONSTANT CELLL \ byte size of a cell
+ROM0	VALUE	 _CODE  \ initial code space pointer
+
+S" ../asmarm/asmarm.fth" INCLUDED \ Load the assembler
+
+\ TODO change _CODE to use cpVar and xhere like hForth source
+\ ..problem is that xhere is not defined yet... and tidy up defns. accordingly
+
+\ Code generation - emit n at the target PC and increment the target PC
+: tCOMPILE, ( n -- ) _CODE t! _CODE CELLL + TO _CODE ;
+' tCOMPILE, 'ASM,32 ! \ vector for the assembler
+
+\ Return the target PC - an absolute address in TARGET space
+:NONAME ( -- n ) _CODE ; 'ASM. ! \ ONLY a vector for the assembler
+
+' t@ 'ASM@ ! \ vector for the assembler
+' t! 'ASM! ! \ vector for the assembler
 
 
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \ Definitions to control the flavour of compilation
+
 \ Force high-level definitions where possible
 \ TRUE hCONSTANT META-HI
 FALSE hCONSTANT META-HI
+
 \ Force unproven definitions where available
 TRUE hCONSTANT META-EXPERIMENTAL
+
 \ Force code endings to branch through micro-debugger
 FALSE hCONSTANT MICRO-DEBUG
 
 
-
+\ TODO clarify the descriptions below relative to code space etc
 \ in the normal hForth assembler source:
 \ - cpVar is the address at which to emit new code
 \ - npVar is the address at which to emit new dictionary data.
@@ -228,32 +249,56 @@ FALSE hCONSTANT MICRO-DEBUG
 \ In Forth definitions, hereVar is accessed using HERE and cpVar is accessed
 \ using xhere.
 
-\ load compare function and the forth source itself
-DEPTH S" compare.fth" INCLUDED DEPTH 1- -
-[IF] .( compare affected depth) ABORT [ELSE] CR .( ..compare loaded OK) [THEN]
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ Words to allow the binary image to be written out to disk
+
+VARIABLE myfile \ stores the file handle
+
+\ Check to see if a file operation completed successfully. If it didn't, fail
+\ ungracefully..
+: file-ok
+	DUP 0= IF DROP ELSE CR ." File operation failed with error code " .
+	ABORT THEN ;
+
+\ Save the meta-compiled image to disk
+: IMAGE-WR
+	meta-built R/W BIN CREATE-FILE
+	file-ok myfile !
+	\ store 64K in the file
+	TARGET-IMAGE 10000 myfile @ WRITE-FILE file-ok
+	myfile @ CLOSE-FILE file-ok ;
+
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ load the hForth source
 DEPTH S" hforth.fth"  INCLUDED DEPTH 1- -
 [IF] .( hforth affected depth) ABORT [ELSE] CR .( ..hforth loaded OK) [THEN]
 
 DEPTH [IF] .( dstack depth is non-zero after hmeta loaded) ABORT [THEN]
 
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ Print statistics and save final image to disk
 ALSO ASSEMBLER
 GLOBAL-RESOLVED \ check that global forward references are resolved.
-SYM-TABLE-STATS DUMP-SYM-TABLE LTORG-STATS
+SYM-STATS LTORG-STATS
 PREVIOUS
 
-   .( Code pointer is 0x) _CODE U.
-CR .( Name pointer is 0x) _NAME U.
-CR .( Space is 0x) _NAME _CODE - U.
+.( Code pointer = 0x) _CODE U. 
+.( , Name pointer = 0x) _NAME U.
+.( , Space = 0x) _NAME _CODE - U.
 ALSO its-words FUNRESOLVED @ TUNRESOLVED @ PREVIOUS
-CR .( High-level forward references not found in target image dictionary 0x) U.
-CR .( High-level forward references resolved by FORTDEF 0x) U.
+CR .( High-level forward references not found in target image dictionary: 0x) U.
+CR .( High-level forward references resolved by FORTDEF: 0x) U.
 image-wr
 CR .( Image saved as ) meta-built TYPE CR
 
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 CR .( Checking forward references..)
-' doLIST doLIST = .
 ' doUSER doUSER = .
 ALSO tunresolved-words
+' doLIST doLIST = .
 ' doDO doDO = .
 ' doCONST doCONST = .
 ' doVALUE doVALUE = .
@@ -270,3 +315,6 @@ ALSO tunresolved-words
 ' doCREATE [']-doCREATE = . \ defn in hmeta_colon
 PREVIOUS
 S" mkfor.fth" INCLUDED
+
+\ End.
+

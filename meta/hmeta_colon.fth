@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.15  1998/10/08 20:33:54  crook
+\ minor tidy-ups; first working asm version
+\
 \ Revision 1.14  1998/10/03 18:18:25  crook
 \ Updates to pack" head, from Wonyong's release of 05-Jan-1998
 \
@@ -58,7 +61,7 @@
 \ 1. rearrange words
 \ 2. new "where am I" messages in source
 \ 3. put all defn in correct wordlists
-\ 4. consistent cpVar, xhere, meta-asm, etc.
+\ 4. consistent cpVar, xhere, etc.
 \ 5. allow early low-level defn to inhibit later hi-level defn
 \ 6. DONE
 \ 7. fix TODO things in assembler
@@ -73,6 +76,14 @@
 \ 14. Fix forward reference for udebug and test udebugger
 \ 15. : dd CATCH -55 THROW ; works on fpe but causes an undefined
 \     instruction exception on hForth.
+\ 16. Add throw/catch support to assembler
+\ 17. add state machine rigor to assembler
+\ 18. allow more words to be used immediately eg to allow optional coreext
+\     and asmarm to be meta-compiled. This probably means wordlists,
+\     environment queries, variables, constants and values, which also
+\     means that my initialisation code will need to change and I will
+\     need to have a way to emulate target RAM on the host
+\ 19. 
 
 \ colon compiler and immediate words for hForth
 MARKER *hmc*
@@ -83,6 +94,7 @@ HEX
 \ run-time function is dependent upon the function of the word being 
 \ postponed.
 : hPOSTPONE POSTPONE POSTPONE ; IMMEDIATE
+
 : POSTPONE ." Error: use hPOSTPONE or tPOSTPONE" QUIT ;
 
 : g ." got here" .S ;
@@ -247,7 +259,7 @@ CREATE order-! 5 CELLS ALLOT
 \ TODO shouldn't need these now.. could find then using t['] except..
 \ used in hmeta_colon -- before the words are defined in the target dict.
 \ used in "pipe"
-: [']-doCREATE 400005AC ;
+: [']-doCREATE 400005B4 ;
 
 
 ALSO t-words ALSO its-words DEFINITIONS
@@ -274,9 +286,8 @@ CREATE errWord 2 CELLS ALLOT	\ last found word. Used for error reporting
 
 : bal+ bal 1+ TO bal ;
 : bal- bal 1- TO bal ;
-: tCOMPILE, meta-asm,32 ;
-: xhere meta-asm. ;
-: TOxhere meta-asm! ;
+: xhere _CODE ; \ get the current value of the target PC
+: TOxhere TO _CODE ; \ used to update the target PC
 : 1chars/ ;
 : cell- CELLL - ;
 : name>xt  cell- cell- @ ;
@@ -443,7 +454,11 @@ BASE !
 	   LOOP 0		        \ ca u 0
 	THEN ;
 
-
+\ TODO looks like something in here is stopping gforth from working
+\   skipPARSE	( char "<chars>ccc<char>" -- c-addr u )
+\		Skip leading chars and parse a word using char as a
+\		delimeter. Return the name.
+\
 : skipPARSE
 	>R SOURCE >IN @ /STRING    \ c_addr u  R: char
 	DUP IF
@@ -492,10 +507,10 @@ BASE !
 	IF DROP ." t-redefine " 2DUP TYPE SPACE THEN \ warn if redefined
 	_NAME OVER CHARS CHAR+ -
 	DUP ALIGNED SWAP OVER XOR IF cell- THEN \ aligned to low address
-	DUP >R pack" DROP R>              \ pack the name in dictionary
-	cell- mGET-CURRENT @ OVER t!      \ build wordlist link
-	cell- DUP TO _NAME t! ;          \ adjust name space pointer
-			                  \ and store xt at code field
+	DUP >R pack" DROP R>           \ pack the name in dictionary
+	cell- mGET-CURRENT @ OVER t!   \ build wordlist link
+	cell- DUP TO _NAME t! ;        \ adjust name space pointer
+			               \ and store xt at code field
 
 \ todo temp..
 BASE @ HEX
@@ -634,7 +649,7 @@ BASE !
 
 
 \ (End of support words for immediate words and t:)
-PREVIOUS PREVIOUS FORTH DEFINITIONS PREVIOUS \ back to FORTH
+PREVIOUS FORTH DEFINITIONS PREVIOUS \ back to FORTH
 CR .( Check search order -> ) ORDER
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -675,12 +690,12 @@ BASE @ HEX
 		THEN
 		\ found and not immediate. Drop the compile-only flag to
 		\ leave the xt, then emit the xt
-		DROP meta-asm,32 \ TODO == tcompile, .. which should I use?
+		DROP tCOMPILE,
 	ELSE
 		\ not found
 		." (Forward definition unresolved)"
 		DROP 1 FUNRESOLVED +!
-		2DROP DEADBEEF meta-asm,32 \ drop string and compile dummy xt
+		2DROP DEADBEEF tCOMPILE, \ drop string and compile dummy xt
 	THEN ;
 BASE !
 
@@ -706,7 +721,7 @@ BASE !
 		THEN
 		\ found and not immediate. Drop the compile-only flag to
 		\ leave the xt, then emit the xt
-		DROP meta-asm,32
+		DROP tCOMPILE,
 	ELSE
 		CR ." FATAL ERROR"
 		CR ." TDEF-ed word not found - target search order must be wrong"
@@ -755,9 +770,9 @@ ALSO its-words
 : F-DEF mFORTH-WORDLIST current ! ;
 : S-DEF NONSTANDARD-WORDLIST current ! ;
 : ENV-DEF ENVIRONMENT-WORDLIST current ! ;
+: this-link current @ ;
 
 : ' t' ;
-
 
 
 \ TODO not sure where these get compiled to..
@@ -820,7 +835,6 @@ ALSO its-words
 PREVIOUS
 
 
-\ TODO: make sure these both affect the *most recent* code or colon defn
 \ Set COMPILE bit of most recent definition
 : hCOMPILE-ONLY ;
 : COMPILE-ONLY _NAME CELLL 2* + DUP tC@ =COMP OR SWAP tC! ;
@@ -841,15 +855,13 @@ ALSO its-words
 
 
 CR .( >> TODO UNRESOLVED --  temp to resolve forward defn. in hmeta_colon )
-\ .. this one will get frigged in :NONAME. Really need to provide a way
-\ to resolved these in searches of the target dictionary
 BASE @ HEX
-400005EC hCONSTANT doLIST
 \ TODO these are forward definitions of XTs for the $VAR $CONST $VALUE $USER
 \ definitions..
-4000059C hCONSTANT doVALUE
-40000590 hCONSTANT doCONST
-400005D4 hCONSTANT doUSER
+\ .. could use the normal forward defn routine IFF t['] was findable at the time
+400005A4 hCONSTANT doVALUE
+40000598 hCONSTANT doCONST
+400005DC hCONSTANT doUSER
 BASE !
 
 
@@ -859,9 +871,7 @@ BASE !
 \		start the current definition.
 \
 : :NONAME   bal IF -29 THROW THEN           \ compiler nesting
-\	t['] doLIST xt, DUP -1
-\ TODO temp to resolve forward defn.
-	doLIST xt, DUP -1
+	t['] doLIST xt, DUP -1
 	0 TO notNONAME?  1 TO bal ] ;
 
 

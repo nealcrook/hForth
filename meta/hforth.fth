@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.17  1998/10/08 20:33:10  crook
+\ tidy ups and optimisations; first working asm version.
+\
 \ Revision 1.16  1998/10/06 00:27:14  crook
 \ fixed many assembler TODOs.
 \
@@ -267,33 +270,12 @@ SuperIObase 2F8 2 LSHIFT + hCONSTANT COM2Port
 \ accesses are vectored.
 0	VALUE	 _THROW \ current throw string
 RAM0	VALUE	 _VAR   \ initial data space pointer
-ROM0	VALUE	 _CODE  \ initial code space pointer
+\ ROM0	VALUE	 _CODE  \ initial code space pointer
 ROMEnd	VALUE	 _NAME  \ initial name space pointer.. decrement before use
 	VARIABLE _SLINK		0 _SLINK ! \ force a null link
 	VARIABLE _FLINK		0 _FLINK ! \ force a null link
 	VARIABLE _ENVLINK	0 _ENVLINK ! \ force a null link
 
-\ Code generation - emit n at the target PC and increment the target PC
-\ TODO change _CODE to use cpVar and xhere like hForth source
-\ ..problem is that xhere is not defined yet.
-\ and tidy up defns. accordingly
-: meta-asm,32 ( n -- )
-\ \	DUP ." (asm:" U. ." )"
-	_CODE t! _CODE CELLL + TO _CODE ;
-
-\ Return the target PC - an absolue address in TARGET space
-: meta-asm. ( -- n )
-	_CODE ;
-
-\ Change the target PC (not used by the assembler)
-: meta-asm! ( n -- )
-	TO _CODE ;
-
-\ install routines in the assembler's vectors.
-' meta-asm,32 'ASM,32 ! 
-' meta-asm. 'ASM. !
-' t@ 'ASM@ !
-' t! 'ASM! !
 
 \ Ready to start definitions for the system. Until now, all of the facilities
 \ of the host Forth compiler have been available. After we load the
@@ -369,8 +351,8 @@ VARIABLE META-DEPTH
 \ can be used at any time before a new definition is started, but a
 \ consistent approach is recommended.
 
-: $CODE ( n -- )
-	>R
+: $CODE ( -- )
+	this-link >R
 	DEPTH META-DEPTH ! \ should finish with 1 fewer than we start
 	_CODE $ALIGN TO _CODE
 	TDEF PARSE-WORD \ addr len
@@ -386,8 +368,6 @@ VARIABLE META-DEPTH
 
 PREVIOUS \ remove its-words
 
-: $SCODE _SLINK $CODE ;
-: $FCODE _FLINK $CODE ;
 
 \ End a code definition. Use $NEXT-EARLY if there are multiple exit points,
 \ or $END-CODE if the code doesn't need the fpc updating for some reason
@@ -411,57 +391,34 @@ MICRO-DEBUG [IF]
 [THEN]
 
 
-\ $xVALUE string <label> - compile a system/Forth VALUE header
-: $SVALUE
-	_SLINK $CODE PREVIOUS
+\ $VALUE string - compile a VALUE header in the current wordlist
+: $VALUE
+	$CODE PREVIOUS
 	doVALUE BL, \ source and dest are target space addresses.
-	_VAR meta-asm,32 \ TODO -- meta-asm,32 is really target COMPILE,
-\ TODO use meta-asm, or ASM,32 ??
-	_VAR CELLL + TO _VAR ;
-
-: $FVALUE
-	_FLINK $CODE PREVIOUS
-	doVALUE BL,
-	_VAR meta-asm,32 \ TODO -- meta-asm,32 is really target COMPILE,
+	_VAR tCOMPILE,
 	_VAR CELLL + TO _VAR ;
 
 \ TODO this (and $VAR, $VAL) should really be expressed using the target
 \ versions of CONSTANT, VARIABLE, VALUE.
-\ <value> $xCONST string - compile a system/Forth CONSTANT header
-: $SCONST
-	_SLINK $CODE PREVIOUS
-	doCONST BL,
-	\ emit the value of the constant (at tos) inline
-	meta-asm,32 ; \ TODO -- meta-asm,32 is really target COMPILE,
+\ <value> $CONST string - compile a CONSTANT header in the current wordlist
+: $CONST
+	$CODE PREVIOUS
+	doCONST BL, tCOMPILE, ; \ emit the value of the constant (at tos) inline
 
-: $FCONST
-	_FLINK $CODE PREVIOUS
-	doCONST BL,
-	\ emit the value of the constant (at tos) inline
-	meta-asm,32 ; \ TODO -- meta-asm,32 is really target COMPILE,
-
-\ $xVAR string - compile a system/Forth VARIABLE header
+\ $VAR string - compile a VARIABLE header in the current wordlist
 \ (uses doCONST just as CONST does)
-: $SVAR
-	_SLINK $CODE PREVIOUS
+: $VAR
+	$CODE PREVIOUS
 	doCONST BL,
-	\ emit the address of the variable inline
-	_VAR meta-asm,32 \ TODO -- meta-asm,32 is really target COMPILE,
+	_VAR tCOMPILE, \ emit the address of the variable inline
 	_VAR CELLL + TO _VAR ;
 
-: $FVAR
-	_FLINK $CODE PREVIOUS
-	doCONST BL,
-	\ emit the address of the variable inline
-	_VAR meta-asm,32 \ TODO -- meta-asm,32 is really target COMPILE,
-	_VAR CELLL + TO _VAR ;
 
-\ <offset> $SUSER string <value> - compile a system USER header
-: $SUSER
-	_SLINK $CODE PREVIOUS
+\ <offset> $USER string <value> - compile a USER header in the current w/list
+: $USER
+	$CODE PREVIOUS
 	doUSER BL,
-	\ emit the value of the offset (at tos) inline
-	meta-asm,32 ; \ TODO -- meta-asm,32 is really target COMPILE,
+	tCOMPILE, ; \ emit the value of the offset (at tos) inline
 
 PREVIOUS \ take ASSEMBLER off search order
 
@@ -473,7 +430,7 @@ PREVIOUS \ take ASSEMBLER off search order
 \ add an option to align by decrementing _NAME by a multiple of the cell
 \ size and leaving space at the end of the string.
 : $ENVSTR"
-	hPOSTPONE S" \ leave address and length of string
+	[CHAR] " PARSE
 	_NAME OVER - 1- \ leave room for counted string
 	DUP CONSTANT \ create a constant that points to the named string
 	DUP TO _NAME
@@ -510,8 +467,8 @@ init-asm
 10 10 30 MK-SYM-TABLE
 0 LTORG-HEAD ! \ make sure no other puddle exists
 
-		00 L# B, \ branch past literal pool
-		20 LTORG \ create the first puddle in the literal pool
+00 L# B, \ branch past literal pool
+20 LTORG \ create the first puddle in the literal pool
 00 L.
 
 MM_DEMON [IF]
@@ -547,7 +504,7 @@ TAR_EBSA110 MM_BOOT AND [IF]
 		04 L# NE B,
 
 \ now we're going to jump to the RAM copy..
-
+SYM-STATS
 		05 L# R0 =,
 		0000FFFF R1 =,
 		R1 R0 R0 AND,		\ get the low-order part
@@ -586,9 +543,8 @@ TAR_EBSA285 [IF]
 \ high-level cold start - go do it!
 		02 G# B,
 		$ALIGN
-
 LOCAL-RESOLVED \ Check that all labels used in the init code are resolved
-PREVIOUS \ ALSO ASSEMBLER for initial code stuff
+PREVIOUS \ remove ASSEMBLER from search list
 
 
 CR .( *** Build THROW messages at top of name space)
@@ -599,12 +555,7 @@ CR .( *** Build THROW messages at top of name space)
 \ vectors to the messages
 
 _NAME NumTHROWMsgs CELLL * - TO _NAME
-
-\ TODO-GFORTH these fall over with gforth stack underflow
-$ENVSTR" StrongARM" CPUStr \ TODO -- should be ARM4T or somesuch
-$ENVSTR" ROM Model" ModelStr
-$ENVSTR" 0.9.9" VersionStr
-							\ THROW code
+							  \ THROW code
 $THROWMSG' ABORT'                                         \ -01
 $THROWMSG' ABORT"'                                        \ -02
 $THROWMSG' stack overflow'                                \ -03
@@ -662,7 +613,11 @@ $THROWMSG' floating-point underflow'                      \ -54
 $THROWMSG' floating-point unidentified fault'             \ -55
 $THROWMSG' QUIT'                                          \ -56
 $THROWMSG' exception in sending or receiving a character' \ -57
-$THROWMSG' [IF], [ELSE], or [THEN] exception'            \ -58
+$THROWMSG' [IF], [ELSE], or [THEN] exception'             \ -58
+
+$ENVSTR" StrongARM" CPUStr \ TODO -- should be ARM4T or somesuch
+$ENVSTR" ROM Model" ModelStr
+$ENVSTR" 0.9.9" VersionStr
 
 \ NAC at this point need to ALIGN the value of _NAME, since we packed
 \ the strings of the throw table but  $CODE assumes that NAME is aligned.
@@ -681,129 +636,135 @@ _CODE hCONSTANT ULAST
 _CODE TO UZERO0
 _CODE INIT_SIZE + TO _CODE
 
-CR .( *** System constants and variables)
+CR .( *** Start of target definitions: System constants and variables)
 S-DEF
 
 \ TODO-GFORTH -- doesn't see ( as a comment in this context -- looks like a string parsing problem
-\ and that could also be what't wrong with $ENVSTR above.
-RAM0 $SCONST var0	( -- a-addr )
+RAM0 $CONST var0	( -- a-addr )
 \		Start of system variable area.
 
-UZERO $SCONST sysVar0	( -- a-addr )
+UZERO $CONST sysVar0	( -- a-addr )
 \		Start of initial value table of system variables.
 
-
-UZERO0 $SCONST sysVar00	( -- a-addr )
+UZERO0 $CONST sysVar00	( -- a-addr )
 \		Start of original initial value table of system variables.
 \		(used by RESET-SYSTEM)
 
-ULAST $SCONST sysVar0End ( -- a-addr )
-\		End of initial value table of system variables.
+ULAST $CONST sysVar0End ( -- a-addr )
+
+\   THROWMsgTbl ( -- a-addr )
+\		Return the address of the THROW message table.
+\
+AddrTHROWMsgTbl $CONST THROWMsgTbl
 
 \ The following VALUEs get initialised from a table when hForth is started
-\ The table is generated using $INIT
+\ The table is generated (at the end of this file) using $INIT
 
-$SVALUE 'ekey?		( -- a-addr )
+$VALUE 'ekey?		( -- a-addr )
 \		Execution vector of EKEY?.
 
-$SVALUE 'ekey		( -- a-addr )
+$VALUE 'ekey		( -- a-addr )
 \		Execution vector of EKEY.
 
-$SVALUE 'emit?		( -- a-addr )
+$VALUE 'emit?		( -- a-addr )
 \		Execution vector of EMIT?.
 
-$SVALUE 'emit		( -- a-addr )
+$VALUE 'emit		( -- a-addr )
 \		Execution vector of EMIT.
 
-$SVALUE 'init-i/o	( -- a-addr )
+$VALUE 'init-i/o	( -- a-addr )
 \		Execution vector to initialize input/output devices.
 
-$SVALUE 'prompt		( -- a-addr )
+$VALUE 'prompt		( -- a-addr )
 \		Execution vector of '.prompt'.
 
-$SVALUE 'boot		( -- a-addr )
+$VALUE 'boot		( -- a-addr )
 \		Execution vector of COLD.
 
-$SVALUE IOBYTES		( -- a-addr )
+$VALUE IOBYTES		( -- a-addr )
 \		Identify i/o options
 
-$FVALUE SOURCE-ID	( -- 0 | -1 )			\ CORE EXT
+F-DEF
+$VALUE SOURCE-ID	( -- 0 | -1 )			\ CORE EXT
 \		Identify the input source. -1 for string (via EVALUATE) and
 \		0 for user input device.
 
-$SVALUE cpVar		( -- a-addr )
+$VAR BASE	( -- a-addr )			\ CORE
+\		Return the address of the radix base for numeric I/O.
+
+S-DEF
+$VALUE cpVar		( -- a-addr )
 \		Point to the top of the code dictionary.
 
-$SVALUE npVar		( -- a-addr )
+$VALUE npVar		( -- a-addr )
 \		Point to the bottom of the name dictionary.
 
-$SVALUE hereVar		( -- a-addr )
+$VALUE hereVar		( -- a-addr )
 \		Point to the RAM/ROM data space pointer. Used by , or ALLOT.
 
 \   'doWord	( -- a-addr )
 \		Execution vectors for 'interpret'.
 \
-$SVAR 'doWord _VAR CELLL 5 * + TO _VAR
+$VAR 'doWord _VAR CELLL 5 * + TO _VAR
 
-$FVAR BASE	( -- a-addr )			\ CORE
-\		Return the address of the radix base for numeric I/O.
-	
-$SVAR ROMB	( -- a-addr )
+$VAR ROMB	( -- a-addr )
 \		Bottom of free ROM area.
 
-$SVAR ROMT	( -- a-addr )
+$VAR ROMT	( -- a-addr )
 \		Top of free ROM area.
 
-$SVAR RAMB	( -- a-addr )
+$VAR RAMB	( -- a-addr )
 \               Bottom of free RAM area.
 
-$SVAR RAMT	( -- a-addr )
+$VAR RAMT	( -- a-addr )
 \		Top of free RAM area.
 
-$SVALUE bal	( -- n )
+$VALUE bal	( -- n )
 \		Return the depth of control-flow stack.
 
-$SVALUE notNONAME? ( -- f )
+$VALUE notNONAME? ( -- f )
 \		Used by ';' whether to do 'linkLast' or not
 
-$SVAR rakeVar	( -- a-addr )
+$VAR rakeVar	( -- a-addr )
 \		Used by 'rake' to gather LEAVE.
 
 \   #order	( -- a-addr )
 \		Hold the search order stack depth.
 \
-$SVAR #order
+$VAR #order
 \ TODO need to find the TARGET value of CELLL
 _VAR OrderDepth CELLL * + TO _VAR  \ search order stack
 
-$SVAR current	( -- a-addr )
+$VAR current	( -- a-addr )
 \		Point to the wordlist to be extended.
 \ NAC:		.. ie the compilation wordlist
 \ NAC:		current @ is the wid of the compilation wordlist
 
+F-DEF
 \   FORTH-WORDLIST   ( -- wid )			\ SEARCH
 \		Return wid of Forth wordlist.
 \
-$FVAR FORTH-WORDLIST _VAR CELLL 2 * + TO _VAR
+$VAR FORTH-WORDLIST _VAR CELLL 2 * + TO _VAR
 
 \   NONSTANDARD-WORDLIST   ( -- wid )
 \		Return wid of non-standard wordlist.
 \
-$FVAR NONSTANDARD-WORDLIST _VAR CELLL 2 * + TO _VAR
+$VAR NONSTANDARD-WORDLIST _VAR CELLL 2 * + TO _VAR
 
 _VAR MaxWLISTS 2 - 3 * CELLL * + TO _VAR \ wordlist area
 
+S-DEF
 \   envQList	( -- wid )
 \		Return wid of ENVIRONMENT? string list. Never put this wid in
 \		search-order. It should be used only by SET-CURRENT to add new
 \		environment query string after addition of a complete wordset.
 \
-$SVAR envQList
+$VAR envQList
 
 \   userP	( -- a-addr )
 \		Return address of USER variable area of current task.
 \
-$SVAR userP
+$VAR userP
 
 	_VAR hCONSTANT SysTask
 	_VAR CELLL + TO _VAR
@@ -824,7 +785,7 @@ $SVAR userP
 	_VAR CELLL + TO _VAR		\ RP0 for system task
 
 
-$SVAR trapfpc	( -- a-addr )
+$VAR trapfpc	( -- a-addr )
 \		Return address of a variable holding trap address for
 \		microdebugger
 
@@ -832,66 +793,68 @@ $SVAR trapfpc	( -- a-addr )
 \   SystemTask	( -- a-addr )
 \		Return system task's tid.
 \
-SysTask $SCONST SystemTask
+SysTask $CONST SystemTask
 
 
 \   follower	( -- a-addr )
 \		Point next task's 'status' USER variable.
 \
-SysFollower SysUserP - $SUSER follower
+SysFollower SysUserP - $USER follower
 
 \   status	( -- a-addr )
 \		Status of current task. Point 'pass' or 'wake'.
 \
-SysStatus SysUserP - $SUSER status
+SysStatus SysUserP - $USER status
 
 \   stackTop	( -- a-addr )
 \		Store current task's top of stack position.
 \
-SysStackTop SysUserP - $SUSER stackTop
+SysStackTop SysUserP - $USER stackTop
 
 \   throwFrame	( -- a-addr )
 \		THROW frame for CATCH and THROW need to be saved for eack task.
 \
-SysThrowFrame SysUserP - $SUSER throwFrame
+SysThrowFrame SysUserP - $USER throwFrame
 
 \   taskName	( -- a-addr )
 \		Current task's task ID.
 \
-SysTaskName SysUserP - $SUSER taskName
+SysTaskName SysUserP - $USER taskName
 
 \   user1	( -- a-addr )
 \		One free USER variable for each task.
 \
-SysUser1 SysUserP - $SUSER user1
+SysUser1 SysUserP - $USER user1
 
+\ That is the end of the variables that get initialised from the table. The
+\ following variables must be initialised explicitly after cold start.
 
-\ NOTE: the following variables do NOT get initialised from the table
-
-\   THROWMsgTbl ( -- a-addr )
-\		Return the address of the THROW message table.
-\
-AddrTHROWMsgTbl $SCONST THROWMsgTbl
-
-$FVAR STATE	( -- a-addr )			\ CORE
+F-DEF
+$VAR STATE	( -- a-addr )			\ CORE
 \		Return the address of a cell containing compilation-state flag
 \		which is true in compilation state or false otherwise.
 
+$VAR >IN	( -- a-addr )			\ CORE
+\		Hold the character pointer while parsing input stream.
+
+S-DEF
 \   errWord	( -- a-addr )
 \		Last found word. To be used to display the word causing error.
 \
-$SVAR errWord	_VAR CELLL + TO _VAR
+$VAR errWord	_VAR CELLL + TO _VAR
 
-
-$FVAR >IN	( -- a-addr )			\ CORE
-\		Hold the character pointer while parsing input stream.
-
-$SVAR hld	( -- a-addr )
+$VAR hld	( -- a-addr )
 \		Hold a pointer in building a numeric output string.
 
-$SVAR sourceVar	( -- a-addr )
-_VAR CELLL + TO _VAR
+\   sourceVar	( -- a-addr )
 \		Hold the current count and addr of the terminal input buffer.
+\
+$VAR sourceVar	_VAR CELLL + TO _VAR
+
+\   abort"msg	( -- a-addr )
+\		Abort" error message string address.
+\
+$VAR abort"msg _VAR CELLL + TO _VAR
 
 
 CR .( *** Non-Standard words - Processor-dependent definitions)
@@ -902,9 +865,9 @@ S-DEF
 \		Push an inline literal. The inline literal is at the current
 \		value of the fpc, so put it onto the stack and point past it.
 \
-		$SCODE doLIT
+		$CODE doLIT
 		tos pushD,
-		CELLL # [ fpc ] tos LDR, \ get literal and inc to next forth word
+		CELLL # [ fpc ] tos LDR, \ get literal, inc to next forth word
 		$NEXT COMPILE-ONLY
 
 \   doCONST	( -- x )
@@ -920,7 +883,7 @@ S-DEF
 \		here through a bl (branch-and-link) so the return address is
 \		in r14
 \
-		$SCODE doCONST
+		$CODE doCONST
 		tos pushD,
 		[ R14 ] tos LDR,	\ inline address from calling point
 		$NEXT COMPILE-ONLY
@@ -932,7 +895,7 @@ S-DEF
 \		the value of the variable -- in other words, there is another
 \		level of indirection.
 \
-		$SCODE doVALUE
+		$CODE doVALUE
 		tos pushD,
 		[ R14 ] R0 LDR,
 		[ R0 ] tos LDR,
@@ -965,7 +928,7 @@ S-DEF
 \   : doCREATE    SWAP            \ switch BX and top of 8086 stack item
 \		  DUP CELL+ @ SWAP @ ?DUP IF EXECUTE THEN ; COMPILE-ONLY
 \
-		$SCODE doCREATE
+		$CODE doCREATE
 		tos pushD,
 		CELLL # [ R14 ] R0 LDR,		\ 0 or DOES> address
 		[ R14 ] tos LDR,		\ a-addr
@@ -979,7 +942,7 @@ S-DEF
 \		following cell. The inline literal holds the address
 \		to be modified.
 \
-		$SCODE doTO
+		$CODE doTO
 		\ get the address to be modified and point past
 		CELLL # [ fpc ] R0 LDR,
 		\ update to new value from tos
@@ -994,7 +957,7 @@ S-DEF
 \		on a taskswap) the whole set of user variables is switched
 \		to the set for the new task.
 \
-		$SCODE doUSER
+		$CODE doUSER
 		tos pushD,
 		[ R14 ] tos LDR,
 		GetVaxAdr userP R0 =,
@@ -1016,7 +979,7 @@ S-DEF
 \		ARM: branch-and-link, so the return address is in r14,
 \		not on the data stack.
 \
-		$SCODE doLIST
+		$CODE doLIST
 		fpc pushR,			\ preserve forth PC
 		R14 fpc MOV,			\ first xt of definition
 		$NEXT COMPILE-ONLY
@@ -1024,7 +987,7 @@ S-DEF
 \   doLOOP      ( -- ) ( R: loop-sys1 -- | loop-sys2 )
 \		Run time routine for LOOP.
 \
-		$SCODE doLOOP
+		$CODE doLOOP
 		R0 popR,			\ loop count
 		1 # R0 R0 ADDS,
 		01 L# VS B,			\ overflow -> end loop
@@ -1038,7 +1001,7 @@ S-DEF
 \   do+LOOP     ( n -- ) ( R: loop-sys1 -- | loop-sys2 )
 \		Run time routine for +LOOP.
 \
-		$SCODE do+LOOP
+		$CODE do+LOOP
 		R0 popR,			\ loop count
 		tos R0 R0 ADDS,
 		tos popD,
@@ -1053,7 +1016,7 @@ S-DEF
 \   0branch     ( flag -- )
 \		Branch if flag is zero.
 \
-		$SCODE 0branch
+		$CODE 0branch
 		tos tos tos ORRS,		\ test top of stack
 \ ARM's cool conditional-execution saves pipeline-draining branches 
 		CELLL # FPC FPC NE ADD,		\ don't branch, point past dest
@@ -1064,14 +1027,14 @@ S-DEF
 \   branch      ( -- )
 \		Branch to an inline address.
 \
-		$SCODE branch
+		$CODE branch
 		[ fpc ] fpc LDR,		\ get branch destination
 		$NEXT COMPILE-ONLY		\ .. and go there
 
 \   rp@         ( -- a-addr )
 \		Push the current RP to the data stack.
 \
-		$SCODE rp@
+		$CODE rp@
 		tos pushD,
 		rsp tos MOV,
 		$NEXT COMPILE-ONLY
@@ -1079,7 +1042,7 @@ S-DEF
 \   rp!         ( a-addr -- )
 \		Set the return stack pointer.
 \
-		$SCODE rp!
+		$CODE rp!
 		tos rsp MOV,
 		tos popD,
 		$NEXT COMPILE-ONLY
@@ -1087,7 +1050,7 @@ S-DEF
 \   sp@         ( -- a-addr )
 \		Push the current data stack pointer.
 \
-		$SCODE sp@
+		$CODE sp@
 		tos pushD,
 		dsp tos MOV,
 		$NEXT COMPILE-ONLY
@@ -1095,7 +1058,7 @@ S-DEF
 \   sp!         ( a-addr -- )
 \		Set the data stack pointer.
 \
-		$SCODE sp!
+		$CODE sp!
 		tos dsp MOV,
 		tos popD,
 		$NEXT COMPILE-ONLY
@@ -1103,7 +1066,7 @@ S-DEF
 \   um+         ( u1 u2 -- u3 1|0 )
 \		Add two unsigned numbers, return the sum and carry.
 \
-		$SCODE um+
+		$CODE um+
 		R1 popD,
 		tos R1 R1 ADDS,			\ combine
 		tos tos tos EOR,		\ clear register
@@ -1119,7 +1082,7 @@ F-DEF
 \   !		( x a-addr -- )			\ CORE
 \		Store x at a aligned address.
 \
-		$FCODE !
+		$CODE !
 		R1 popD,			\ char to store
 		[ tos ] R1 STR,
 		tos popD,			\ clear up stack
@@ -1128,7 +1091,7 @@ F-DEF
 \   0<		( n -- flag )			\ CORE
 \		Return true if n is negative.
 \
-		$FCODE 0<
+		$CODE 0<
 		0 # R0 MOV,			\ get zeroes for dummy arg
 						\ 20H = 32 decimal
 		20 # ASR tos R0 tos ADD,	\ echo bit 32 value through r1
@@ -1137,7 +1100,7 @@ F-DEF
 \   0=		( x -- flag )			\ CORE
 \		Return true if x is zero.
 \
-		$FCODE 0=
+		$CODE 0=
 		0 # tos CMP,
 		TRUEE tos EQ =,
 		FALSEE tos NE =,
@@ -1146,21 +1109,21 @@ F-DEF
 \   2*		( x1 -- x2 )			\ CORE
 \		Bit-shift left, filling the least significant bit with 0.
 \
-		$FCODE 2*
+		$CODE 2*
 		1 # LSL tos tos MOV,
 		$NEXT
 
 \   2/		( x1 -- x2 )			\ CORE
 \		Bit-shift right, leaving the most significant bit unchanged.
 \
-		$FCODE 2/
+		$CODE 2/
 		1 # ASR tos tos MOV,
 		$NEXT
 
 \   >R		( x -- ) ( R: -- x )		\ CORE
 \		Move top of the data stack item to the return stack.
 \
-		$FCODE >R
+		$CODE >R
 		tos pushR,
 		tos popD,
 		$NEXT COMPILE-ONLY
@@ -1168,14 +1131,14 @@ F-DEF
 \   @		( a-addr -- x )			\ CORE
 \		Push the contents at a-addr to the data stack.
 \
-		$FCODE @
+		$CODE @
 		[ tos ] tos LDR,
 		$NEXT
 
 \   AND		( x1 x2 -- x3 )			\ CORE
 \		Bitwise AND.
 \
-		$FCODE AND
+		$CODE AND
 		R1 popD,
 		R1 tos tos AND,
 		$NEXT
@@ -1183,7 +1146,7 @@ F-DEF
 \   C!		( char c-addr -- )		\ CORE
 \		Store char at c-addr.
 \
-		$FCODE C!
+		$CODE C!
 		R1 popD,			\ char to store
 		[ tos ] R1 STRB,
 		tos popD,			\ clear up stack
@@ -1192,28 +1155,28 @@ F-DEF
 \   C@		( c-addr -- char )		\ CORE
 \		Fetch the character stored at c-addr.
 \
-		$FCODE C@
+		$CODE C@
 		[ tos ] tos LDRB,
 		$NEXT
 
 \   DROP	( x -- )			\ CORE
 \		Discard top stack item.
 \
-		$FCODE DROP
+		$CODE DROP
 		tos popD,
 		$NEXT
 
 \   DUP		( x -- x x )			\ CORE
 \		Duplicate the top stack item.
 \
-		$FCODE DUP
+		$CODE DUP
 		tos pushD,
 		$NEXT
 
 \   EXECUTE	( i*x xt -- j*x )		\ CORE
 \		Perform the semantics indentified by execution token, xt.
 \
-		$FCODE EXECUTE
+		$CODE EXECUTE
 		tos R1 MOV,
 		tos popD,
 		R1 PC MOV,			\ jump to the code address
@@ -1222,7 +1185,7 @@ F-DEF
 \   EXIT	( -- ) ( R: nest-sys -- )	\ CORE
 \		Return control to the calling definition.
 \
-		$FCODE EXIT
+		$CODE EXIT
 		fpc popR,			\ where call doLIST left it
 		$NEXT COMPILE-ONLY
 
@@ -1231,7 +1194,7 @@ F-DEF
 \		than zero. This word is CODE defined since no other Standard
 \		words can handle address unit directly.
 \
-		$FCODE MOVE
+		$CODE MOVE
 		R0 popD,			\ dest
 		R1 popD,			\ source
 		R1 R0 CMP,
@@ -1254,7 +1217,7 @@ F-DEF
 \   OR		( x1 x2 -- x3 )			\ CORE
 \		Return bitwise inclusive-or of x1 with x2.
 \
-		$FCODE OR
+		$CODE OR
 		R1 popD,
 		R1 tos tos ORR,
 		$NEXT
@@ -1262,7 +1225,7 @@ F-DEF
 \   OVER	( x1 x2 -- x1 x2 x1 )		\ CORE
 \		Copy second stack item to top of the stack.
 \
-		$FCODE OVER
+		$CODE OVER
 		[ dsp ] R1 LDR,			\ copy 2nd stack item
 		tos pushD,
 		R1 tos MOV,
@@ -1271,7 +1234,7 @@ F-DEF
 \   R>		( -- x ) ( R: x -- )		\ CORE
 \		Move x from the return stack to the data stack.
 \
-		$FCODE R>
+		$CODE R>
 		tos pushD,
 		tos popR,
 		$NEXT COMPILE-ONLY
@@ -1279,7 +1242,7 @@ F-DEF
 \   R@		( -- x ) ( R: x -- x )		\ CORE
 \		Copy top of return stack to the data stack.
 \
-		$FCODE R@
+		$CODE R@
 		tos pushD,
 		[ rsp ] tos LDR,
 		$NEXT COMPILE-ONLY
@@ -1287,7 +1250,7 @@ F-DEF
 \   SWAP	( x1 x2 -- x2 x1 )		\ CORE
 \		Exchange top two stack items.
 \
-		$FCODE SWAP
+		$CODE SWAP
 		R1 popD,
 		tos pushD,
 		R1 tos MOV,
@@ -1296,11 +1259,13 @@ F-DEF
 \   XOR         ( x1 x2 -- x3 )                 \ CORE
 \		Bitwise exclusive OR.
 \
-		$FCODE XOR
+		$CODE XOR
 		R1 popD,
 		R1 tos tos EOR,
 		$NEXT
 
+CR .( *** Load immediate definitions for target to run on host )
+\ TODO put the h: stuff into hmeta_imm.fth
 DEPTH S" hmeta_imm.fth" INCLUDED CR DEPTH 1- -
 [IF] .( hmeta_imm affected DEPTH) ABORT [THEN] CR .( ..hmeta_imm loaded OK)
 
@@ -1318,7 +1283,6 @@ h: ; nit-; h; hIMMEDIATE
 PREVIOUS PREVIOUS DEFINITIONS \ compilation wordlist back to FORTH
 
 
-
 CR .( Check search order -> ) ORDER
 CR .( *** Ready for colon defns..)
 
@@ -1331,11 +1295,12 @@ CR .( *** Ready for colon defns..)
 
 
 CR .( *** System-dependent I/O -- Must be re-defined for each system.)
+S-DEF
 
 \   !IO         ( -- )  "store i o"
 \               Initialize the serial devices for terminal I/O
 \
-		$SCODE !IO
+		$CODE !IO
 
 \ This is a general purpose Reset for the serial chip, cancelling the current
 \ transmission and reception and setting the baudrate according to IOBYTES
@@ -1414,7 +1379,7 @@ TAR_COGENT [IF] \ TODO Carey has a delay loop here.
 \   RX?		( -- flag )
 \		Return true if key is pressed.
 
-		$SCODE RX?
+		$CODE RX?
 		tos pushD,			\ make room for flag
 		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
@@ -1432,7 +1397,7 @@ TAR_COGENT [IF] \ TODO Carey has a delay loop here.
 \   RX@		( -- u )
 \		Receive one keyboard event u.
 
-		$SCODE RX@
+		$CODE RX@
 		tos pushD,			\ make room
 		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
@@ -1446,7 +1411,7 @@ TAR_COGENT [IF] \ TODO Carey has a delay loop here.
 \   DRX@	( -- u )
 \		Receive one keyboard event u using DEMON SWI calls
 
-		$SCODE DRX@
+		$CODE DRX@
 		tos pushD,			\ make room
 		4 SWI,				\ SWI_ReadC - byte is in r0
 		R0 tos MOV,
@@ -1461,7 +1426,7 @@ TAR_COGENT [IF] \ TODO Carey has a delay loop here.
 \		Return true if output device is ready or device state is
 \		indeterminate.
 
-		$SCODE TX?
+		$CODE TX?
 		tos pushD,			\ make room
 		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
@@ -1479,7 +1444,7 @@ TAR_COGENT [IF] \ TODO Carey has a delay loop here.
 \		Send char to the output device. Have to wait until the output
 \		device is ready because TX? is NOT called first
 
-		$SCODE TX!
+		$CODE TX!
 		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
 		0FF # R1 R1 ANDS,
@@ -1496,18 +1461,17 @@ TAR_COGENT [IF] \ TODO Carey has a delay loop here.
 \   DTX!	( u -- )
 \		Send char to the output device using DEMON SWI calls
 
-		$SCODE DTX!
+		$CODE DTX!
 		tos R0 MOV,			\ pop character to r0
 		tos popD,
 		0 SWI,				\ SWI_WriteC - write character
 		$NEXT
 
-S-DEF
-
 CR .( *** MS-DOS only words -- not necessary for other systems.)
 
 CR .( *** Non-Standard words - Processor-dependent definitions)
 CR .( ***        32-bit Forth for ARM RISC)
+S-DEF
 
 \ microdebugger for debugging new hForth ports by NAC.
 \
@@ -1575,7 +1539,7 @@ PREVIOUS
 \   W!		( c a -- )      "w store"
 \		Store word (16-bit) value at word address.
 
-		$SCODE W!
+		$CODE W!
 		R1 popD,			\ pop data
 						\ only interested in bits15:0
 		[ tos ] R1 STRH,		\ store word at address
@@ -1585,7 +1549,7 @@ PREVIOUS
 \   W@		( a -- c )      "w fetch"
 \		Fetch word value from word address.
 
-		$SCODE W@
+		$CODE W@
 		[ tos ] R1 LDRH,		\ get the word
 		R1 tos MOV,			\ bung back on the stack
 		$NEXT
@@ -1596,7 +1560,7 @@ CR .( *** StrongARM-specific definitions for coprocessor access..)
 \   MMUPTAB	( -- a-addr )
 \		Return the start address of the MMU page table
 \
-		MMU0 $SCONST MMUPTAB
+		MMU0 $CONST MMUPTAB
 
 1000 hCONSTANT conm
 FFFFEFFF hCONSTANT coffm
@@ -1604,42 +1568,42 @@ FFFFEFFF hCONSTANT coffm
 \   CHIPID	( -- n )
 \		Read chip ID
 \
-		$SCODE CHIPID
+		$CODE CHIPID
 		tos pushD,
 \ TODO		mrc     p15,0,tos,c0,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   ION		( -- )
 \		Turn on Icache
 \
-		$SCODE ION
+		$CODE ION
 		conm R1 =,		\ mask Icache ON
 \ TODO		mrc     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		R1 R2 R2 ORR,		\ Icache ON
 \ TODO		mcr     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   IOFF	( -- )
 \		Turn off Icache
 \
-		$SCODE IOFF
+		$CODE IOFF
 		coffm R1 =,		\ mask Icache OFF
 \ TODO		mrc     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		R1 R2 R2 AND,		\ Icache OFF
 \ TODO		mcr     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   IFLUSH	( -- )
 \		Flush the Icache
 \
-		$SCODE IFLUSH
+		$CODE IFLUSH
 \ TODO		mcr     p15,0,r2,c7,c5,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   DFLUSH	( -- )
@@ -1648,7 +1612,7 @@ FFFFEFFF hCONSTANT coffm
 \		it to half the loopcount by selecting an unused
 \		address range and adding an MCR.
 \
-		$SCODE DFLUSH
+		$CODE DFLUSH
 		0 # R0 MOV,
 		8000 # R0 R1 ADD,	\ 32768 decimal entries
 00 L.		20 # [ R0 ] R2 LDR,
@@ -1659,91 +1623,91 @@ FFFFEFFF hCONSTANT coffm
 \   TLBFLUSH	( -- )
 \		Flush the I and D TLBs
 \
-		$SCODE TLBFLUSH
+		$CODE TLBFLUSH
 \ TODO		mcr     p15,0,r2,c8,c6,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   MMUON	( -- )
 \		Turn on the MMU, WB, Icache, Dcache
 \
-		$SCODE MMUON
+		$CODE MMUON
 		100D R1 =,
 \ TODO		mrc     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		R1 R2 R2 ORR,
 \ TODO		mcr     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   MMUOFF	( -- )
 \		Turn off the MMU, WB, Icache, Dcache
 \
-		$SCODE MMUOFF
+		$CODE MMUOFF
 		EFF2 R1 =,
 \ TODO		mrc     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		R1 R2 R3 AND,
 \ TODO		mcr     p15,0,r2,c1,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   WBDRAIN	( -- )
 \		Drain the write buffer
 \
-		$SCODE WBDRAIN
+		$CODE WBDRAIN
 \ TODO		mcr     p15,0,r2,c7,c10,4
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   CKSWON	( -- )
 \		clock switching ON
 \
-		$SCODE CKSWON
+		$CODE CKSWON
 \ TODO		mcr     p15,0,r2,c15,c1,2
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   CKSWOFF	( -- )
 \		clock switching OFF
 \
-		$SCODE CKSWOFF
+		$CODE CKSWOFF
 \ TODO		mcr     p15,0,r2,c15,c2,2
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   WAI		( -- )
 \		Wait for interrupt
 \
-		$SCODE WAI
+		$CODE WAI
 \ TODO		mcr     p15,0,r2,c15,c8,2
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   TTB!	( n -- )
 \		Store n as the translation table base address
 \
-		$SCODE TTB!
+		$CODE TTB!
 \ TODO		mcr     p15,0,tos,c2,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		tos popD,
 		$NEXT
 
 \   DAC@	( -- n )
 \		Read the domain access control register
 \
-		$SCODE DAC@
+		$CODE DAC@
 		tos pushD,
 \ TODO		mrc     p15,0,tos,c3,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		$NEXT
 
 \   DAC!	( n -- )
 \		Store n in the domain access control register
 \
-		$SCODE DAC!
+		$CODE DAC!
 \ TODO		mcr     p15,0,tos,c3,c1,0
-0 meta-asm,32
+0 tCOMPILE,
 		tos popD,
 		$NEXT
 
@@ -1756,34 +1720,29 @@ FFFFEFFF hCONSTANT coffm
 \		value at that location).
 \		Currently, the only word that uses this is xt,
 \
-		$SCODE IDflushline
+		$CODE IDflushline
 \                       p15,??, arm_reg, co-proc_register, CRm, OPC_2
 \ TODO		mcr     p15,0,tos,c7,c10,1      ;clean Dcache entry 
 \ 		mcr     p15,0,tos,c7,c6,1       ;flush Dcache entry 
 \		mcr     p15,0,tos,c7,c10,4      ;drain write buffer
 \		mcr     p15,0,tos,c7,c5,0       ;flush Icache
-0 meta-asm,32
-0 meta-asm,32
-0 meta-asm,32
-0 meta-asm,32
+0 tCOMPILE,
+0 tCOMPILE,
+0 tCOMPILE,
+0 tCOMPILE,
 		tos popD,
 		$NEXT
 
 CR .( *** Trivial high-level definitions )
 
-TRUEE $FCONST TRUE	( -- f )		\ CORE EXT
-\		Return the TRUE flag
-
-SPC $FCONST BL		( -- char )		\ CORE
-\		Return the value of the blank character.
-
+S-DEF
 \   0		( -- 0 )
 \		Return zero.
 \
 META-HI [IF]
-		0 $SCONST 0
+		0 $CONST 0
 [ELSE]
-		$SCODE 0
+		$CODE 0
 		tos pushD,
 		0 # tos MOV,
 		$NEXT
@@ -1793,9 +1752,9 @@ META-HI [IF]
 \		Return one.
 \
 META-HI [IF]
-		1 $SCONST 1
+		1 $CONST 1
 [ELSE]
-		$SCODE 1
+		$CODE 1
 		tos pushD,
 		1 # tos MOV,
 		$NEXT
@@ -1805,72 +1764,106 @@ META-HI [IF]
 \		Return -1.
 \
 META-HI [IF]
-		-1 $SCONST -1
+		-1 $CONST -1
 [ELSE]
-		$SCODE -1
+		$CODE -1
 		tos pushD,
 		-1 tos =,
 		$NEXT
 [THEN]
 
-F-DEF
-
-\   EMIT        ( x -- )				\ CORE
-\		Send a character to the output device.
-\
-META-HI [IF]
-: EMIT		'emit EXECUTE ;
-[ELSE]
-		$FCODE EMIT
-01 G.		GetVaxAdr 'emit R0 =,
-		[ R0 ] R1 LDR,
-		R1 PC MOV,
-		$END-CODE
-[THEN]
-
-\   EMIT?       ( -- flag )		      \ FACILITY EXT
-\		flag is true if the user output device is ready to accept data
-\		and the execution of EMIT in place of EMIT? would not have
-\		suffered an indefinite delay. If device state is indeterminate,
-\		flag is true.
-\
-: EMIT?		'emit? EXECUTE ;
-
-\ .prompt	( -- )
+\   .prompt	( -- )
 \		Display Forth prompt. This word is vectored.
 \
 META-HI [IF]
-: .prompt	'prompt EXECUTE ;
+  : .prompt	'prompt EXECUTE ;
 [ELSE]
-		$SCODE .prompt
+		$CODE .prompt
 		GetVaxAdr 'prompt R0 =,
 		[ R0 ] R1 LDR,
 		R1 PC MOV,
 		$END-CODE			\ tidy up
 [THEN]
 
-\   EKEY?       ( -- flag )		      \ FACILITY EXT
+\   cell-	( a-addr1 -- a-addr2 )
+\		Return previous aligned cell address.
+\
+\
+META-HI [IF]
+  : cell-	[ 0 CELLL - ] LITERAL + ;
+[ELSE]
+		$CODE cell-
+		CELLL # tos tos SUB,
+		$NEXT           
+[THEN]
+
+\   name>xt	( c-addr -- xt )
+\		Return execution token using counted string at c-addr.
+\
+META-HI [IF]
+  : name>xt	cell- cell- @ ;
+[ELSE]
+		$CODE name>xt
+		CELLL 2 * # tos R0 SUB,		\ point back past link to xt
+		[ R0 ] tos LDR,			\ get the xt
+		$NEXT
+[THEN]
+
+F-DEF
+\   TRUE	( -- f )		\ CORE EXT
+\		Return the TRUE flag
+\
+		TRUEE $CONST TRUE
+
+\   BL		( -- char )		\ CORE
+\		Return the value of the blank character.
+\
+		SPC $CONST BL
+
+\   EMIT        ( x -- )			\ CORE
+\		Send a character to the output device.
+\
+META-HI [IF]
+  : EMIT	'emit EXECUTE ;
+[ELSE]
+		$CODE EMIT
+01 G.		GetVaxAdr 'emit R0 =,
+		[ R0 ] R1 LDR,
+		R1 PC MOV,
+		$END-CODE
+[THEN]
+
+\   EMIT?       ( -- flag )			\ FACILITY EXT
+\		flag is true if the user output device is ready to accept data
+\		and the execution of EMIT in place of EMIT? would not have
+\		suffered an indefinite delay. If device state is indeterminate,
+\		flag is true.
+\
+  : EMIT?	'emit? EXECUTE ;
+
+\   EKEY?       ( -- flag )			\ FACILITY EXT
 \		If a keyboard event is available, return true.
 \
-: EKEY?		'ekey? EXECUTE ;
+  : EKEY?	'ekey? EXECUTE ;
 
-\ NIP		( n1 n2 -- n2 )		\ CORE EXT
+\   NIP		( n1 n2 -- n2 )			\ CORE EXT
 \		Discard the second stack item.
 \
 META-HI [IF]
-: NIP		SWAP DROP ;
+  : NIP		SWAP DROP ;
 [ELSE]
-		$FCODE NIP
+		$CODE NIP
 		R0 popD,
 		$NEXT
 [THEN]
 
 \   ROT         ( x1 x2 x3 -- x2 x3 x1 )        \ CORE
 \		Rotate the top three data stack items.
+\
 META-HI [IF]
-: ROT		>R SWAP R> SWAP ;
+  : ROT		>R SWAP R> SWAP ;
 [ELSE]
-		$FCODE ROT
+		$CODE ROT
 		R0 popD,			\ x2 (tos=x3)
 		R1 popD,			\ x1
 		R0 pushD,
@@ -1883,9 +1876,9 @@ META-HI [IF]
 \		Convert a single-cell number n to double-cell number.
 \
 META-HI [IF]
-: S>D		DUP 0< ;
+  : S>D		DUP 0< ;
 [ELSE]
-		$FCODE S>D
+		$CODE S>D
 		tos pushD,
 		0 # R1 MOV,
 		\ sign-extend tos into tos to form ms of double
@@ -1897,9 +1890,9 @@ META-HI [IF]
 \		Add top two items and gives the sum.
 \
 META-HI [IF]
-: +		um+ DROP ;
+  : +		um+ DROP ;
 [ELSE]
-		$FCODE +
+		$CODE +
 		R1 popD,
 		R1 tos tos ADD,
 		$NEXT
@@ -1909,45 +1902,21 @@ META-HI [IF]
 \		Return next aligned cell address.
 \
 META-HI [IF]
-: CELL+		[ CELLL ] LITERAL + ;
+  : CELL+	[ CELLL ] LITERAL + ;
 [ELSE]
-		$FCODE CELL+
+		$CODE CELL+
 		CELLL # tos tos ADD,
 		$NEXT
-[THEN]
-
-\   cell-	( a-addr1 -- a-addr2 )
-\		Return previous aligned cell address.
-\
-\
-META-HI [IF]
-: cell-		[ 0 CELLL - ] LITERAL + ;
-[ELSE]
-		$SCODE cell-
-		CELLL # tos tos SUB,
-		$NEXT           
 [THEN]
 
 \   CHAR+       ( c-addr1 -- c-addr2 )          \ CORE
 \		Returns next character-aligned address.
 \
 META-HI [IF]
-: CHAR+		[ CHARR ] LITERAL + ;
+  : CHAR+	[ CHARR ] LITERAL + ;
 [ELSE]
-		$FCODE CHAR+
+		$CODE CHAR+
 		CHARR # tos tos ADD,
-		$NEXT
-[THEN]
-
-\   name>xt	( c-addr -- xt )
-\		Return execution token using counted string at c-addr.
-\
-META-HI [IF]
-: name>xt	cell- cell- @ ;
-[ELSE]
-		$SCODE name>xt
-		CELLL 2 * # tos R0 SUB,		\ point back past link to xt
-		[ R0 ] tos LDR,			\ get the xt
 		$NEXT
 [THEN]
 
@@ -1956,9 +1925,9 @@ META-HI [IF]
 \		x1 at the next consecutive cell.
 \
 META-HI [IF]
-: 2!		SWAP OVER ! CELL+ ! ;
+  : 2!		SWAP OVER ! CELL+ ! ;
 [ELSE]
-		$FCODE 2!
+		$CODE 2!
 		R0 popD,
 		R1 popD,
 		CELLL # [ tos ] R0 STR,
@@ -1972,9 +1941,9 @@ META-HI [IF]
 \		and x1 at the next consecutive cell.
 \
 META-HI [IF]
-: 2@		DUP CELL+ @ SWAP @ ;
+  : 2@		DUP CELL+ @ SWAP @ ;
 [ELSE]
-		$FCODE 2@
+		$CODE 2@
 		4 # [ tos ] R0 LDR,	\ x2
 		[ tos ] R1 LDR,
 		R1 pushD,
@@ -1986,9 +1955,9 @@ META-HI [IF]
 \		Drop cell pair x1 x2 from the stack.
 \
 META-HI [IF]
-: 2DROP		DROP DROP ;
+  : 2DROP	DROP DROP ;
 [ELSE]
-		$FCODE 2DROP
+		$CODE 2DROP
 \ faster than the obvious "tos popD, tos popD," -- it saves one data access
 		dsp CELLL # dsp ADD,	\ bump up the stack pointer 
 		tos popD,
@@ -1999,22 +1968,22 @@ META-HI [IF]
 \		Duplicate cell pair x1 x2.
 \
 META-HI [IF]
-: 2DUP		OVER OVER ;
+  : 2DUP	OVER OVER ;
 [ELSE]
-		$FCODE 2DUP
+		$CODE 2DUP
 		[ dsp ] R0 LDR,	\ copy x1 without popping stack
 		tos pushD,
 		R0 pushD,
 		$NEXT
 [THEN]
 
-\   2SWAP       ( x1 x2 x3 x4 -- x3 x4 x1 x2 )  \ CORE
+\   2SWAP       ( x1 x2 x3 x4 -- x3 x4 x1 x2 )	\ CORE
 \		Exchange the top two cell pairs.
 \
 META-HI [IF]
-: 2SWAP		ROT >R ROT R> ;
+  : 2SWAP	ROT >R ROT R> ;
 [ELSE]
-		$FCODE 2SWAP
+		$CODE 2SWAP
 		R0 popD, 		\ x3
 		R1 popD,		\ x2
 		R2 popD,		\ x1
@@ -2029,9 +1998,9 @@ META-HI [IF]
 \		Copy cell pair x1 x2 to the top of the stack.
 \
 META-HI [IF]
-: 2OVER		>R >R 2DUP R> R> 2SWAP ;
+  : 2OVER	>R >R 2DUP R> R> 2SWAP ;
 [ELSE]
-		$FCODE 2OVER
+		$CODE 2OVER
 		tos pushD,
 		[ CELLL 3 * # dsp ] R0 LDR, 	\ x1
 		[ CELLL 2 * # dsp ] tos LDR,	\ x2
@@ -2039,48 +2008,46 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-\   1+          ( n1|u1 -- n2|u2 )              \ CORE
+\   1+          ( n1|u1 -- n2|u2 )		\ CORE
 \		Increase top of the stack item by 1.
 \
 META-HI [IF]
-: 1+		1 + ;
+  : 1+		1 + ;
 [ELSE]
-		$FCODE 1+
+		$CODE 1+
 		1 # tos tos ADD,
 		$NEXT
 [THEN]
 
-\   1-		( n1|u1 -- n2|u2 )              \ CORE
+\   1-		( n1|u1 -- n2|u2 )		\ CORE
 \		Decrease top of the stack item by 1.
 \
 META-HI [IF]
-: 1-		D# -1 + ;
+  : 1-		D# -1 + ;
 [ELSE]
-		$FCODE 1-
+		$CODE 1-
 		1 # tos tos SUB,
 		$NEXT
 [THEN]
 
-
-\   INVERT      ( x1 -- x2 )		     \ CORE
+\   INVERT      ( x1 -- x2 )			\ CORE
 \		Return one's complement of x1.
 \
 META-HI [IF]
-: INVERT	D# -1 XOR ;
+  : INVERT	D# -1 XOR ;
 [ELSE]
-		$FCODE INVERT
+		$CODE INVERT
 		tos tos MVN,
 		$NEXT
 [THEN]
 
-
-\   NEGATE	( n1 -- n2 )		\ CORE
+\   NEGATE	( n1 -- n2 )			\ CORE
 \		Return two's complement of n1.
 \
 META-HI [IF]
-: NEGATE	INVERT 1+ ;
+  : NEGATE	INVERT 1+ ;
 [ELSE]
-		$FCODE NEGATE
+		$CODE NEGATE
 		tos tos MVN,
 		1 # tos tos ADD,
 		$NEXT
@@ -2090,22 +2057,21 @@ META-HI [IF]
 \		Subtract n2|u2 from n1|u1, giving the difference n3|u3.
 \
 META-HI [IF]
-: -		NEGATE + ;
+  : -		NEGATE + ;
 [ELSE]
-		$FCODE -
+		$CODE -
 		R1 popD,
 		tos R1 tos SUB,
 		$NEXT
 [THEN]
 
-
 \   =           ( x1 x2 -- flag )		\ CORE
 \		Return true if top two are equal.
 \
 META-HI [IF]
-: =		XOR 0= ;
+  : =		XOR 0= ;
 [ELSE]
-		$FCODE =
+		$CODE =
 		R0 popD,
 		R0 tos tos SUBS,		\ equal =>tos will be 0 (FALSE)
 		TRUEE tos EQ =,
@@ -2113,49 +2079,18 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-
 \   +!          ( n|u a-addr -- )		\ CORE
 \		Add n|u to the contents at a-addr.
 \
 META-HI [IF]
-: +!		SWAP OVER @ + SWAP ! ;
+  : +!		SWAP OVER @ + SWAP ! ;
 [ELSE]
-		$FCODE +!
+		$CODE +!
 		R0 popD,
 		[ tos ] R1 LDR,
 		R0 R1 R1 ADD,
 		[ tos ] R1 STR,
 		tos popD,
-		$NEXT
-[THEN]
-
-\   rp0         ( -- a-addr )
-\		Pointer to bottom of the return stack.
-\
-META-HI [IF]
-: rp0		userP @ CELL+ CELL+ @ ;
-[ELSE]
-		$SCODE rp0
-		tos pushD,
-		GetVaxAdr userP R0 =,
-		[ R0 ] R1 LDR,
-		CELLL 2 * # R1 R1 ADD,
-		[ R1 ] tos LDR,
-		$NEXT
-[THEN]
-
-\   sp0		( -- a-addr )
-\		Pointer to bottom of the data stack.
-\
-META-HI [IF]
-: sp0		userP @ CELL+ @ ;
-[ELSE]
-		$SCODE sp0
-		tos pushD,
-		GetVaxAdr userP R0 =,
-		[ R0 ] R1 LDR,
-		CELLL # R1 R1 ADD,
-		[ R1 ] tos LDR,
 		$NEXT
 [THEN]
 
@@ -2165,9 +2100,9 @@ META-HI [IF]
 \		contents at c-addr1.
 \
 META-HI [IF]
-: COUNT		DUP CHAR+ SWAP C@ ;
+  : COUNT	DUP CHAR+ SWAP C@ ;
 [ELSE]
-		$FCODE COUNT
+		$CODE COUNT
 		[ tos ] R0 LDRB,		\ u
 		1 # tos tos ADD,
 		tos pushD,
@@ -2181,9 +2116,9 @@ META-HI [IF]
 \		definition may be EXITed.
 \
 META-HI [IF]
-: UNLOOP	R> R> R> 2DROP >R ; COMPILE-ONLY
+  : UNLOOP	R> R> R> 2DROP >R ; COMPILE-ONLY
 [ELSE]
-		$FCODE UNLOOP
+		$CODE UNLOOP
 		\ The code version doesn't save fpc on return stack so
 		\ it doesn't have to do the same save/restore as the
 		\ colon version
@@ -2191,77 +2126,17 @@ META-HI [IF]
 		$NEXT COMPILE-ONLY
 [THEN]
 
-: SOURCE	( -- c-addr u )			\ CORE
+\   SOURCE	( -- c-addr u )			\ CORE
 \		Return input buffer string.
 \
-		sourceVar 2@ ;
-
-
-\ lastName	( -- c-addr )
-\		Return the address of the last definition name.
-\
-META-HI [IF]
-: lastName	npVar @ CELL+ CELL+ ;
-[ELSE]
-		$SCODE lastName
-		tos pushD,
-		GetVaxAdr npVar R0 =,
-		[ R0 ] R1 LDR,
-		[ R1 ] tos LDR,
-		CELLL 2 * # tos tos ADD,
-		$NEXT
-[THEN]
-
-\   xhere	( -- a-addr )
-\		Return next available code space address.
-\
-META-HI [IF]
-: xhere		cpVar @ ;
-[ELSE]
-		$SCODE xhere
-		tos pushD,
-		GetVaxAdr cpVar R0 =,
-		[ R0 ] R1 LDR,
-		[ R1 ] tos LDR,
-		$NEXT
-[THEN]
-
-\   TOxhere	( a-addr -- )
-\		Set the next available code space address as a-addr.
-\
-META-HI [IF]
-: TOxhere	cpVar ! ;
-[ELSE]
-		$SCODE TOxhere
-		GetVaxAdr cpVar R0 =,
-		[ R0 ] R1 LDR,
-		[ R1 ] tos STR,
-		tos popD,
-		$NEXT
-[THEN]
-
-\   code,	( x -- )
-\		Reserve one cell in code space and store x in it.
-\
-META-HI [IF]
-: code,		xhere DUP CELL+ TOxhere ! ;
-[ELSE]
-		$SCODE code,
-		GetVaxAdr cpVar R0 =,
-		[ R0 ] R1 LDR,
-		[ R1 ] R2 LDR,
-		CELLL # [ R2 ] tos STR,
-		tos popD,
-		[ R1 ] R2 STR,
-		$NEXT
-[THEN]
+  : SOURCE	sourceVar 2@ ;
 
 \   D+          ( d1|ud1 d2|ud2 -- d3|ud3 )	\ DOUBLE
 \		Add double-cell numbers.
 META-HI [IF]
-: D+		>R SWAP >R um+ R> R> + + ;
+  : D+		>R SWAP >R um+ R> R> + + ;
 [ELSE]
-		$FCODE D+
+		$CODE D+
 		R0 popD,			\ d2L (tos is d2H)
 		R1 popD,			\ d1H
 		R2 popD,			\ d1L
@@ -2275,9 +2150,9 @@ META-HI [IF]
 \		Return data space pointer.
 \
 META-HI [IF]
-: HERE		hereVar @ ;
+  : HERE	hereVar @ ;
 [ELSE]
-		$FCODE HERE
+		$CODE HERE
 		tos pushD,
 		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
@@ -2285,13 +2160,13 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-\   ALLOT       ( n -- )		         \ CORE
+\   ALLOT       ( n -- )			\ CORE
 \		Allocate n bytes in RAM or ROM data space.
 \
 META-HI [IF]
-: ALLOT		hereVar +! ;
+  : ALLOT	hereVar +! ;
 [ELSE]
-		$FCODE ALLOT
+		$CODE ALLOT
 		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
@@ -2301,18 +2176,109 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-\ TODO the cut-off point should be the first thing that needs to use
-\ an IMMEDIATE within a high-level definition.
+S-DEF
+\   rp0         ( -- a-addr )
+\		Pointer to bottom of the return stack.
+\
+META-HI [IF]
+  : rp0		userP @ CELL+ CELL+ @ ;
+[ELSE]
+		$CODE rp0
+		tos pushD,
+		GetVaxAdr userP R0 =,
+		[ R0 ] R1 LDR,
+		CELLL 2 * # R1 R1 ADD,
+		[ R1 ] tos LDR,
+		$NEXT
+[THEN]
+
+\   sp0		( -- a-addr )
+\		Pointer to bottom of the data stack.
+\
+META-HI [IF]
+  : sp0		userP @ CELL+ @ ;
+[ELSE]
+		$CODE sp0
+		tos pushD,
+		GetVaxAdr userP R0 =,
+		[ R0 ] R1 LDR,
+		CELLL # R1 R1 ADD,
+		[ R1 ] tos LDR,
+		$NEXT
+[THEN]
+
+\   lastName	( -- c-addr )
+\		Return the address of the last definition name.
+\
+META-HI [IF]
+  : lastName	npVar @ CELL+ CELL+ ;
+[ELSE]
+		$CODE lastName
+		tos pushD,
+		GetVaxAdr npVar R0 =,
+		[ R0 ] R1 LDR,
+		[ R1 ] tos LDR,
+		CELLL 2 * # tos tos ADD,
+		$NEXT
+[THEN]
+
+\   xhere	( -- a-addr )
+\		Return next available code space address.
+\
+META-HI [IF]
+  : xhere	cpVar @ ;
+[ELSE]
+		$CODE xhere
+		tos pushD,
+		GetVaxAdr cpVar R0 =,
+		[ R0 ] R1 LDR,
+		[ R1 ] tos LDR,
+		$NEXT
+[THEN]
+
+\   TOxhere	( a-addr -- )
+\		Set the next available code space address as a-addr.
+\
+META-HI [IF]
+  : TOxhere	cpVar ! ;
+[ELSE]
+		$CODE TOxhere
+		GetVaxAdr cpVar R0 =,
+		[ R0 ] R1 LDR,
+		[ R1 ] tos STR,
+		tos popD,
+		$NEXT
+[THEN]
+
+\   code,	( x -- )
+\		Reserve one cell in code space and store x in it.
+\
+META-HI [IF]
+  : code,	xhere DUP CELL+ TOxhere ! ;
+[ELSE]
+		$CODE code,
+		GetVaxAdr cpVar R0 =,
+		[ R0 ] R1 LDR,
+		[ R1 ] R2 LDR,
+		CELLL # [ R2 ] tos STR,
+		tos popD,
+		[ R1 ] R2 STR,
+		$NEXT
+[THEN]
+
 
 CR .( *** Slightly less trivial high-level words )
+\ The distinction is that the previous set of words never used any IMMEDIATE
+\ words in their definitions.
+F-DEF
 
 \   DECIMAL     ( -- )		           \ CORE
 \		Set the numeric conversion radix to decimal 10.
 \
 META-HI [IF]
-: DECIMAL	H# 0A BASE ! ;
+  : DECIMAL	H# 0A BASE ! ;
 [ELSE]
-		$FCODE DECIMAL
+		$CODE DECIMAL
 		GetVaxAdr BASE R0 =,
 		0A # R1 MOV,
 		[ R0 ] R1 STR,
@@ -2323,9 +2289,9 @@ META-HI [IF]
 \		Duplicate top of the stack if it is not zero.
 \
 META-HI [IF]
-: ?DUP		DUP IF DUP THEN ;
+  : ?DUP	DUP IF DUP THEN ;
 [ELSE]
-		$FCODE ?DUP
+		$CODE ?DUP
 		0 # tos tos ORRS,		\ set flags
 		![ CELLL NEGATE # dsp ] tos NE STR,	\ pushD if ne
 		$NEXT
@@ -2334,14 +2300,44 @@ META-HI [IF]
 \   <           ( n1 n2 -- flag )		\ CORE
 \		Returns true if n1 is less than n2.
 \
-: <		2DUP XOR 0<             \ same sign?
+  : <		2DUP XOR 0<             \ same sign?
 		IF DROP 0< EXIT THEN    \ different signs, true if n1 <0
 		- 0< ;			\ same signs, true if n1-n2 <0
 
 \   >           ( n1 n2 -- flag )		\ CORE
 \		Returns true if n1 is greater than n2.
 \
-: >		SWAP < ;
+  : >		SWAP < ;
+
+\   LSHIFT      ( x1 u -- x2 )		   \ CORE
+\		Perform a logical left shift of u bit-places on x1, giving x2.
+\		Put 0 into the least significant bits vacated by the shift.
+\
+META-HI [IF]
+  : LSHIFT	?DUP IF 0 DO 2* LOOP THEN ;
+[ELSE]
+		$CODE LSHIFT
+		R0 popD,
+		tos LSL R0 tos MOV,
+		$NEXT
+[THEN]
+
+\   RSHIFT      ( x1 u -- x2 )		   \ CORE
+\		Perform a logical right shift of u bit-places on x1, giving x2.
+\		Put 0 into the most significant bits vacated by the shift.
+\
+META-HI [IF]
+  : RSHIFT	?DUP IF
+			0 SWAP [ CELLL 8 * ] LITERAL SWAP -
+			0 DO  2DUP D+  LOOP
+			NIP
+		THEN ;
+[ELSE]
+		$CODE RSHIFT
+		R0 popD,
+		tos LSR R0 tos MOV,
+		$NEXT
+[THEN]
 
 \   THROW       ( k*x n -- k*x | i*x n )        \ EXCEPTION
 \		If n is not zero, pop the topmost exception frame from the
@@ -2350,7 +2346,7 @@ META-HI [IF]
 \		transfer control just after the CATCH that pushed that
 \		exception frame.
 \
-: THROW		?DUP
+  : THROW	?DUP
 		IF   throwFrame @ rp!   \ restore return stack
 		     R> throwFrame !    \ restore THROW frame
 		     R> SWAP >R sp!     \ restore data stack
@@ -2362,29 +2358,97 @@ META-HI [IF]
 \		Reset data stack and jump to QUIT.
 \
 META-HI [IF]
-: ABORT		-1 THROW ;
+  : ABORT	-1 THROW ;
 [ELSE]
-		$FCODE ABORT
+		$CODE ABORT
 		-1 tos =,	\ overwrite the top stack item - going to reset
 				\ the data stack, so who cares..
 		' THROW B,
 		$END-CODE	\ tidy up
 [THEN]
 
-\ same?		( c-addr1 c-addr2 u -- -1|0|1 )
+\   I		( -- n|u ) ( R: loop-sys -- loop-sys )  \ CORE
+\		Push the innermost loop index.
+\
+META-HI [IF]
+  : I		rp@ [ 1 CELLS ] LITERAL + @
+		rp@ [ 2 CELLS ] LITERAL + @ + ; COMPILE-ONLY
+[ELSE]
+		$CODE I
+		tos pushD,
+		[ rsp ] R0 LDR,		\ note that we're one CELLL closer to
+					\ the tos in CODE
+		[ CELLL # rsp ] tos LDR,
+		R0 tos tos ADD,
+		$NEXT COMPILE-ONLY
+[THEN]
+
+\   J           ( -- n|u ) ( R: loop-sys -- loop-sys )  \ CORE
+\		Push the index of next outer loop.
+\
+META-HI [IF]
+  : J		rp@ [ 3 CELLS ] LITERAL + @
+		rp@ [ 4 CELLS ] LITERAL + @  +  ; COMPILE-ONLY
+[ELSE]
+		$CODE J
+		tos pushD,
+		\ note that we're one CELLL closer to the tos in CODE
+		[ CELLL 2 * # rsp ] R0 LDR,
+		[ CELLL 3 * # rsp ] tos LDR,
+		R0 tos tos ADD,
+		$NEXT COMPILE-ONLY
+[THEN]
+
+\   CELLS	( n1 -- n2 )			\ CORE
+\		Calculate number of address units for n1 cells.
+\
+META-HI [IF]
+  : CELLS	[ CELLL ] LITERAL * ;   \ slow, very portable
+[ELSE]
+		$CODE CELLS
+		2 # LSL tos tos MOV,		\ multiply by 4
+		$NEXT
+[THEN]
+
+S-DEF
+\   ?call	( xt1 -- xt1 0 | a-addr xt2 )
+\		If xt1 starts with a machine CALL instruction then leave
+\		xt of the CALLed routine and the address of the cell following
+\		the machine call at xt1. Otherwise leave xt1 and 0. See
+\		optiCOMPILE for an example of usage
+\
+\ 8086 version:
+\   : ?call	DUP @ call-code =
+\		IF   CELL+ DUP @ SWAP CELL+ DUP ROT + EXIT THEN
+\		        \ Direct Threaded Code 8086 relative call
+\		0 ;
+\
+\ ARM version: call is one cell and contains a signed 24-bit relative
+\ offset. The offset is fixed up for pipeline prefetch:
+  : ?call DUP @ H# 0FF000000 AND [ CALLL ] LITERAL =
+	\ that call-detection is crude - not an exact check..
+	IF DUP DUP @ H# 00FFFFFF AND     \ it's a branch.. get offset
+		DUP H# 007FFFFF > IF
+			H# 00FF000000 OR \ sign extend the offset
+	        THEN
+		D# 2 LSHIFT              \ convert to byte offset
+		+ CELL+ CELL+            \ fix up for pipeline prefetch
+	SWAP CELL+ SWAP EXIT THEN 0 ;
+
+\   same?	( c-addr1 c-addr2 u -- -1|0|1 )
 \		Return 0 if two strings, ca1 u and ca2 u, are same; -1 if
 \		string, ca1 u is smaller than ca2 u; 1 otherwise. Used by
 \		'(search-wordlist)'. Code definition is preferred to speed up
 \		interpretation. Colon definition is shown below.
 META-HI [IF]
-: same?		?DUP IF         \ null strings are always same
+  : same?	?DUP IF         \ null strings are always same
                 0 DO OVER C@ OVER C@ XOR \ 0 (false) if match.. so continue
                        IF UNLOOP C@ SWAP C@ > 2* 1+ EXIT THEN
                        CHAR+ SWAP CHAR+ SWAP
                   LOOP
 		THEN 2DROP 0 ;
 [ELSE]
-		$SCODE same?
+		$CODE same?
 		R0 popD,		\ c-addr2
 		R1 popD,		\ c-addr1
 		tos tos tos ORRS,
@@ -2424,7 +2488,7 @@ META-HI [IF]
 \		xt is the xt of the word. aabbccddeedd etc. is the name of
 \		the word, packed into cells.
 META-HI [IF]
-: (search-wordlist)
+  : (search-wordlist)
 		ROT >R SWAP DUP 0= IF D# -16 THROW THEN
 				\ attempt to use zero-length string as a name
 		>R		\ wid  R: ca1 u
@@ -2441,7 +2505,7 @@ META-HI [IF]
 	 	C@ DUP [ =COMP ] LITERAL AND 0= SWAP
 		[ =IMED ] LITERAL AND 0= 2* 1+ ;
 [ELSE]
-		$SCODE (search-wordlist)
+		$CODE (search-wordlist)
 		R0 popD,		\ u
 		R1 popD,		\ c-addr
 		R0 R0 R0 ORRS,
@@ -2480,75 +2544,58 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-\   SEARCH-WORDLIST     ( c-addr u wid -- 0 | xt 1 | xt -1)     \ SEARCH
-\		Search word list for a match with the given name.
-\		Return execution token and -1 or 1 ( IMMEDIATE) if found.
-\		Return 0 if not found.
-\
-: SEARCH-WORDLIST
-		(search-wordlist) DUP IF NIP THEN ;
-
-
-\   LSHIFT      ( x1 u -- x2 )		   \ CORE
-\		Perform a logical left shift of u bit-places on x1, giving x2.
-\		Put 0 into the least significant bits vacated by the shift.
+\   bal+        ( -- )
+\		Increase bal by 1.
 \
 META-HI [IF]
-: LSHIFT	?DUP IF 0 DO 2* LOOP THEN ;
+  : bal+	bal 1+ TO bal ;
 [ELSE]
-		$FCODE LSHIFT
-		R0 popD,
-		tos LSL R0 tos MOV,
+		$CODE bal+
+		GetVaxAdr bal R0 =,
+		[ R0 ] R1 LDR,
+		1 # R1 R1 ADD,
+		[ R0 ] R1 STR,
 		$NEXT
 [THEN]
 
-\   RSHIFT      ( x1 u -- x2 )		   \ CORE
-\		Perform a logical right shift of u bit-places on x1, giving x2.
-\		Put 0 into the most significant bits vacated by the shift.
+\   bal-	( -- )
+\		Decrease bal by 1.
 \
 META-HI [IF]
-: RSHIFT	?DUP IF
-		        0 SWAP [ CELLL 8 * ] LITERAL SWAP -
-		        0 DO  2DUP D+  LOOP
-		        NIP
+  : bal-	bal 1- TO bal ;
+[ELSE]
+		$CODE bal-
+		GetVaxAdr bal R0 =,
+		[ R0 ] R1 LDR,
+		1 # R1 R1 SUB,
+		[ R0 ] R1 STR,
+		$NEXT
+[THEN]
+
+\   search-word ( c-addr u -- c-addr u 0 | xt f 1 | xt f -1)
+\		Search dictionary for a match with the given name. Return
+\		execution token, not-compile-only flag and -1 or 1
+\		( IMMEDIATE) if found; c-addr u 0 if not.
+\
+  : search-word	#order @ DUP		     \ not found if #order is 0
+		IF 0
+		   DO 2DUP		       \ ca u ca u
+		      I CELLS #order CELL+ + @  \ ca u ca u wid
+		      (search-wordlist)         \ ca u; 0 | w f 1 | w f -1
+		      ?DUP IF		    \ ca u; 0 | w f 1 | w f -1
+		         >R 2SWAP 2DROP R> UNLOOP EXIT \ xt f 1 | xt f -1
+		      THEN		       \ ca u
+		   LOOP 0		        \ ca u 0
 		THEN ;
-[ELSE]
-		$FCODE RSHIFT
-		R0 popD,
-		tos LSR R0 tos MOV,
-		$NEXT
-[THEN]
-
-\   ?call	( xt1 -- xt1 0 | a-addr xt2 )
-\		If xt1 starts with a machine CALL instruction then leave
-\		xt of the CALLed routine and the address of the cell following
-\		the machine call at xt1. Otherwise leave xt1 and 0. See
-\		optiCOMPILE for an example of usage
-\
-\ 8086 version:
-\   : ?call	DUP @ call-code =
-\		IF   CELL+ DUP @ SWAP CELL+ DUP ROT + EXIT THEN
-\		        \ Direct Threaded Code 8086 relative call
-\		0 ;
-\
-\ ARM version: call is one cell and contains a signed 24-bit relative
-\ offset. The offset is fixed up for pipeline prefetch:
-: ?call	DUP @ H# 0FF000000 AND [ CALLL ] LITERAL =
-	\ that call-detection is crude - not an exact check..
-	IF DUP DUP @ H# 00FFFFFF AND     \ it's a branch.. get offset
-		DUP H# 007FFFFF > IF
-			H# 00FF000000 OR \ sign extend the offset
-	        THEN
-		D# 2 LSHIFT              \ convert to byte offset
-		+ CELL+ CELL+            \ fix up for pipeline prefetch
-	SWAP CELL+ SWAP EXIT THEN 0 ;
 
 
+\ TODO -- could move these environment strings anywhere .. to the start
+\ or preferably the end.. to get them out of the main flow.
+
+CR .( *** ENVIRONMENT? Strings)
 \ ENVIRONMENT? strings can be searched using SEARCH-WORDLIST and can be
 \ EXECUTEd. This wordlist is completely hidden to Forth system except
 \ ENVIRONMENT? .
-
-CR .( *** ENVIRONMENT? Strings)
 ENV-DEF
 
 : CPU [ CPUStr ] LITERAL COUNT ;
@@ -2571,51 +2618,27 @@ ENV-DEF
 : EXCEPTION-EXT [ TRUEE ] LITERAL ;
 : WORDLISTS [ OrderDepth ] LITERAL ;
 
-CR .( *** Non-Standard words - Colon definitions)
-S-DEF
+CR .( *** Standard words - Colon definitions)
+F-DEF
 
-\   I		( -- n|u ) ( R: loop-sys -- loop-sys )  \ CORE
-\		Push the innermost loop index.
+\   SEARCH-WORDLIST     ( c-addr u wid -- 0 | xt 1 | xt -1)     \ SEARCH
+\		Search word list for a match with the given name.
+\		Return execution token and -1 or 1 ( IMMEDIATE) if found.
+\		Return 0 if not found.
 \
-META-HI [IF]
-: I		rp@ [ 1 CELLS ] LITERAL + @
-		rp@ [ 2 CELLS ] LITERAL + @ + ; COMPILE-ONLY
-[ELSE]
-		$FCODE I
-		tos pushD,
-		[ rsp ] R0 LDR,		\ note that we're one CELLL closer to
-					\ the tos in CODE
-		[ CELLL # rsp ] tos LDR,
-		R0 tos tos ADD,
-		$NEXT COMPILE-ONLY
-[THEN]
+  : SEARCH-WORDLIST (search-wordlist) DUP IF NIP THEN ;
 
-\   J           ( -- n|u ) ( R: loop-sys -- loop-sys )  \ CORE
-\		Push the index of next outer loop.
-\
-META-HI [IF]
-: J		rp@ [ 3 CELLS ] LITERAL + @
-		rp@ [ 4 CELLS ] LITERAL + @  +  ; COMPILE-ONLY
-[ELSE]
-		$FCODE J
-		tos pushD,
-		\ note that we're one CELLL closer to the tos in CODE
-		[ CELLL 2 * # rsp ] R0 LDR,
-		[ CELLL 3 * # rsp ] tos LDR,
-		R0 tos tos ADD,
-		$NEXT COMPILE-ONLY
-[THEN]
 
-\   UM*         ( u1 u2 -- ud )				\ CORE
+\   UM*         ( u1 u2 -- ud )			\ CORE
 \		Unsigned multiply. Return double-cell product.
 \
 META-HI [IF]
-: UM*		0 SWAP [ CELLL 8 * ] LITERAL 0 DO
+  : UM*		0 SWAP [ CELLL 8 * ] LITERAL 0 DO
 		   DUP um+ >R >R DUP um+ R> +
-		   R> IF >R OVER um+ R> + THEN     \ if carry
+		   R> IF >R OVER um+ R> + THEN	\ if carry
 		LOOP ROT DROP ;
 [ELSE]
-		$FCODE UM*
+		$CODE UM*
 		R0 popD,
 		tos R0 tos R1 UMULL,
 		R1 pushD,		\ ms 32-bits are at top of stack
@@ -2626,9 +2649,9 @@ META-HI [IF]
 \		Multiply n1|u1 by n2|u2 giving a single product.
 \
 META-HI [IF]
-: *		UM* DROP ;
+  : *		UM* DROP ;
 [ELSE]
-		$FCODE *
+		$CODE *
 		R0 popD,
 		tos R0 tos MUL,
 		$NEXT
@@ -2638,30 +2661,20 @@ META-HI [IF]
 \		Calculate number of address units for n1 characters.
 \
 META-HI [IF]
-: CHARS [ CHARR ] LITERAL * ;   \ slow, very portable
+  : CHARS	[ CHARR ] LITERAL * ;   \ slow, very portable
 [ELSE]
-		$FCODE CHARS	\ no-op for ARM
+		$CODE CHARS	\ no-op for ARM
 		$NEXT
 [THEN]
 
-\   CELLS	( n1 -- n2 )			\ CORE
-\		Calculate number of address units for n1 cells.
-\
-META-HI [IF]
-: CELLS     [ CELLL ] LITERAL * ;   \ slow, very portable
-[ELSE]
-		$FCODE CELLS
-		2 # LSL tos tos MOV,		\ multiply by 4
-		$NEXT
-[THEN]
 
 \   /STRING     ( c-addr1 u1 n -- c-addr2 u2 )  \ STRING
 \		Adjust the char string at c-addr1 by n chars.
 \
 META-HI [IF]
-: /STRING	DUP >R - SWAP R> CHARS + SWAP ;
+  : /STRING	DUP >R - SWAP R> CHARS + SWAP ;
 [ELSE]
-		$FCODE /STRING
+		$CODE /STRING
 		R0 popD,		\ u1 (tos is n)
 		R1 popD,		\ c-addr1
 		tos R1 R1 ADD,
@@ -2670,74 +2683,24 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-\   search-word ( c-addr u -- c-addr u 0 | xt f 1 | xt f -1)
-\		Search dictionary for a match with the given name. Return
-\		execution token, not-compile-only flag and -1 or 1
-\		( IMMEDIATE) if found; c-addr u 0 if not.
-\
-: search-word
-		#order @ DUP		     \ not found if #order is 0
-		IF 0
-		   DO 2DUP		       \ ca u ca u
-		      I CELLS #order CELL+ + @  \ ca u ca u wid
-		      (search-wordlist)         \ ca u; 0 | w f 1 | w f -1
-		      ?DUP IF		    \ ca u; 0 | w f 1 | w f -1
-		         >R 2SWAP 2DROP R> UNLOOP EXIT \ xt f 1 | xt f -1
-		      THEN		       \ ca u
-		   LOOP 0		        \ ca u 0
-		THEN ;
-
-
-\   abort"msg	( -- a-addr )
-\		Abort" error message string address.
-\
-$SVAR abort"msg _VAR CELLL + TO _VAR
 
 \ TODO the error was rather nasty/unhelpful when this puddle wasn't present
 \ it was "fatal internal error"
 \ due to the TODO highlighted in line 1074 of asmarm.fth
-\ baically, it means that the current literal pool is unreachable 
+\ basically, it means that the current literal pool is unreachable 
 
 		ALSO ASSEMBLER
 		10 LTORG \ create the 2nd puddle in the literal pool
 		PREVIOUS
 
-\   bal+        ( -- )
-\		Increase bal by 1.
-\
-META-HI [IF]
-: bal+		bal 1+ TO bal ;
-[ELSE]
-		$SCODE bal+
-		GetVaxAdr bal R0 =,
-		[ R0 ] R1 LDR,
-		1 # R1 R1 ADD,
-		[ R0 ] R1 STR,
-		$NEXT
-[THEN]
-
-
-\   bal-	( -- )
-\		Decrease bal by 1.
-\
-META-HI [IF]
-: bal-		bal 1- TO bal ;
-[ELSE]
-		$SCODE bal-
-		GetVaxAdr bal R0 =,
-		[ R0 ] R1 LDR,
-		1 # R1 R1 SUB,
-		[ R0 ] R1 STR,
-		$NEXT
-[THEN]
-
+S-DEF
 \   COMPILE-ONLY   ( -- )
 \		Make the most recent definition an compile-only word.
 \
 META-HI [IF]
-: COMPILE-ONLY	lastName [ =COMP ] LITERAL OVER @ OR SWAP ! ;
+  : COMPILE-ONLY lastName [ =COMP ] LITERAL OVER @ OR SWAP ! ;
 [ELSE]
-		$SCODE COMPILE-ONLY
+		$CODE COMPILE-ONLY
 		GetVaxAdr npVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
@@ -2748,13 +2711,14 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+F-DEF
 \   IMMEDIATE   ( -- )				\ CORE
 \		Make the most recent definition an immediate word.
 \
 META-HI [IF]
-: IMMEDIATE	lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
+  : IMMEDIATE	lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
 [ELSE]
-		$FCODE IMMEDIATE
+		$CODE IMMEDIATE
 		GetVaxAdr npVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
@@ -2765,32 +2729,34 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+S-DEF
 \   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
 \		Run-time funtion of DO.
 \
-: doDO		>R [ MaxNegative ] LITERAL + R>
+  : doDO	>R [ MaxNegative ] LITERAL + R>
 		OVER - SWAP R> SWAP >R SWAP >R >R ;
 
-\   [           ( -- )		           \ CORE
+F-DEF
+\   [           ( -- )				\ CORE
 \		Enter interpretation state.
 \
 META-HI [IF]
-: [		0 STATE ! ; COMPILE-ONLY IMMEDIATE
+  : [		0 STATE ! ; COMPILE-ONLY IMMEDIATE
 [ELSE]
-		$FCODE [
+		$CODE [
 		GetVaxAdr STATE R0 =,
 		0 # R1 MOV,
 		[ R0 ] R1 STR,
 		$NEXT COMPILE-ONLY IMMEDIATE
 [THEN]
 
-\   ]           ( -- )		           \ CORE
+\   ]           ( -- )				\ CORE
 \		Enter compilation state.
 \
 META-HI [IF]
-: ]		-1 STATE ! ;
+  : ]		-1 STATE ! ;
 [ELSE]
-		$FCODE ]
+		$CODE ]
 		GetVaxAdr STATE R0 =,
 		-1 R1 =,
 		[ R0 ] R1 STR,
@@ -2801,9 +2767,9 @@ META-HI [IF]
 \		Two's complement of double-cell number.
 \
 META-HI [IF]
-: DNEGATE	INVERT >R INVERT 1 um+ R> + ;
+  : DNEGATE	INVERT >R INVERT 1 um+ R> + ;
 [ELSE]
-		$FCODE DNEGATE
+		$CODE DNEGATE
 		R0 popD,
 		tos tos MVN,			\ 1's complement of high part
 		R0 R0 MVN,			\ 1's complement of lo part
@@ -2817,10 +2783,9 @@ META-HI [IF]
 \		Unsigned compare of top two items. True if u1 < u2.
 \
 META-HI [IF]
-
-: U<		2DUP XOR 0< IF NIP 0< EXIT THEN - 0< ;
+  : U<		2DUP XOR 0< IF NIP 0< EXIT THEN - 0< ;
 [ELSE]
-		$FCODE U<
+		$CODE U<
 		R0 popD,			\ u1
 		R0 tos CMP,			\ u2-u1
 		TRUEE tos =,
@@ -2832,34 +2797,30 @@ META-HI [IF]
 \		Return true if (n2|u2<=n1|u1 and n1|u1<n3|u3) or
 \		(n2|u2>n3|u3 and (n2|u2<=n1|u1 or n1|u1<n3|u3)).
 \
-: WITHIN	OVER - >R - R> U< ;
+  : WITHIN	OVER - >R - R> U< ;
 
-
-\   UM/MOD      ( ud u1 -- u2 u3 )              	\ CORE
+\   UM/MOD      ( ud u1 -- u2 u3 )		\ CORE
 \		Unsigned division of a double-cell number ud by a single-cell
 \		number u1. Return remainder u2 and quotient u3.
 \
-: UM/MOD
-  DUP 0= IF D# -10 THROW THEN        \ divide by zero
-  2DUP U< IF
-    NEGATE [ CELLL 8 * ] LITERAL 0
-    DO >R DUP um+ >R >R DUP um+ R> + DUP
-      R> R@ SWAP >R um+ R> OR
-      IF >R DROP 1+ R>
-      ELSE DROP THEN
-      R>
-    LOOP DROP SWAP EXIT
-  ELSE D# -11 THROW          \ result out of range
-  THEN ;
-
+  : UM/MOD	DUP 0= IF D# -10 THROW THEN	\ divide by zero
+	2DUP U< IF
+		NEGATE [ CELLL 8 * ] LITERAL 0 DO
+			>R DUP um+ >R >R DUP um+ R> + DUP
+			R> R@ SWAP >R um+ R> OR
+			IF >R DROP 1+ R> ELSE DROP THEN
+			R>
+		LOOP DROP SWAP EXIT
+	ELSE D# -11 THROW          \ result out of range
+	THEN ;
 
 \   ABS         ( n -- u )		       \ CORE
 \		Return the absolute value of n.
 \
 META-HI [IF]
-: ABS		DUP 0< IF NEGATE THEN ;
+  : ABS		DUP 0< IF NEGATE THEN ;
 [ELSE]
-		$FCODE ABS
+		$CODE ABS
 		0 # tos tos ORRS,		\ set flags
 		0 R0 =,
 		tos R0 tos MI SUB,
@@ -2870,20 +2831,20 @@ META-HI [IF]
 \		Signed multiply. Return double product.
 \
 META-HI [IF]
-: M*		2DUP XOR 0< >R ABS SWAP ABS UM* R> IF DNEGATE THEN ;
+  : M*		2DUP XOR 0< >R ABS SWAP ABS UM* R> IF DNEGATE THEN ;
 [ELSE]
-		$FCODE M*
+		$CODE M*
 		R0 popD,
 		tos R0 tos R1 SMULL,
 		R1 pushD,		\ ms 32-bits are at top of stack
 		$NEXT
 [THEN]
 
-\ FM/MOD	( d n1 -- n2 n3 )		\ CORE
+\   FM/MOD	( d n1 -- n2 n3 )		\ CORE
 \		Signed floored divide of double by single. Return mod n2
 \		and quotient n3.
 \
-: FM/MOD	DUP >R 2DUP XOR >R >R DUP 0< IF DNEGATE THEN
+  : FM/MOD	DUP >R 2DUP XOR >R >R DUP 0< IF DNEGATE THEN
 		R@ ABS UM/MOD
 		R> 0< IF SWAP NEGATE SWAP THEN
 		R> 0< IF NEGATE         \ negative quotient
@@ -2898,7 +2859,7 @@ META-HI [IF]
 \		Symmetric divide of double by single. Return remainder n2
 \		and quotient n3.
 \
-: SM/REM	2DUP XOR >R OVER >R >R DUP 0< IF DNEGATE THEN
+  : SM/REM	2DUP XOR >R OVER >R >R DUP 0< IF DNEGATE THEN
 		R> ABS UM/MOD
 		R> 0< IF SWAP NEGATE SWAP THEN
 		R> 0< IF        \ negative quotient
@@ -2911,46 +2872,48 @@ META-HI [IF]
 \		then divide it by n3. Return single-cell remainder and
 \		single-cell quotient.
 \
-: */MOD		>R M* R> FM/MOD ;
+  : */MOD	>R M* R> FM/MOD ;
 
 \   */          ( n1 n2 n3 -- n4 )              \ CORE
 \		Multiply n1 by n2 producing double-cell intermediate,
 \		then divide it by n3. Return single-cell quotient.
 \
-: */		*/MOD NIP ;
+  : */		*/MOD NIP ;
 
 \   /MOD        ( n1 n2 -- n3 n4 )              \ CORE
 \		Divide n1 by n2, giving single-cell remainder n3 and
 \		single-cell quotient n4.
 \
-: /MOD		>R S>D R> FM/MOD ;
+  : /MOD	>R S>D R> FM/MOD ;
 
 \   MOD         ( n1 n2 -- n3 )		  \ CORE
 \		Divide n1 by n2, giving the single cell remainder n3.
 \		Returns modulo of floored division in this implementation.
 \
-: MOD		/MOD DROP ;
+  : MOD		/MOD DROP ;
 
 \   /           ( n1 n2 -- n3 )		  \ CORE
 \		Divide n1 by n2, giving single-cell quotient n3.
 \
-: /		/MOD NIP ;
+  : /		/MOD NIP ;
 
+S-DEF
 \ 1chars/	( n1 -- n2 )
 \		Calculate number of chars for n1 address units.
 META-HI [IF]
-: 1chars/	1 CHARS / ;     \ slow, very portable
+  : 1chars/	1 CHARS / ;     \ slow, very portable
 \   : 1chars/   ;               \ fast, must be redefined for each system
 [ELSE]
-		$SCODE 1chars/
+		$CODE 1chars/
 		$NEXT
 [THEN]
 
+F-DEF
 \   >NUMBER     ( ud1 c-addr1 u1 -- ud2 c-addr2 u2 )    \ CORE
 \		Add number string's value to ud1. Leaves string of any
 \		unconverted chars.
 \
-: >NUMBER
+  : >NUMBER
   BEGIN  DUP
   WHILE  >R  DUP >R C@		     \ ud char  R: u c-addr
     DUP [ CHAR 9 1+ ] LITERAL [CHAR] A WITHIN
@@ -2966,32 +2929,45 @@ META-HI [IF]
 \		Append following run-time semantics. Put x on the stack on
 \		execution
 \
-: LITERAL	POSTPONE doLIT code, ; COMPILE-ONLY IMMEDIATE
+  : LITERAL	POSTPONE doLIT code, ; COMPILE-ONLY IMMEDIATE
 
+\   COMPILE,    ( xt -- )		        \ CORE EXT
+\		Compile the execution token on data stack into current
+\		colon definition.
+\
+META-HI [IF]
+  : COMPILE,	code, ; COMPILE-ONLY
+[ELSE]
+		$CODE COMPILE,
+		' code, B,
+		$END-CODE COMPILE-ONLY
+[THEN]
 
+\   GET-CURRENT	( -- wid )		     \ SEARCH
+\		Return the indentifier of the compilation wordlist.
+\
+  : GET-CURRENT	current @ ;
+
+S-DEF
 \   singleOnly	( c-addr u -- x )
 \		Handle the word not found in the search-order. If the string
 \		is legal, leave a single cell number in interpretation state.
 \
-: singleOnly
-		0 DUP 2SWAP OVER C@ [CHAR] -
+  : singleOnly	0 DUP 2SWAP OVER C@ [CHAR] -
 		= DUP >R IF 1 /STRING THEN
 		>NUMBER IF D# -13 THROW THEN       \ undefined word
 		2DROP R> IF NEGATE THEN ;
 
-
-\ singleOnly, ( c-addr u -- )
+\   singleOnly,	( c-addr u -- )
 \		Handle the word not found in the search-order. Compile a
 \		single cell number in compilation state.
-: singleOnly,
-		singleOnly POSTPONE LITERAL ;
+  : singleOnly,	singleOnly POSTPONE LITERAL ;
 
-
-: (doubleAlso)	( c-addr u -- x 1 | x x 2 )
+\   (doubleAlso) ( c-addr u -- x 1 | x x 2 )
 \		If the string is legal, leave a single or double cell number
 \		and size of the number.
 \
-		0 DUP 2SWAP OVER C@ [CHAR] -
+  : (doubleAlso) 0 DUP 2SWAP OVER C@ [CHAR] -
 		= DUP >R IF 1 /STRING THEN
 		>NUMBER ?DUP
 		IF 1- IF D# -13 THROW THEN    \ more than one char is remained
@@ -3002,46 +2978,33 @@ META-HI [IF]
 		2DROP R> IF NEGATE THEN       \ single number
 		1 ;
 
-: doubleAlso	( c-addr u -- x | x x )
+\   doubleAlso	( c-addr u -- x | x x )
 \		Handle the word not found in the search-order. If the string
 \		is legal, leave a single or double cell number in
 \		interpretation state.
 \
-		(doubleAlso) DROP ;
+  : doubleAlso	(doubleAlso) DROP ;
 
-\ doubleAlso,	( c-addr u -- )
+\   doubleAlso,	( c-addr u -- )
 \		Handle the word not found in the search-order. If the string
 \		is legal, compile a single or double cell number in
 \		compilation state.
 \
-: doubleAlso,
-		(doubleAlso) 1- IF SWAP POSTPONE LITERAL THEN
+  : doubleAlso,	(doubleAlso) 1- IF SWAP POSTPONE LITERAL THEN
 		POSTPONE LITERAL ;
 
-:  -.		( -- )
+\   -.		( -- )
 \		You don't need this word unless you care that '-.' returns
 \		double cell number 0. Catching illegal number '-.' in this way
 \		is easier than make 'interpret' catch this exception.
 \
-		D# -13 THROW ; IMMEDIATE   \ undefined word
-
-\   COMPILE,    ( xt -- )		        \ CORE EXT
-\		Compile the execution token on data stack into current
-\		colon definition.
-\
-META-HI [IF]
-: COMPILE,	code, ; COMPILE-ONLY
-[ELSE]
-		$FCODE COMPILE,
-		' code, B,
-		$END-CODE COMPILE-ONLY
-[THEN]
+  : -.		D# -13 THROW ; IMMEDIATE   \ undefined word
 
 \   optiCOMPILE, ( xt -- )
 \		Optimized COMPILE, . Reduce doLIST ... EXIT sequence if
 \		xt is COLON definition which contains less than two words.
 \
-: optiCOMPILE,
+  : optiCOMPILE,
   DUP ?call ['] doLIST = IF
     DUP @ ['] EXIT = IF         \ if first word is EXIT
       2DROP EXIT THEN
@@ -3051,18 +3014,13 @@ META-HI [IF]
     THEN
   THEN DROP COMPILE, ;
 
-\   GET-CURRENT   ( -- wid )		     \ SEARCH
-\		Return the indentifier of the compilation wordlist.
-\
-: GET-CURRENT	current @ ;
-
 \   linkLast	( -- )
 \		Link the word being defined to the current wordlist.
 \
 META-HI [IF]
-: linkLast	lastName GET-CURRENT ! ;
+  : linkLast	lastName GET-CURRENT ! ;
 [ELSE]
-		$SCODE linkLast
+		$CODE linkLast
 		GetVaxAdr npVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
@@ -3073,12 +3031,14 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+\ ------------------- got to here in rearranging words
+
 \   pipe        ( -- ) ( R: xt -- )
 \		Connect most recently defined word to code following DOES>.
 \		Structure of CREATEd word:
 \		        | call-doCREATE | 0 or DOES> code addr | a-addr |
 \
-: pipe
+  : pipe
   lastName name>xt ?call DUP IF   \ code-addr xt2
     ['] doCREATE = IF
       R> SWAP ! EXIT           \ change DOES> code of CREATEd word
@@ -3087,10 +3047,11 @@ META-HI [IF]
   D# -32 THROW     \ invalid name argument, no-CREATEd last name
   ; COMPILE-ONLY
 
+F-DEF
 \   PARSE       ( char "ccc<char>"-- c-addr u )         \ CORE EXT
 \		Scan input stream and return counted string delimited by char.
 \
-: PARSE		>R  SOURCE >IN @ /STRING        \ c-addr u  R: char
+  : PARSE	>R  SOURCE >IN @ /STRING        \ c-addr u  R: char
 		DUP IF
 		   CHARS OVER + OVER       \ c-addr c-addr+u c-addr  R: char
 		   BEGIN  DUP C@ R@ XOR
@@ -3100,12 +3061,12 @@ META-HI [IF]
 		   THEN   >IN +!
 		THEN   R> DROP EXIT ;
 
+S-DEF
 \   skipPARSE   ( char "<chars>ccc<char>" -- c-addr u )
 \		Skip leading chars and parse a word using char as a
 \		delimeter. Return the name.
 \
-: skipPARSE
-		>R SOURCE >IN @ /STRING    \ c_addr u  R: char
+  : skipPARSE	>R SOURCE >IN @ /STRING    \ c_addr u  R: char
 		DUP IF
 		   BEGIN  OVER C@ R@ =
 		   WHILE 1- SWAP CHAR+ SWAP DUP 0=
@@ -3114,13 +3075,13 @@ META-HI [IF]
 		   DROP SOURCE DROP - 1chars/ >IN ! R> PARSE EXIT
 		THEN R> DROP ;
 
-\ PARSE-WORD	( "<spaces>ccc<space>" -- c-addr u )
+\   PARSE-WORD	( "<spaces>ccc<space>" -- c-addr u )
 \		Skip leading spaces and parse a word. Return the name.
 \
 META-HI [IF]
-: PARSE-WORD	BL skipPARSE ;
+  : PARSE-WORD	BL skipPARSE ;
 [ELSE]
-		$SCODE PARSE-WORD
+		$CODE PARSE-WORD
 		tos pushD,
 		SPC # tos MOV,
 		' skipPARSE B,
@@ -3131,21 +3092,24 @@ META-HI [IF]
 \		Parse a name, find it and return execution token and
 \		-1 or 1 ( IMMEDIATE) if found
 \
-: (')		PARSE-WORD search-word ?DUP IF NIP EXIT THEN
+  : (')		PARSE-WORD search-word ?DUP IF NIP EXIT THEN
 		errWord 2!      \ if not found error
 		D# -13 THROW ;     \ undefined word
 
-: '		( "<spaces>name" -- xt )        \ CORE
+F-DEF
+\   '		( "<spaces>name" -- xt )        \ CORE
 \		Parse a name, find it and return xt.
 \
-		(') DROP ;
+  : '		(') DROP ;
 
-: set-i/ov	( -- )
+S-DEF
+\   set-i/ov	( -- )
 \		Set input/output vectors, according to IOBYTES. Easiest way to
 \		do this is to assume that the default vectors will be used
 \		then check IOBYTES; if DEMON vectors are required, overwrite
 \		them
 \
+  : set-i/ov
     sysVar0 var0 [ 4 CELLS ] LITERAL MOVE       \ set i/o vectors
     IOBYTES H# FF AND H# FF = IF
       ['] TRUE TO 'ekey?
@@ -3154,24 +3118,25 @@ META-HI [IF]
       ['] DTX! TO 'emit
     THEN ;
 
-: set-i/o	( -- )
+\   set-i/o	( -- )
 \		Set input/output device. (Includes initialising any hardware)
 \
-    set-i/ov !IO ;
+  : set-i/o	set-i/ov !IO ;
 
+F-DEF
 \   THEN        Compilation: ( C: orig -- )     \ CORE
 \		Run-time: ( -- )
 \		Resolve the forward reference orig.
 \
-: THEN		1- IF D# -22 THROW THEN    \ control structure mismatch
+  : THEN	1- IF D# -22 THROW THEN    \ control structure mismatch
 				        \ orig type is 1
 		xhere SWAP ! bal- ; COMPILE-ONLY IMMEDIATE
 
-
+S-DEF
 \   rake        ( C: do-sys -- )
 \		Gathers LEAVEs.
 \
-: rake
+  : rake
   DUP code, rakeVar @
   BEGIN  2DUP U<
   WHILE  DUP @ xhere ROT !
@@ -3189,15 +3154,14 @@ S-DEF
 \		'status' USER variable is stored in 'follower' USER variable
 \		of current task.
 \
-: PAUSE rp@ sp@ stackTop !  follower @ >R ; COMPILE-ONLY
+  : PAUSE	rp@ sp@ stackTop !  follower @ >R ; COMPILE-ONLY
 
 \   wake        ( -- )
 \		Wake current task.
 \
-: wake		R> userP !      \ userP points 'follower' of current task
+  : wake	R> userP !      \ userP points 'follower' of current task
 		stackTop @ sp!          \ set data stack
 		rp! ; COMPILE-ONLY      \ set return stack
-
 
 CR .( *** Essential Standard words - Colon definitions)
 F-DEF
@@ -3206,9 +3170,9 @@ F-DEF
 \		Add char to the beginning of pictured numeric output string.
 \
 META-HI [IF]
-: HOLD		hld @  1 CHARS - DUP hld ! C! ;
+  : HOLD	hld @  1 CHARS - DUP hld ! C! ;
 [ELSE]
-		$FCODE HOLD
+		$CODE HOLD
 		GetVaxAdr hld R0 =,
 		[ R0 ] R1 LDR,
 		CHARR # R1 R1 SUB,
@@ -3218,38 +3182,38 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-: #		( ud1 -- ud2 )		   \ CORE
+\   #		( ud1 -- ud2 )			\ CORE
 \		Extract one digit from ud1 and append the digit to
 \		pictured numeric output string. ( ud2 = ud1 / BASE )
 \
-		0 BASE @ UM/MOD >R BASE @ UM/MOD SWAP
+  : #		0 BASE @ UM/MOD >R BASE @ UM/MOD SWAP
 		D# 9 OVER < [ CHAR A CHAR 9 1 + - ] LITERAL AND +
 		[ CHAR 0 ] LITERAL + HOLD R> ;
 
-: #>		( xd -- c-addr u )              \ CORE
+\   #>		( xd -- c-addr u )              \ CORE
 \		Prepare the output string to be TYPE'd.
 \		||xhere>WORD/#-work-area|
 \
-		2DROP hld @ xhere [ PADSize ] LITERAL + OVER - 1chars/ ;
+  : #>		2DROP hld @ xhere [ PADSize ] LITERAL + OVER - 1chars/ ;
 
-: #S		( ud -- 0 0 )		    \ CORE
+\   #S		( ud -- 0 0 )			\ CORE
 \		Convert ud until all digits are added to the output string.
 \
-		BEGIN # 2DUP OR 0= UNTIL ;
+  : #S		BEGIN # 2DUP OR 0= UNTIL ;
 
-: SIGN		( n -- )			\ CORE
+\   SIGN	( n -- )			\ CORE
 \		Add a minus sign to the numeric output string if n is negative.
 \
-		0< IF [CHAR] - HOLD THEN ;
+  : SIGN	0< IF [CHAR] - HOLD THEN ;
 
-\   <#          ( -- )		           \ CORE
+\   <#          ( -- )				\ CORE
 \		Initiate the numeric output conversion process.
 \		||xhere>WORD/#-work-area|
 \
 META-HI [IF]
-: <#		xhere [ PADSize ] LITERAL + hld ! ;
+  : <#		xhere [ PADSize ] LITERAL + hld ! ;
 [ELSE]
-		$FCODE <#
+		$CODE <#
 		GetVaxAdr cpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,		\ xhere address
@@ -3259,20 +3223,21 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+S-DEF
 \   (d.)	( d -- c-addr u )
 \		Convert a double number to a string.
 \
-: (d.)		SWAP OVER  DUP 0< IF  DNEGATE  THEN
+  : (d.)	SWAP OVER  DUP 0< IF  DNEGATE  THEN
 		<#  #S ROT SIGN  #> ;
 
-
+F-DEF
 \   ,           ( x -- )		         \ CORE
 \		Reserve one cell in RAM or ROM data space and store x in it.
 \
 META-HI [IF]
-: ,		HERE ! [ CELLL ] LITERAL hereVar +! ;
+  : ,		HERE ! [ CELLL ] LITERAL hereVar +! ;
 [ELSE]
-		$FCODE ,
+		$CODE ,
 		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
@@ -3285,16 +3250,16 @@ META-HI [IF]
 \   DEPTH       ( -- +n )		        \ CORE
 \		Return the depth of the data stack.
 \
-: DEPTH		sp@ sp0 SWAP - [ CELLL ] LITERAL / ;
+  : DEPTH	sp@ sp0 SWAP - [ CELLL ] LITERAL / ;
 
 \   ALIGNED	( addr -- a-addr )		\ CORE
 \		Align address to the cell boundary by rounding UP if necessary
 \
 META-HI [IF]
-: ALIGNED	DUP 0 [ CELLL ] LITERAL UM/MOD DROP DUP
+  : ALIGNED	DUP 0 [ CELLL ] LITERAL UM/MOD DROP DUP
 		IF [ CELLL ] LITERAL SWAP - THEN + ;    \ slow, very portable
 [ELSE]
-		$FCODE ALIGNED
+		$CODE ALIGNED
 		3 # tos tos ADD,
 		3 # tos tos BIC,		\ round it up
 		$NEXT
@@ -3304,9 +3269,9 @@ META-HI [IF]
 \		Align the data space pointer.
 \
 META-HI [IF]
-: ALIGN		hereVar DUP @ ALIGNED SWAP ! ;
+  : ALIGN	hereVar DUP @ ALIGNED SWAP ! ;
 [ELSE]
-		$FCODE ALIGN
+		$CODE ALIGN
 		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
@@ -3316,6 +3281,7 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+S-DEF
 \   xt,		( xt1 -- xt2 )
 \		Take a run-time word xt1 for :NONAME , CONSTANT , VARIABLE and
 \		CREATE . Return xt2 of current definition.
@@ -3329,38 +3295,39 @@ META-HI [IF]
 \ offset. The offset must be fixed up for pipeline prefetch:
 \ nac added []literal twice
 \ TODO: need a check to see that the destination is reachable..
-: xt,	xhere ALIGNED DUP TOxhere SWAP
+  : xt,	xhere ALIGNED DUP TOxhere SWAP
 	xhere - cell- cell- D# 2 RSHIFT \ get signed offset
 	H# 00FFFFFF AND                 \ mask off high-order sign bits
 	[ CALLL ] LITERAL OR            \ make the opcode 
 	xhere SWAP                      \ remember where it will go
 	code, IDflushline ;             \ emit it and purge the block
 
+F-DEF
 \   TYPE        ( c-addr u -- )		  \ CORE
 \		Display the character string if u is greater than zero.
 \
-: TYPE		?DUP IF 0 DO DUP C@ EMIT CHAR+ LOOP THEN DROP ;
+  : TYPE	?DUP IF 0 DO DUP C@ EMIT CHAR+ LOOP THEN DROP ;
 
 \   SPACE       ( -- )				\ CORE
 \		Send the blank character to the output device.
 META-HI [IF]
-: SPACE		D# 32 EMIT ;
+  : SPACE	D# 32 EMIT ;
 [ELSE]
-		$FCODE SPACE
+		$CODE SPACE
 		tos pushD,
 		SPC # tos MOV,
 		' EMIT B,
 		$END-CODE
 [THEN]
 
-\
+S-DEF
 \   pack"       ( c-addr u a-addr -- a-addr2 )
 \		Place a string c-addr u at a-addr and gives the next
 \		cell-aligned address. Fill the rest of the last cell with
 \		null character.
 \
 META-HI [IF]
-: pack"	OVER [ MaxCountedString ] LITERAL SWAP U< 
+  : pack" OVER [ MaxCountedString ] LITERAL SWAP U< 
 	IF D# -18 THROW THEN		\ parsed string overflow
 	2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
 	ALIGNED cell- 0 SWAP !		\ fill 0 at the end of string
@@ -3368,7 +3335,7 @@ META-HI [IF]
 	CHARS MOVE R> ALIGNED ; COMPILE-ONLY
 [ELSE]
 \ TODO this code version doesn't do the length check and THROW
-		$SCODE pack"
+		$CODE pack"
 		\ assume strings don't overlap
 		R0 popD,			\ u
 		R1 popD,			\ c-addr
@@ -3392,7 +3359,7 @@ META-HI [IF]
 \   head,	( xt "<spaces>name" -- )
 \		Parse a word and build a dictionary entry using xt and name.
 \
-: head,		PARSE-WORD DUP 0=
+  : head,	PARSE-WORD DUP 0=
 		IF errWord 2! D# -16 THROW THEN
 		               \ attempt to use zero-length string as a name
 		DUP [ =MASK ] LITERAL > IF D# -19 THROW THEN   \ definition name too long
@@ -3405,23 +3372,24 @@ META-HI [IF]
 		cell- DUP npVar !  ! ;          \ adjust name space pointer
 						\ and store xt at code field
 
+F-DEF
 \   :NONAME     ( -- xt colon-sys )             \ CORE EXT
 \		Create an execution token xt, enter compilation state and
 \		start the current definition.
 \
-: :NONAME	bal IF D# -29 THROW THEN           \ compiler nesting
+  : :NONAME	bal IF D# -29 THROW THEN	\ compiler nesting
 		['] doLIST xt, DUP D# -1
 		0 TO notNONAME? 1 TO bal  ] ;
 
 \   :           ( "<spaces>name" -- colon-sys ) \ CORE
 \		Start a new colon definition using next word as its name.
 \
-: :		:NONAME ROT head, D# -1 TO notNONAME? ;
+  : :		:NONAME ROT head, D# -1 TO notNONAME? ;
 
 \   ;           ( colon-sys -- )		 \ CORE
 \		Terminate a colon definition.
 \
-: ;
+  : ;
   bal 1- IF D# -22 THROW THEN        \ control structure mismatch
   NIP 1+ IF D# -22 THROW THEN        \ colon-sys type is -1
   notNONAME? IF   \ if the last definition is created by ':'
@@ -3434,54 +3402,56 @@ META-HI [IF]
 		PREVIOUS
 
 S-DEF
-: FILE		( -- )
+\   FILE	( -- )
 \		Set FILE bit in IOBYTES to disable local echo and impose
 \		XON/XOFF flow control for host file download
 \
-		IOBYTES H# 10000000 OR TO IOBYTES ;
+  : FILE	IOBYTES H# 10000000 OR TO IOBYTES ;
 
-: HAND		( -- )
+\   HAND	( -- )
 \		Clear FILE bit in IOBYTES to turn off XON/XOFF handshake
 \		and turn on local echo
 \
-		IOBYTES H# EFFFFFFF AND TO IOBYTES ;
+  : HAND	IOBYTES H# EFFFFFFF AND TO IOBYTES ;
 
-: FLOW-ON	( -- )
+\   FLOW-ON	( -- )
 \		Send an XON character for the file downloading process.
 \
-		[ XON ] LITERAL EMIT ;
+  : FLOW-ON	[ XON ] LITERAL EMIT ;
 
-: FLOW-OFF	( -- )
+\   FLOW-OFF	( -- )
 \		Send an XOFF character for the file downloading process; ONLY
 \		if FILE bit is set
 \
-		IOBYTES H# 10000000 AND IF [ XOFF ] LITERAL EMIT THEN ;
+  : FLOW-OFF	IOBYTES H# 10000000 AND IF [ XOFF ] LITERAL EMIT THEN ;
 
+F-DEF
 \   CR		( -- )				\ CORE
 \		Carriage return and linefeed.
 \
-F-DEF
-: CR  [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
+  : CR		[ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
 
 
-\ EKEY		( -- u )		         \ FACILITY EXT
+\   EKEY	( -- u )		         \ FACILITY EXT
 \		Receive one keyboard event u.
 \
-: EKEY		BEGIN PAUSE EKEY? UNTIL 'ekey EXECUTE ;
+  : EKEY	BEGIN PAUSE EKEY? UNTIL 'ekey EXECUTE ;
+
 
 \   KEY         ( -- char )		      \ CORE
 \		Receive a character. Do not display char.
 \
-: KEY		EKEY [ MaxChar ] LITERAL AND ;
+  : KEY		EKEY [ MaxChar ] LITERAL AND ;
 
+S-DEF
 \   EMITE       ( x -- )
 \		Send a character to the output device unless FILE bit
 \		is set in IOBYTES
 META-HI [IF]
-: EMITE		IOBYTES H# 10000000 AND 
+  : EMITE	IOBYTES H# 10000000 AND 
 		IF DROP EXIT THEN 'emit EXECUTE ;
 [ELSE]
-		$SCODE EMITE
+		$CODE EMITE
 		GetVaxAdr IOBYTES R0 =,		\ find out whether to emit it
 		[ R0 ] R1 LDR,
 		10000000 # R1 R1 ANDS,
@@ -3490,12 +3460,13 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+F-DEF
 \   ACCEPT      ( c-addr +n1 -- +n2 )           \ CORE
 \		Accept a string of up to +n1 chars. Return with actual count.
 \		Implementation-defined editing. Stops at EOL# .
 \		Supports backspace and delete editing.
 \
-: ACCEPT	FLOW-ON >R 0
+  : ACCEPT	FLOW-ON >R 0
 		BEGIN  DUP R@ < 		\ ca n2 f  R: n1
 		WHILE  KEY DUP BL <
 		       IF   DUP  [ CRR ] LITERAL = IF ROT 2DROP R> DROP FLOW-OFF EXIT THEN
@@ -3516,15 +3487,15 @@ META-HI [IF]
 \		BEGIN ... AGAIN . Move control to the location specified by
 \		dest on execution.
 \
-: AGAIN		IF D# -22 THROW THEN	\ control structure mismatch;
+  : AGAIN	IF D# -22 THROW THEN	\ control structure mismatch;
 					\ dest type is 0
 		POSTPONE branch code, bal- ; COMPILE-ONLY IMMEDIATE
 
-\   AHEAD       ( C: -- orig )		   \ TOOLS EXT
+\   AHEAD       ( C: -- orig )			\ TOOLS EXT
 \		Put the location of a new unresolved forward reference onto
 \		control-flow stack.
 \
-: AHEAD		POSTPONE branch xhere 0 code,
+  : AHEAD	POSTPONE branch xhere 0 code,
 		1 bal+          \ orig type is 1
 		; COMPILE-ONLY IMMEDIATE
 
@@ -3534,7 +3505,7 @@ META-HI [IF]
 \		transferred to a point just after CATCH if THROW is executed
 \		during the execution of xt.
 \
-: CATCH		sp@ >R throwFrame @ >R          \ save error frame
+  : CATCH	sp@ >R throwFrame @ >R          \ save error frame
 		rp@ throwFrame !  EXECUTE       \ execute
 		R> throwFrame !		  \ restore error frame
 		R> DROP  0 ;		     \ no error
@@ -3544,7 +3515,7 @@ META-HI [IF]
 \		Create a definition for name which pushes x on the stack on
 \		execution.
 \
-: CONSTANT	bal IF D# -29 THROW THEN           \ compiler nesting
+  : CONSTANT	bal IF D# -29 THROW THEN	\ compiler nesting
 		['] doCONST xt, head, code, linkLast ;
 
 \   CREATE      ( "<spaces>name" -- )           \ CORE
@@ -3552,7 +3523,7 @@ META-HI [IF]
 \		Create a data object in RAM/ROM data space, which return
 \		data object address on execution
 \
-: CREATE	bal IF D# -29 THROW THEN           \ compiler nesting
+  : CREATE	bal IF D# -29 THROW THEN	\ compiler nesting
 		['] doCREATE xt, head,
 		xhere DUP CELL+ CELL+ TOxhere   \ reserve two cells
 		0 OVER !		 \ no DOES> code yet
@@ -3560,13 +3531,13 @@ META-HI [IF]
 		linkLast ;              \ link CREATEd word to current wordlist
 
 
-\   IF          Compilation: ( C: -- orig )             \ CORE
+\   IF          Compilation: ( C: -- orig )	\ CORE
 \		Run-time: ( x -- )
 \		Put the location of a new unresolved forward reference orig
 \		onto the control flow stack. On execution jump to location
 \		specified by the resolution of orig if x is zero.
 \
-: IF		POSTPONE 0branch xhere 0 code,
+  : IF		POSTPONE 0branch xhere 0 code,
 		1 bal+          \ orig type is 1
 		; COMPILE-ONLY IMMEDIATE
 
@@ -3577,12 +3548,13 @@ META-HI [IF]
 \		Put the location of new unresolved forward reference orig2
 \		onto control-flow stack.
 \
-: ELSE		POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
+  : ELSE	POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
+S-DEF
 \   interpret	( i*x -- j*x )
 \		Interpret input string.
 \
-: interpret	BEGIN  DEPTH 0< IF D# -4 THROW THEN        \ stack underflow
+  : interpret	BEGIN  DEPTH 0< IF D# -4 THROW THEN        \ stack underflow
 		       PARSE-WORD DUP
 		WHILE  2DUP errWord 2!
 		       search-word          \ ca u 0 | xt f -1 | xt f 1
@@ -3593,34 +3565,37 @@ META-HI [IF]
 		       1+ 2* STATE @ 1+ + CELLS 'doWord + @ EXECUTE
 		REPEAT 2DROP ;
 
+F-DEF
 \   REFILL      ( -- flag )		      \ CORE EXT
 \		Attempt to fill the input buffer from the input source. Make
 \		the result the input buffer, set >IN to zero, and return true
 \		if successful. Return false if the input source is a string
 \		from EVALUATE.
 \
-: REFILL	SOURCE-ID IF 0 EXIT THEN
+  : REFILL	SOURCE-ID IF 0 EXIT THEN
 		npVar @ [ PADSize CHARS 2* ] LITERAL - DUP
 		[ PADSize ] LITERAL ACCEPT sourceVar 2!
 		0 >IN ! -1 ;
 
-\ .ok		( -- )
+S-DEF
+\   .ok		( -- )
 \		Display 'ok'.
 \
-: .ok		S" ok" TYPE ;
+  : .ok		S" ok" TYPE ;
 
+F-DEF
 \   D.          ( d -- )		         \ DOUBLE
 \		Display d in free field format followed by a space.
 \
-: D.		(d.) TYPE SPACE ;
+  : D.		(d.) TYPE SPACE ;
 
 \   .           ( n -- )		         \ CORE
 \		Display a signed number followed by a space.
 \
 META-HI [IF]
-: .		S>D D. ;
+  : .		S>D D. ;
 [ELSE]
-		$FCODE .
+		$CODE .
 		tos pushD,
 		0 # R1 MOV,
 		\ sign-extend tos into tos to form ms of double
@@ -3633,9 +3608,9 @@ META-HI [IF]
 \		Display u in free field format followed by space.
 \
 META-HI [IF]
-: U.		0 D. ;
+  : U.		0 D. ;
 [ELSE]
-		$FCODE U.
+		$CODE U.
 		tos pushD,
 		0 # tos MOV,
 		' D. B,
@@ -3645,15 +3620,14 @@ META-HI [IF]
 \   ENVIRONMENT?   ( c-addr u -- false | i*x true )     \ CORE
 \		Environment query.
 \
-: ENVIRONMENT?
+  : ENVIRONMENT?
 		envQList SEARCH-WORDLIST
 		DUP >R IF EXECUTE THEN R> ;
 
+S-DEF
 \   hi          ( -- )
 \		By default, this is the application started through 'boot
-S-DEF
-: hi
-		CR ." hForth "
+  : hi		CR ." hForth "
 		S" CPU" ENVIRONMENT? DROP TYPE SPACE
 		S" model" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
 		S" version"  ENVIRONMENT? DROP TYPE
@@ -3663,11 +3637,12 @@ S-DEF
 		." Please send comment, bug report and suggestions to:" CR
 		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR ;
 
+F-DEF
 \   QUIT        ( -- ) ( R: i*x -- )            \ CORE
 \		Empty the return stack, store zero in SOURCE-ID, make the user
 \		input device the input source, and start text interpreter.
 \
-: QUIT
+  : QUIT
   BEGIN
     rp0 rp! 0 TO SOURCE-ID  0 TO bal  POSTPONE [
     BEGIN CR REFILL DROP SPACE    \ REFILL returns always true
@@ -3686,11 +3661,13 @@ S-DEF
     THEN sp0 sp!
   AGAIN ;
 
+S-DEF
 TAR_EBSA285 [IF]
-: INIT-BUS	( -- )
+\   INIT-BUS	( -- )
 \               For the 21285, need to init some PCI stuff to avoid hanging
 \               the host system (if any)
 \
+  : INIT-BUS
     H# 40012000 @ H# 40 AND 0= IF
     \ stand-alone bit is clear so must init the PCI bus to avoid hanging the
     \ host system - see EBSA-285 reference manual for explanation of these
@@ -3701,13 +3678,14 @@ TAR_EBSA285 [IF]
     H#       17 H# 42000004 !    H#        1 H# 4200013C !
   THEN ;
 [ELSE]
-: INIT-BUS	( -- ) ;
+  : INIT-BUS ;
 [THEN]
 
 ALSO ASSEMBLER 02 G. PREVIOUS
-: COLD		( -- )
+\   COLD	( -- )
 \		The cold start sequence execution word.
 \
+  : COLD		( -- )
 \ TODO the first defn would be more efficient but requires us to be able
 \ to find the values of target VALUEs at meta-compile time.
 \  sysVar0 var0 [ sysVar0End sysVar0 - ] LITERAL MOVE \ init system variables
@@ -3722,29 +3700,19 @@ ALSO ASSEMBLER 02 G. PREVIOUS
 CR .( *** Rest of CORE words and two facility words, EKEY? and EMIT?)
 F-DEF
 
-\   (           ( "ccc<)>" -- )		  \ CORE
+\   (           ( "ccc<)>" -- )			\ CORE
 \		Ignore following string up to next ) . A comment.
 \
-: (		[CHAR] ) PARSE 2DROP ; IMMEDIATE
+  : (		[CHAR] ) PARSE 2DROP ; IMMEDIATE
 
-\   +LOOP       Compilation: ( C: do-sys -- )   \ CORE
-\		Run-time: ( n -- ) ( R: loop-sys1 -- | loop-sys2 )
-\		Terminate a DO-+LOOP structure. Resolve the destination of all
-\		unresolved occurences of LEAVE.
-\		On execution add n to the loop index. If loop index did not
-\		cross the boundary between loop_limit-1 and loop_limit,
-\		continue execution at the beginning of the loop. Otherwise,
-\		finish the loop.
-\
-: +LOOP		POSTPONE do+LOOP  rake ; COMPILE-ONLY IMMEDIATE
-
+S-DEF
 \   doS"	( u -- c-addr u )
 \		Run-time function of S" .
 \
 META-HI [IF]
-: doS"		R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
+  : doS"	R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
 [ELSE]
-		$SCODE doS"
+		$CODE doS"
 		\ in the colon case the 'next address' is on the
 		\ return stack. In the code case it is still in fpc
 		fpc pushD,		\ start of string
@@ -3754,11 +3722,12 @@ META-HI [IF]
 		$NEXT COMPILE-ONLY
 [THEN]
 
-\ SLITERAL	( c-addr1 u -- )		 \ STRING
+F-DEF
+\   SLITERAL	( c-addr1 u -- )		 \ STRING
 \		Run-time ( -- c-addr2 u )
 \		Compile a string literal. Return the string on execution.
 \
-: SLITERAL	DUP POSTPONE LITERAL POSTPONE doS"
+  : SLITERAL	DUP POSTPONE LITERAL POSTPONE doS"
 		CHARS xhere 2DUP + ALIGNED TOxhere
 		SWAP MOVE ; COMPILE-ONLY IMMEDIATE
 
@@ -3767,24 +3736,24 @@ META-HI [IF]
 \		Parse ccc delimetered by " . Return the string specification
 \		c-addr u on execution.
 \
-: S"		[CHAR] " PARSE POSTPONE SLITERAL ; COMPILE-ONLY IMMEDIATE
+  : S"		[CHAR] " PARSE POSTPONE SLITERAL ; COMPILE-ONLY IMMEDIATE
 
-\   ."          ( "ccc<">" -- )		  \ CORE
+\   ."          ( "ccc<">" -- )			\ CORE
 \		Run-time ( -- )
 \		Compile an inline string literal to be typed out at run time.
 \
-: ."		POSTPONE S" POSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
+  : ."		POSTPONE S" POSTPONE TYPE ; COMPILE-ONLY IMMEDIATE
 
 \   BYE		( -- )				\ TOOLS EXT
 \		Return control to the host operation system, if any.
 \
 MM_DEMON [IF]
-		$FCODE BYE
+		$CODE BYE
 		11 SWI,				\ SWI_Exit - halt execution and
 						\ return to debugger
 		$END-CODE
 [ELSE]
-: BYE		." Sorry - nowhere to go" CR ;
+  : BYE		." Sorry - nowhere to go" CR ;
 [THEN]
 
 \   >BODY       ( xt -- a-addr )		 \ CORE
@@ -3792,39 +3761,39 @@ MM_DEMON [IF]
 \		Structure of CREATEd word:
 \		        | call-doCREATE | 0 or DOES> code addr | a-addr |
 \
-: >BODY
+  : >BODY
   ?call DUP IF		     \ code-addr xt2
     ['] doCREATE = IF        \ should be call-doCREATE
       CELL+ @ EXIT
     THEN
   THEN D# -31 THROW ;        \ >BODY used on non-CREATEd definition
 
-\   ABORT"      ( "ccc<">" -- )		  \ EXCEPTION EXT
+\   ABORT"      ( "ccc<">" -- )			\ EXCEPTION EXT
 \		Run-time ( i*x x1 -- | i*x ) ( R: j*x -- | j*x )
 \		Conditional abort with an error message.
 \
-: ABORT"	POSTPONE S" POSTPONE ROT
+  : ABORT"	POSTPONE S" POSTPONE ROT
 		POSTPONE IF POSTPONE abort"msg POSTPONE 2!
 		D# -2 POSTPONE LITERAL POSTPONE THROW
 		POSTPONE ELSE POSTPONE 2DROP POSTPONE THEN
 		;  COMPILE-ONLY IMMEDIATE
 
 
-\   BEGIN       ( C: -- dest )		   \ CORE
+\   BEGIN       ( C: -- dest )			\ CORE
 \		Start an infinite or indefinite loop structure. Put the next
 \		location for a transfer of control, dest, onto the data
 \		control stack.
 \
-: BEGIN		xhere 0 bal+            \ dest type is 0
+  : BEGIN	xhere 0 bal+            \ dest type is 0
 		; COMPILE-ONLY IMMEDIATE
 
 \   C,          ( char -- )			\ CORE
 \		Compile a character into data space.
 \
 META-HI [IF]
-: C,		HERE C! [ CHARR ] LITERAL hereVar +! ;
+  : C,		HERE C! [ CHARR ] LITERAL hereVar +! ;
 [ELSE]
-		$FCODE C,
+		$CODE C,
 		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
@@ -3837,21 +3806,21 @@ META-HI [IF]
 \   CHAR        ( "<spaces>ccc" -- char )       \ CORE
 \		Parse next word and return the value of first character.
 \
-: CHAR		PARSE-WORD DROP C@ ;
+  : CHAR	PARSE-WORD DROP C@ ;
 
 \   DO          Compilation: ( C: -- do-sys )   \ CORE
 \		Run-time: ( n1|u1 n2|u2 -- ) ( R: -- loop-sys )
 \		Start a DO-LOOP structure in a colon definition. Place do-sys
 \		on control-flow stack, which will be resolved by LOOP or +LOOP.
 \
-: DO		0 rakeVar !  0		   \ ?DO-orig is 0 for DO
+  : DO		0 rakeVar !  0		   \ ?DO-orig is 0 for DO
 		POSTPONE doDO xhere  bal+       \ DO-dest
 		; COMPILE-ONLY IMMEDIATE
 
 \   DOES>       ( C: colon-sys1 -- colon-sys2 ) \ CORE
 \		Build run time code of the data object CREATEd.
 \
-: DOES>
+  : DOES>
   bal 1- IF D# -22 THROW THEN        \ control structure mismatch
   NIP 1+ IF D# -22 THROW THEN        \ colon-sys type is -1
   POSTPONE pipe ['] doLIST xt, -1 ; COMPILE-ONLY IMMEDIATE
@@ -3860,7 +3829,7 @@ META-HI [IF]
 \		Evaluate the string. Save the input source specification.
 \		Store -1 in SOURCE-ID.
 \
-: EVALUATE	SOURCE >R >R >IN @ >R  SOURCE-ID >R
+  : EVALUATE	SOURCE >R >R >IN @ >R  SOURCE-ID >R
 		-1 TO SOURCE-ID
 		sourceVar 2!  0 >IN !  interpret
 		R> TO SOURCE-ID
@@ -3871,9 +3840,9 @@ META-HI [IF]
 \		beginning at c-addr.
 \
 META-HI [IF]
-: FILL		ROT ROT ?DUP IF 0 DO 2DUP C! CHAR+ LOOP THEN 2DROP ;
+  : FILL	ROT ROT ?DUP IF 0 DO 2DUP C! CHAR+ LOOP THEN 2DROP ;
 [ELSE]
-		$FCODE FILL
+		$CODE FILL
 		\ tos holds char to fill with
 		R0 popD,		\ count
 		R1 popD,	      	\ dest
@@ -3890,13 +3859,13 @@ META-HI [IF]
 \		Return execution token and -1 or 1 ( IMMEDIATE) if found\
 \		c-addr 0 if not found.
 \
-: FIND		DUP COUNT search-word ?DUP IF NIP ROT DROP EXIT THEN
+  : FIND	DUP COUNT search-word ?DUP IF NIP ROT DROP EXIT THEN
 		2DROP 0 ;
 
 \   LEAVE       ( -- ) ( R: loop-sys -- )       \ CORE
 \		Terminate definite loop, DO|?DO  ... LOOP|+LOOP, immediately.
 \
-: LEAVE		POSTPONE UNLOOP POSTPONE branch
+  : LEAVE	POSTPONE UNLOOP POSTPONE branch
 		xhere rakeVar DUP @ code, ! ; COMPILE-ONLY IMMEDIATE
 
 \   LOOP        Compilation: ( C: do-sys -- )   \ CORE
@@ -3904,38 +3873,49 @@ META-HI [IF]
 \		Terminate a DO|?DO ... LOOP structure. Resolve the destination
 \		of all unresolved occurences of LEAVE.
 \
-: LOOP		POSTPONE doLOOP  rake ; COMPILE-ONLY IMMEDIATE
+  : LOOP	POSTPONE doLOOP  rake ; COMPILE-ONLY IMMEDIATE
+
+\   +LOOP       Compilation: ( C: do-sys -- )   \ CORE
+\		Run-time: ( n -- ) ( R: loop-sys1 -- | loop-sys2 )
+\		Terminate a DO-+LOOP structure. Resolve the destination of all
+\		unresolved occurences of LEAVE.
+\		On execution add n to the loop index. If loop index did not
+\		cross the boundary between loop_limit-1 and loop_limit,
+\		continue execution at the beginning of the loop. Otherwise,
+\		finish the loop.
+\
+  : +LOOP	POSTPONE do+LOOP  rake ; COMPILE-ONLY IMMEDIATE
 
 \   MAX         ( n1 n2 -- n3 )			\ CORE
 \		Return the greater of two top stack items.
 META-HI [IF]
-: MAX		2DUP < IF SWAP THEN DROP ;
+  : MAX		2DUP < IF SWAP THEN DROP ;
 [ELSE]
-		$FCODE MAX
+		$CODE MAX
 		R0 popD,
 		tos R0 CMP,
 		R0 tos GT MOV,
 		$NEXT
 [THEN]
 
-\   MIN         ( n1 n2 -- n3 )		  \ CORE
+\   MIN         ( n1 n2 -- n3 )			\ CORE
 \		Return the smaller of top two stack items.
 META-HI [IF]
-: MIN		2DUP > IF SWAP THEN DROP ;
+  : MIN		2DUP > IF SWAP THEN DROP ;
 [ELSE]
-		$FCODE MIN
+		$CODE MIN
 		R0 popD,
 		tos R0 CMP,
 		R0 tos LT MOV,
 		$NEXT
 [THEN]
 
-: PICK		( x_u ... x1 x0 u -- x_u ... x1 x0 x_u )        \ CORE EXT
+\   PICK	( x_u ... x1 x0 u -- x_u ... x1 x0 x_u )        \ CORE EXT
 \		Remove u and copy the uth stack item to top of the stack. An
 \		ambiguous condition exists if there are less than u+2 items
 \		on the stack before PICK is executed.
 \
-		DEPTH DUP D# 2 < IF D# -4 THROW THEN    \ stack underflow
+  : PICK	DEPTH DUP D# 2 < IF D# -4 THROW THEN    \ stack underflow
 		D# 2 - OVER U< IF D# -4 THROW THEN
 		1+ CELLS sp@ + @ ;
 
@@ -3946,16 +3926,16 @@ META-HI [IF]
 \ TODO -- this defn is recursive. Will it work if I flip in RECURSE? No;
 \ because RECURSE will not run as an immediate word. Should code POSTPONE
 \ like the version in hmeta_colon.
-: POSTPONE
+  : POSTPONE
   (') 0< IF POSTPONE LITERAL
     POSTPONE COMPILE, EXIT THEN           \ non-IMMEDIATE
   COMPILE, ; COMPILE-ONLY IMMEDIATE       \ IMMEDIATE
 
-\   RECURSE     ( -- )		           \ CORE
+\   RECURSE     ( -- )				\ CORE
 \		Append the execution semactics of the current definition to
 \		the current definition.
 \
-: RECURSE	bal 1- 2* PICK 1+ IF D# -22 THROW THEN
+  : RECURSE	bal 1- 2* PICK 1+ IF D# -22 THROW THEN
 		        \ control structure mismatch; colon-sys type is -1
 		bal 1- 2* 1+ PICK       \ xt of current definition
 		COMPILE, ; COMPILE-ONLY IMMEDIATE
@@ -3964,19 +3944,19 @@ META-HI [IF]
 \		Terminate a BEGIN-WHILE-REPEAT indefinite loop. Resolve
 \		backward reference dest and forward reference orig.
 \
-: REPEAT	POSTPONE AGAIN POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
+  : REPEAT	POSTPONE AGAIN POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
-\   SPACES      ( n -- )		         \ CORE
+\   SPACES      ( n -- )			\ CORE
 \		Send n spaces to the output device if n is greater than zero.
 \
-: SPACES	DUP 0 > IF 0 DO SPACE LOOP EXIT THEN  DROP ;
+  : SPACES	DUP 0 > IF 0 DO SPACE LOOP EXIT THEN  DROP ;
 
 \   TO          Interpretation: ( x "<spaces>name" -- ) \ CORE EXT
 \		Compilation:    ( "<spaces>name" -- )
 \		Run-time:       ( x -- )
 \		Store x in name.
 \
-: TO
+  : TO
   ' ?call DUP IF          \ should be call-doVALUE
     ['] doVALUE =         \ verify VALUE marker
     IF @ STATE @
@@ -3986,17 +3966,17 @@ META-HI [IF]
   THEN
   D# -32 THROW ; IMMEDIATE   \ invalid name argument (e.g. TO xxx)
 
-\   UNTIL       ( C: dest -- )		   \ CORE
+\   UNTIL       ( C: dest -- )			\ CORE
 \		Terminate a BEGIN-UNTIL indefinite loop structure.
 \
-: UNTIL		IF D# -22 THROW THEN  \ control structure mismatch; dest type is 0
+  : UNTIL	IF D# -22 THROW THEN  \ control structure mismatch; dest type is 0
 		POSTPONE 0branch code, bal- ; COMPILE-ONLY IMMEDIATE
 
 \   VALUE       ( x "<spaces>name" -- )         \ CORE EXT
 \		name Execution: ( -- x )
 \		Create a value object with initial value x.
 \
-: VALUE		bal IF D# -29 THROW THEN           \ compiler nesting
+  : VALUE	bal IF D# -29 THROW THEN	\ compiler nesting
 		['] doVALUE xt, head,
 		xhere DUP CELL+ TOxhere
 		RAMB @ SWAP !
@@ -4008,7 +3988,7 @@ META-HI [IF]
 \		Resolve one cell of data space at an aligned address.
 \		Return the address on execution.
 \
-: VARIABLE	bal IF D# -29 THROW THEN           \ compiler nesting
+  : VARIABLE	bal IF D# -29 THROW THEN	\ compiler nesting
 		['] doCONST xt, head,
 		xhere DUP CELL+ TOxhere
 		RAMB @ DUP CELL+ RAMB ! \ allocate one cell in RAM area
@@ -4019,35 +3999,35 @@ META-HI [IF]
 \		onto the control flow stack under the existing dest. Typically
 \		used in BEGIN ... WHILE ... REPEAT structure.
 \
-: WHILE		POSTPONE IF 2SWAP ; COMPILE-ONLY IMMEDIATE
+  : WHILE	POSTPONE IF 2SWAP ; COMPILE-ONLY IMMEDIATE
 
 \   WORD        ( char "<chars>ccc<char>" -- c-addr )   \ CORE
 \		Skip leading delimeters and parse a word. Return the address
 \		of a transient region containing the word as counted string.
 \
-: WORD		skipPARSE xhere pack" DROP xhere ;
+  : WORD	skipPARSE xhere pack" DROP xhere ;
 
 \   [']         Compilation: ( "<spaces>name" -- )      \ CORE
 \		Run-time: ( -- xt )
 \		Parse name. Return the execution token of name on execution.
 \
-: [']		' POSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
+  : [']		' POSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
 
 \   [CHAR]      Compilation: ( "<spaces>name" -- )      \ CORE
 \		Run-time: ( -- char )
 \		Parse name. Return the value of the first character of name
 \		on execution.
 \
-: [CHAR]	CHAR POSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
+  : [CHAR]	CHAR POSTPONE LITERAL ; COMPILE-ONLY IMMEDIATE
 
 
 \   \           ( "ccc<eol>" -- )		\ CORE EXT
 \		Parse and discard the remainder of the parse area.
 \
 META-HI [IF]
-: \		SOURCE >IN ! DROP ; IMMEDIATE
+  : \		SOURCE >IN ! DROP ; IMMEDIATE
 [ELSE]
-		$FCODE \
+		$CODE \
 		GetVaxAdr sourceVar R0 =,
 		[ R0 ] R1 LDR,
 		GetVaxAdr >IN R3 =,
@@ -4058,11 +4038,11 @@ META-HI [IF]
 CR .( *** RAM/ROM System Only)
 S-DEF
 
-\ RESET-SYSTEM   ( -- )
+\   RESET-SYSTEM ( -- )
 \		Reset the system. Restore initialization values of system
 \		variables.
 \
-: RESET-SYSTEM
+  : RESET-SYSTEM
 \ TODO the first defn would be more efficient but requires us to be able
 \ to find the values of target VALUEs at meta-compile time.
 \		sysVar00 sysVar0 [ sysVar0End sysVar0 - ]  LITERAL MOVE COLD ;
@@ -4105,6 +4085,7 @@ ALSO its-words \ find XTs for these words in the target wordlist on the host
 ' hi			4 $INIT	\ 'boot
 InitIOBYTES		4 $INIT	\ IOBYTES
 0			4 $INIT	\ SOURCE-ID
+10			4 $INIT	\ BASE
 GetVaxAdr ROMB		4 $INIT	\ cpVar
 GetVaxAdr ROMT		4 $INIT	\ cpVar
 GetVaxAdr RAMB		4 $INIT	\ hereVar points RAM space
@@ -4115,7 +4096,6 @@ GetVaxAdr RAMB		4 $INIT	\ hereVar points RAM space
 ' doubleAlso		4 $INIT	\ not found word - interpretation
 ' EXECUTE		4 $INIT	\ immediate word - compilation
 ' EXECUTE		4 $INIT	\ immediate word - interpretation
-10			4 $INIT	\ BASE
 CTOP			4 $INIT	\ ROMB
 NTOP			4 $INIT	\ ROMT
 VTOP			4 $INIT	\ RAMB
