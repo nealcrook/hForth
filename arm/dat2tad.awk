@@ -9,47 +9,42 @@
 # $Id$
 #
 # $Log$
+# Revision 1.3  1997/03/01 16:38:27  crook
+# merge Carey's changes for DOS build environment
+#
 # Revision 1.2  1997/01/18 16:31:18  crook
 # support new input format of 3 lines/entry
 #
 # Revision 1.1  1997/01/13 09:41:28  crook
 # Initial revision
-#
-
 
 BEGIN {
   infile = ARGV[1]
-  outfile = "accum.txt"
+  accum = "accum.txt"
   entry_count = 0
 
-  # find out how many entries in the file; 3 lines per entry
-  while ((getline < infile) > 0) {
-    entry_count += 1
-    getline < infile
-    getline < infile
+  # read whole file into an array and find out how many entries are in the
+  # file; 3 lines per entry
+  while (getline > 0) {
+    line1[entry_count] = $0
+    getline
+    line2[entry_count] = $0
+    getline
+    line3[entry_count] = $0
+    entry_count++
   }
-
   print ("Found " entry_count " entries")
   close(infile)
+  # entries in array are stored from 0
+  entry_count--
 
-  while (entry_count > 0) {
-
-    # go to the first line in the entry
-    for (i=1; i<(((entry_count - 1) * 3) + 2); i++) {
-      getline < infile
-    }
-
-    # append it to the output file
-    print ($0) > outfile
-    getline < infile
-    print ($0) > outfile
-    getline < infile
-    print ($0) > outfile
-    close(infile)
-    entry_count -= 1
-
+  while (entry_count >= 0) {
+    print (line1[entry_count]) > accum
+    print (line2[entry_count]) > accum
+    print (line3[entry_count]) > accum
+    entry_count--
   }
-  close (outfile)
+  close (accum)
 }
 
 {
