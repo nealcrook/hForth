@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.8  1998/09/01 21:46:27  crook
+\ tidy up organisation of immediate words
+\
 \ Revision 1.10  1998/08/25 00:59:13  crook
 \ revamp immediate target words
 \
@@ -34,24 +37,17 @@
 \
 
 \ TODO list:
-\ 1. DONE
-\ 2. DONE
-\ 3. udebug address
-\ 4. rearrange words
-\ 5. new "where am I" messages in source
-\ 6. put all defn in correct wordlist
-\ 7. consistent cpVar, xhere, meta-asm, etc.
-\ 8. allow early low-level defn to inhibit later hi-level defn
-\ 9. DONE
-\ 10. get assembler version to build
-\ 11. fix TODO things in assembler
-\ 12. fix forward defns
-\ 13. ? order of immediate words in hforth
-\ 14. When are immediate words first needed? Make it as late as possible
-\ 15. Fix bug in GetNameAdr
-\ 16. DONE
-\ 17. Fix references to  Addr<whatever> - currently hardcoded herein to allow
-\     compilation.
+\ 1. rearrange words
+\ 2. new "where am I" messages in source
+\ 3. put all defn in correct wordlist
+\ 4. consistent cpVar, xhere, meta-asm, etc.
+\ 5. allow early low-level defn to inhibit later hi-level defn
+\ 6. get assembler version to build
+\ 7. fix TODO things in assembler
+\ 8. fix forward defns
+\ 9. ? order of immediate words in hforth
+\ 10. When are immediate words first needed? Make it as late as possible
+\ 11. Fix bug in GetNameAdr
 
 
 \ colon compiler and immediate words for hForth
@@ -233,17 +229,6 @@ CREATE order-! 5 CELLS ALLOT
 40000A14 hCONSTANT doCREATE
 400009EC hCONSTANT doLit
 40001090 hCONSTANT doSQuote
-\ these are constants
-\ and do any otehr addrXX or LocXX - like Addrfpc
-
-\		LocSTATE R0 =,
-\		LocHLD R0 =,
-\		LocHereVar R0 =,
-\		0 CONSTANT LocHereVar \ TODO real definition
-\		LocBASE R0 =,
-\		LocSourceVar R0 =,
-\		LocToIN R3 =,
-\ TODO		ldr     r0,=AddrTrapfpc
 
 
 ALSO t-words ALSO its-words DEFINITIONS
