@@ -4,6 +4,7 @@
 
 ;; TODO
 ;; -  fix code defn of pack" to match revised high-level source
+;;; --- LEGO H8 port claims there's still a bug in pack" high-level source.
 ;; -  code more words in assembler. Eg ?call xt, doDO optiCOMPILE
 ;;    skipPARSE PAUSE wake # #S /MOD < > >NUMBER DEPTH FM/MOD
 ;;    GET-CURRENT KEY LITERAL PARSE SIGN SOURCE TYPE UM/MOD (for
@@ -24,65 +25,15 @@
 ;; -  add memory map and io equates from Carey's cogent port.
 ;; 
 ;; Fix the following errors in the high-level source that were found during
-;; the metacompiler work (all have been reported to Wonyong so I could just
-;; wait to get the updates back from him.. it will diff against my code more
-;; cleanly then:
+;; the metacompiler work (all have been reported to Wonyong. This is a list
+;; of those that have not yet been fixed in this source code)
 ;; 
-;;2DROP 2DUP had no high-level definition
-;;=mask in head, should be [ =MASK ] LITERAL
-;;=imed in IMMEDIATE should be [ =IMED ] LITERAL
-;;=comp in COMPILE-ONLY should be =COMP
-;;MaxNegative in doDO should be [ MaxNegative ] LITERAL
-;;.. or maybe they should all change to MASKK IMMED COMPO to match the
-;;assembler constants
-;;UNLOOP hi-level defn. needs COMPILE-ONLY
-;;the label NOrder0 in UZERO table is not needed.
-;;high-level definition of BEGIN and ELSE have IMMEDIATE typo'd (IMMDEDIATE)
-;;high-level definition for ( should be IMMEDIATE
-;;CHARS and ALIGNED and use char-size and cell-size whereas assembler
-;;  source uses CHARR and CELLL
-;;call-code in FORTH, CALLL in assembler
-;;size-of-PAD in FORTH, PADSize in assembler
-;;max-char in FORTH MaxChar in assembler
-;;carriage-return-char, linefeed-char  in FORTH, CRR, LFF in assembler
-;;max-negative in FORTH, MaxNegative in assembler
-;;.ok asm def not the same as high-level def. Equivalent hi-level def
-;; is S" ok" TYPE
-;;>IN should be labelled \ CORE
-;;optiCOMPILE, has one THEN too many
-;;doubleAlso, both LITERALs should be POSTPONE LITERAL
-;;PADSize in #> and <# and REFILL should be [ PADSize ] LITERAL 
-;;MaxChar in ACCEPT, EKEY should be [ MaxChar ] LITERAL
-;;cr# in ACCEPT should be [ CRR ] LITERAL
-;;tab# in ACCEPT should be [ TABB ] LITERAL
-;;bsp# in ACCEPT should be [ BKSPP ] LITERAL (3 occurrences)
-;;del# in ACCEPT should be [ DEL ] LITERAL
-;;THEN THEN REPEAT in ACCEPT shuld be THEN REPEAT
-;;IF >R DROP 1+ R> THEN in UM/MOD should be IF >R DROP 1+ R>
-;;definition of CR should be:
-;; : CR [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
-;;CELLL should be [ CELLL ] LITERAL in ALIGNED (2 occurrences), CELLS CELL+
-;;      , DEPTH
-;;CHARR should be [ CHARR ] LITERAL in CHARS
-;;change cell- definition to:
-;; : cell- [ 0 CELLL - ] LITERAL + ;
-;;XORR in = should be XOR
-;;char-size in CHAR+ should be [ CHARR ] LITERAL
-;;cell-size-in-bits in UM* and UM/MOD and RSHIFT should be [ CELLL 8 * ] LITERAL
-;;char-size in C, should be [ CHARR ] LITERAL
-;;LITERAL in singleOnly, should be POSTPONE LITERAL
-;;REPEAT should be POSTPONE AGAIN POSTPONE THEN
 ;;defn of RESET-SYSTEM requires definition of a new constant sysVar00, set
 ;; to a value of UZERO0 (like sysVar0).
-;;defn of TRUE should be marked CORE EXT and therefore use _FLINK
-;;defn of REPEAT should be "POSTPONE AGAIN POSTPONE THEN"
-;;in defn of SLITERAL, "DUP LITERAL" should be "DUP POSTPONE LITERAL"
-;;in defn of ABORT", >>S"<< should be >>POSTPONE S"<<
-;;more tidy to move defn of THROWMsgTbl beyond the defn of variables that are
-;; initialised from the table at reset
 ;;pack" fill-to-end part may attempt a ! to an unaligned address. Fix is
-;; to be able to round-down the address.
-;;-------------- bugs discovered after reporting the first set
+;; to be able to round-down the address.. that may be fixed in the latest
+;; pack" .. but 
+;;-------------- bugs discovered after reporting the first set (all fixed in this source)
 ;;in ACCEPT " IF DROP DUP IF 1-" should be "IF DUP IF 1-"
 ;;in linklast, "do nothing" comment is wrong -- it *always* links in
 ;;in ; "is not created by ':'" should read "is created by ':'"
@@ -113,6 +64,7 @@
 ;; EBSA110 - EBSA-110, SA-110 StrongARM Evaluation Board
 ;; EBSA285 - StrongARM/21285 PCI Evaluation Board
 ;; COGENT  - StrongARM PCI Evaluation Board.
+;; EBAMCU  - EB-AMCU Evaluation Board
 ;; note that the ARM PIE card is no longer supported.
 ;;
 ;; At startup, the default I/O and baud rate are set as build-time options. At
@@ -123,10 +75,11 @@
 ;;		backspace or other control characters and insist on echoing
 ;;		everything before you get a chance to parse it. Useful for
 ;;		initial debugging but no more than that.
+;; COMASWI    - As COMDSWI but for Angel rather than DEMON
 ;; COM0       - 21285 internal UART
-;; COM1, COM2 - on-board UART on EBSA110, COGENT and (some) EBSA285
+;; COM1, COM2 - on-board UART on EBSA110, COGENT, EB-AMCU and (some) EBSA285
 ;;
-;; For all com ports except COMDSWI, the following values of
+;; For all com ports except COMASWI, COMDSWI, the following values of
 ;; DEFBAUD are supported:
 ;; 4    - 9600 baud
 ;; 5    - 19K2
@@ -141,6 +94,7 @@
 ;; MEMMAP are supported:
 ;; DEMON      - image loaded at 0x8000 and executes in place
 ;;                              ^^^^^^ not always true!!
+;; ANGEL      - image loaded at 0x8000 and executes in place
 ;; BOOT       - designed to be blown into ROM and executed from
 ;;              reset; sets up memory and copies itself to RAM
 ;; PBLOADED   - designed to be blown into Flash and loaded
@@ -152,6 +106,10 @@
 ;; build time.
 
 ;; $Log$
+;; Revision 1.20  1999/01/05 21:46:04  crook
+;; Documented bugs in the high-level words (reported to Wonyong) plus a few
+;; minor ARM code optimisations.
+;;
 ;; Revision 1.19  1998/10/03 15:23:01  crook
 ;; Merged in bugfixes found in my code during meta-compiler development.
 ;;
@@ -484,13 +442,40 @@ CALLL           EQU     0eb000000h      ;for ARM
 ;   RAMbottom||code/data>WORDworkarea|--//--|PAD|TIB|reserved<name|sp|rp||RAMtop
 
 
-;The memory map for the EBSA-285 and EBSA-110 ARM systems is designed to fit
+;The memory map for the EB-AMCU,  EBSA-285 and EBSA-110 ARM systems is designed to fit
 ;into 2, 64Kbyte sections. The first section is the ROM section, which can
 ;be loaded from Flash and stored back to Flash with new definitions added.
 ;The second section is the RAM Section which is volatile: it never gets
-;saved away. The first 16Kbytes of the RAM section is reserved for the
+;saved away. In systems with an MMU, the first 16Kbytes of the RAM section is reserved for the
 ;memory-management page tables. The remainder is used for data storage
 ;(for example, if you define a VARIABLE its value gets stored there)
+
+	IF (TARGET = "EBAMCU")
+		; load into SRAM, 256Kbytes minimum
+MMU0            EQU     010000h                 ;Never used. (no MMU)
+RAM0            EQU     010000h                 ;bottom of RAM memory
+RAMEnd          EQU     020000h                 ;top of RAM memory
+						;RAM size = 64KB
+ROMEnd          EQU     0ffe0h                  ;end of ROM memory - leave room for trailer
+						;ROM size = 64KB
+	    IF (MEMMAP = "BOOT")
+		;stand-alone code in Flash is linked to run at the start of
+		;SRAM. The initial piece of code will copy the
+		;image to SSRAM.
+ROM0            EQU     0000h                   ;bottom of ROM memory
+	    ENDIF
+	    IF (MEMMAP = "ANGEL")
+		;code for ANGEL is linked to run at the start of available
+		;SRAM; Angel reserves 32Kbytes.
+ROM0            EQU     08080h                  ;bottom of ROM memory
+	    ENDIF	
+	    IF (MEMMAP = "PBLOADED")
+		;code in Flash is linked to run at start of SRAM plus 80. The
+		;PIL copies the image to SSRAM. The gap of 80 leaves room for
+		;the AIF header when programming an updated image back to Flash.
+ROM0            EQU     080h                    ;bottom of ROM memory
+	    ENDIF
+	ENDIF   ;EBAMCU
 
 	IF (TARGET = "EBSA110")
 		; load into SSRAM, 128Kbytes maximum (faster than DRAM)
@@ -566,7 +551,7 @@ RAMT0           EQU     SPP-DTCells*CELLL       ;top of free RAM area
 ;Default IOBYTES value
 ;Byte 3, 2 are undefined.
 ;Byte 1 holds the DEFBAUD value
-;Byte 0 holds the com port value (FF=COMDSWI)
+;Byte 0 holds the com port value (FF=COMDSWI or COMASWI)
 	IF (DEFIO = "COM0")
 IOBYTES         EQU (DEFBAUD * 256)
 	ENDIF
@@ -576,11 +561,20 @@ IOBYTES         EQU (DEFBAUD * 256) + 1
 	IF (DEFIO = "COM2")
 IOBYTES         EQU (DEFBAUD * 256) + 2
 	ENDIF
-	IF (DEFIO = "COMDSWI")
+	IF ((DEFIO = "COMDSWI") :LOR: (DEFIO = "COMASWI"))
 IOBYTES         EQU (DEFBAUD * 256) + &ff
 	ENDIF
 
+;;; Equates for Angel communications
 
+angel_ARM			EQU	0x123456
+angel_SWIreason_EnterSVC	EQU	0x17
+angel_SWIreason_ReportException	EQU	0x18
+ADP_Stopped_ApplicationExit	EQU	0x20026
+SYS_WRITE0			EQU	0x4
+SYS_WRITEC			EQU	0x3
+SYS_READC			EQU	0x7
+	
 ; Equates for host I/O
 
 	IF (TARGET = "EBSA110")
@@ -611,6 +605,16 @@ INIT_COMPLETE       EQU        1
 
 COM1Port        EQU     (SuperIObase + (&3f8 :SHL: 2))
 COM2Port        EQU     (SuperIObase + (&2f8 :SHL: 2))
+	ENDIF
+
+	IF (TARGET = "EBAMCU")
+COM1Port        EQU     0x98000000
+COM2Port        EQU     0x98000020
+COM3Port        EQU     0x98000040
+	ENDIF
+
+
+	IF ((TARGET = "EBSA110") :LOR: (TARGET = "EBSA285") :LOR: (TARGET = "EBAMCU"))
 
 ;;; UART registers
 	
@@ -646,8 +650,10 @@ WordLen8        EQU     &3
 	;; Line status register
 LineDRMsk       EQU     &1      ; Data ready
 LineTHREMsk     EQU     &20     ; Transmitter holding register empty (i.e. ready for next char)
+	ENDIF   ; uart for EBSA110, EBSA285, EBAMCU
 
-	;; Useful line speed values for divider
+	IF ((TARGET = "EBSA110") :LOR: (TARGET = "EBSA285"))
+	;; Useful line speed values for divider, given a 24MHz clock in superIO chip
 Baud9600low     EQU     12
 Baud9600high    EQU     0
 
@@ -659,8 +665,27 @@ Baud38400high   EQU     0
 
 Baud56000low    EQU     2
 Baud56000high   EQU     0
+	ENDIF
 
-	ENDIF   ; uart for EBSA110, EBSA285
+	IF (TARGET = "EBAMCU")
+	;; Useful line speed values for divider, given a 45MHz clock. The 45MHz clock is
+	;; prescaled by 2 (in the Clock Frequency Select register) during setup. The
+	;; UART itself divides by 16 and then by a programmed value to suit the
+	;; baud rate. Thus, for 9600 baud, the programmed value is:
+	;; (1/9600) * (45E6/2) * (1/16) = 146.4 - empirically, 147 is more reliable.
+Baud9600low     EQU     147
+Baud9600high    EQU     0
+
+Baud19200low    EQU     73
+Baud19200high   EQU     0
+
+Baud38400low    EQU     36
+Baud38400high   EQU     0
+
+Baud56000low    EQU     25
+Baud56000high   EQU     0
+	ENDIF
+
 
 ;end of equates for host I/O
 
@@ -865,7 +890,294 @@ $NEXT	MACRO
 		swi     0x16                    ; go into Supervisor mode
 		; should turn off all interrupts, too?
 	ENDIF
+	IF      (MEMMAP = "ANGEL")
+		ldr	r0,=angel_SWIreason_EnterSVC
+		SWI	angel_ARM		; go into Supervisor mode
+		; should turn off all interrupts, too?
+	ENDIF
 
+	IF (TARGET = "EBAMCU")
+
+GPIO_BASE		EQU	0x88000000
+GPIO_DIRECTION_1_OFF	EQU	0x10
+GPIO_DIRECTION_2_OFF	EQU	0x50
+GPIO_DIRECTION_3_OFF	EQU	0x90
+GPIO_DIRECTION_4_OFF	EQU	0xD0
+GPIO_DATA_OUT_2_OFF	EQU	0x54
+GPIO_DATA_IN_2_OFF	EQU	0x58
+
+CLOCK_CONTROL_BASE	EQU	0x8C000000
+CLEAR_RESET_MAP_OFF	EQU	0x20
+PORT_CONFIG_OFF		EQU	0x18
+ACCESS_KEY_OFF		EQU	0x00
+REGION_UNLOCK_OFF	EQU	0x04
+CLOCK_FREQ_SEL_OFF	EQU	0x08
+
+EBIU_BASE		EQU	0xC0000000
+EBIU_CONFIG_3_OFF	EQU	0x0C
+EBIU_CONFIG_4_OFF	EQU	0x10
+EBIU_CONFIG_5_OFF	EQU	0x14
+EBIU_CONFIG_6_OFF	EQU	0x18
+EBIU_CONFIG_7_OFF	EQU	0x1C
+
+;; Values that are useful in generating setup values for the EBIU registers
+EBIU_Wr_Wait1	EQU		(0x100)
+EBIU_Wr_Wait2	EQU		(0x200)
+EBIU_Wr_Wait3	EQU		(0x300)
+EBIU_Wr_Wait4	EQU		(0x400)
+EBIU_Wr_Wait5	EQU		(0x500)
+EBIU_Wr_Wait6	EQU		(0x600)
+EBIU_Wr_Wait7	EQU		(0x700)
+EBIU_Wr_Wait8	EQU		(0x800)
+
+EBIU_Rd_Wait1	EQU		(0x1000)
+EBIU_Rd_Wait2	EQU		(0x2000)
+EBIU_Rd_Wait3	EQU		(0x3000)
+EBIU_Rd_Wait4	EQU		(0x4000)
+EBIU_Rd_Wait5	EQU		(0x5000)
+EBIU_Rd_Wait6	EQU		(0x6000)
+EBIU_Rd_Wait7	EQU		(0x7000)
+EBIU_Rd_Wait8	EQU		(0x8000)
+
+EBIU_Recover0	EQU	        (0x0)
+EBIU_Recover1	EQU	        (0x4)
+EBIU_Recover2	EQU	        (0x8)
+EBIU_Recover3	EQU	        (0xc)
+
+EBIU_Width8	EQU		(0x0)
+EBIU_Width16	EQU		(0x1)
+
+;;   Bank7 region is 4Mbytes for what is actually a 1Mbyte Flash ROM. The width is
+;;   either 8 or 16 bits. The width is read-only on this bank. This bank has
+;;   the additional facility that bit31 is the remap bit.
+Bank7Base	EQU		(0x7fc00000)
+Bank7Size	EQU		(0x400000)
+Bank7End	EQU		(Bank7Base + Bank7Size - 4)
+Bank7Setup	EQU		((Bank7Base :AND: 0x7fff0000) + EBIU_Wr_Wait6 + EBIU_Rd_Wait6 + EBIU_Recover2)
+
+;;   Bank6 region is allocated to the expansion connector. There is no defined
+;;   use for this region. I've allocated 4Mbytes for this region, and
+;;   defined it as 16-bit.
+Bank6Base	EQU		(0x7f800000)
+Bank6Size	EQU		(0x400000)
+Bank6End	EQU		(Bank6Base + Bank6Size - 4)
+Bank6Setup	EQU		((Bank6Base :AND: 0x7fff0000) + EBIU_Wr_Wait2 + EBIU_Rd_Wait2 + EBIU_Recover0)
+
+;;   Bank5 region is 4Mbytes for what is actually a 1Mbyte Flash ROM. The width is
+;;   either 8 or 16 bits and must be inferred as the opposite of the width of Bank7.
+Bank5Base	EQU		(0x7f400000)
+Bank5Size	EQU		(0x400000)
+Bank5End	EQU		(Bank5Base + Bank5Size - 4)
+Bank5Setup	EQU		((Bank5Base :AND: 0x7fff0000) + EBIU_Wr_Wait6 + EBIU_Rd_Wait6 + EBIU_Recover2)
+
+;;   Bank4 region is allocated to the expansion connector. The most likely use for
+;;   it is to access the mailbox memory of either this or another board through
+;;   one of the two loopback connectors. I've allocated 64Kbytes for this region,
+;;   and defined it as 16-bit.
+Bank4Base	EQU		(0x10000000)
+Bank4Size	EQU		(0x10000)
+Bank4End	EQU		(Bank4Base + Bank4Size - 4)
+Bank4Width	EQU		(EBIU_Width16)
+Bank4Setup	EQU		((Bank4Base :AND: 0x7fff0000) + EBIU_Wr_Wait2 + EBIU_Rd_Wait2 + EBIU_Recover0 + Bank4Width)
+
+;;   Bank3 region is allocated to SRAM. I've allocated 1Mbyte to this region,
+;;   thought the actual RAM size will be smaller. The width and size will
+;;   be determined at run-time. The width is set to 16-bit but run-time
+;;   check will see if that is correct.
+Bank3Base	EQU		(0x00000000)
+Bank3Size	EQU		(0x100000)
+Bank3End	EQU		(Bank3Base + Bank3Size - 4)
+Bank3Setup	EQU		((Bank3Base :AND: 0x7fff0000) + EBIU_Wr_Wait4 + EBIU_Rd_Wait4 + EBIU_Recover0 + EBIU_Width16)
+
+
+;;   Initial value for the port configuration register - defines the
+;;   function of the shared pins
+PortConfigInit	EQU (0x038e)
+
+;;   Initial values for the GPIO directions.
+GPIO4Init	EQU (0x0ff)
+GPIO3Init	EQU (0x0b0)
+GPIO2Init	EQU (0x00f)
+GPIO1Init	EQU (0x00f)
+
+	ENDIF			; EB-AMCU equates
+
+	IF (TARGET = "EBAMCU") :LAND: (MEMMAP = "BOOT")
+
+;;; The image is in Flash ROM. It is built to run in RAM at 0, and
+;;; there is a piece of position-independent code at the start whose
+;;; function is to copy the image from Flash into RAM and branch to it.
+;;;
+;;; Because the copying code is position-independent, this image can be
+;;; put anywhere in Flash. It can start up in two ways:
+;;;
+;;; - if it is the first code to run after reset, it must be running
+;;; at address 0 and the memory cannot have been remapped. In this
+;;; case, the image must be in the boot Flash ROM wired to CS7, which
+;;; will ultimately mean that it ends up configured at address
+;;; 0x7fc0.0000. When started in this way, the image must configure
+;;; the EBIU and remap the system memory.
+;;;
+;;; - if it is branched to by some other code (for example, the PIL)
+;;; then the memory must have already been remapped and the EBIU
+;;; configured. When started in this way, we can go straight to the
+;;; copying routine.
+
+
+;;; reserve space for the exception vectors.. we'll just drop through
+;;; for now
+		NOP
+		NOP
+		NOP
+		NOP
+		NOP
+		NOP
+		NOP
+		NOP
+
+
+;;; Work out whether we have come here from reset or by a branch
+;;; .. if from a branch then the remap will have already been done,
+;;; and we also don't want to fiddle with the EBIU
+;;; ASSUMPTION:	 once remapped, the code will NOT be running in the low 64K
+	mov	r0,pc
+	and	r1,r0,#0xff000000
+	and	r2,r0,#0x00ff0000
+	orrs	r2,r2,r1
+	bne	warm_start	; high address lines set so we branched here
+
+
+;;; When this code starts running (after reset) the remap logic within the
+;;; AMCU will select the boot ROM at address 0. This routine must initialise
+;;; the EBIU, branch to the high-order alias of the ROM and then disable the
+;;; low-order alias. All of the code prior to the branch must be
+;;; position-independed (strictly, it must run at low-order addresses, but
+;;; it is easier to arrange that it is position-independent.
+
+	
+;;; Calculate the high-order alias of where we are and branch there. 
+;;; Because the remapping logic is still active, the destination
+;;; address is forced to be in this same chip.
+
+; ROM equivalent of whereabouts we are
+hialias         EQU     ((herefar1 :AND: &0000ffff) :OR: Bank7Base)
+; RAM equivalent of whereabouts we are
+loalias         EQU     ((herefar2 :AND: &0000ffff))
+
+		ldr     pc,=hialias             ;jump to to high ROM alias
+herefar1
+
+;;; Configure the EBIU. The bank attached to CSN7 must be the boot ROM. The
+;;; banks must be arranged so that a memory bank at a low address uses a
+;;; lower chip select than one at a higher address.
+;;; The memory map arrangement is defined by equates in eb_amcu.s and
+;;; is as shown in the AMCU Evaluation Board User's Guide. There are two
+;;; special tasks that we need to do:
+;;; -- infer the width of the second ROM bank
+;;; -- infer the width of the RAM bank.
+
+	ldr	r1,=EBIU_BASE
+
+;;; the lsb of the EBIU config is the width, set automatically at reset. However,
+;;; this is a READ/WRITE Bit so we must be sure not to corrupt it.
+	ldr	r0,=Bank7Setup
+	ldr	r2,[r1, #EBIU_CONFIG_7_OFF]
+	and	r2,r2,#1
+	orr	r0,r0,r2
+	str	r0,[r1, #EBIU_CONFIG_7_OFF]
+
+;;; width of Flash ROM bank 5 is opposite to width of bank 7
+	ldr	r0,=Bank5Setup
+	eor	r2,r2,#1
+	orr	r0,r0,r2
+	str	r0,[r1, #EBIU_CONFIG_5_OFF]
+
+	ldr	r0,=Bank6Setup
+	str	r0,[r1, #EBIU_CONFIG_6_OFF]
+
+	ldr	r0,=Bank4Setup
+	str	r0,[r1, #EBIU_CONFIG_4_OFF]
+
+;;; The RAM width is set to 16-bit by default.
+	ldr	r0,=Bank3Setup
+	str	r0,[r1, #EBIU_CONFIG_3_OFF]
+	
+;;; Re-map the memory. The write data is don't care.
+	ldr	r2,=CLOCK_CONTROL_BASE
+	str	r0,[r2, #CLEAR_RESET_MAP_OFF]
+
+;;; Bank 3 was set as 16-bit but it may actually be 8-bit. Find out by
+;;; doing a 16-bit store and load. Must check a location that is at
+;;; a higher address than the on-chip RAM.
+;;; NOTE:	r0 still has Bank3Setup, r1 still has EBIU_BASE
+	ldr	r2,=0x10000	; location to check
+	ldr	r3,=0xAA55	; test data
+	strh	r3,[r2]
+	ldrh	r4,[r2]
+	cmp	r3,r4
+	subne	r0,r0,#1	; miscompare, so set to 8-bit
+	strne	r0,[r1, #EBIU_CONFIG_3_OFF]
+	
+;;; Configure the shared pins. This requires the Memory Region Unlock Sequence.
+	ldr	r0,=CLOCK_CONTROL_BASE
+	ldr	r1,[r0, #ACCESS_KEY_OFF]
+	mvn	r1,r1
+	str	r1,[r0, #REGION_UNLOCK_OFF]
+	ldr	r1,=PortConfigInit
+	str	r1,[r0, #PORT_CONFIG_OFF]
+
+;;; Configure the direction of the GPIO. It is good to do this early on; if
+;;; a loopback board is fitted, there will be cross-connected GPIO lines
+	ldr	r0,=GPIO_BASE
+	ldr	r1,=GPIO1Init
+	str	r1,[r0, #GPIO_DIRECTION_1_OFF]
+	ldr	r1,=GPIO2Init
+	str	r1,[r0, #GPIO_DIRECTION_2_OFF]
+	ldr	r1,=GPIO3Init
+	str	r1,[r0, #GPIO_DIRECTION_3_OFF]
+	ldr	r1,=GPIO4Init
+	str	r1,[r0, #GPIO_DIRECTION_4_OFF]
+
+
+;;; EBIU is initialised and we're running in the high (and only) copy of
+;;; the ROM. Copy the image from ROM to RAM
+	
+warm_start
+		mov	r3,pc
+		and	r1,r3,#&FF000000
+		and	r4,r3,#&00FF0000
+		orr	r1,r1,r4		;source address
+		mov     r0, #&00000000		;destination address
+		mov     r2, #(&10000/4)         ;number of Dwords (64Kbytes)
+
+movit           ldr     r3,[r1],#4
+		str     r3,[r0],#4
+		subs    r2,r2,#1
+		bne     movit
+
+		ldr     pc,=loalias             ;jump to the RAM copy
+herefar2
+	ENDIF	;EBAMCU BOOT 
+
+	IF      (TARGET = "EBAMCU")
+	;; twiddle LEDs to prove we got here.
+	mov r0,#GPIO_BASE
+	ldr r1,[r0,#GPIO_DATA_IN_2_OFF]
+	mov r1,r1, ASL #4
+	str r1,[r0,#GPIO_DATA_OUT_2_OFF]
+
+;;; Configure the UART prescaler. This requires the Memory Region Unlock Sequence.
+	ldr	r0,=CLOCK_CONTROL_BASE
+	ldr	r2,[r0, #CLOCK_FREQ_SEL_OFF]
+	and	r2,r2,#0xfffff1ff; Change UART divisor field from 15 (/16) to 1 (/2)
+	ldr	r1,[r0, #ACCESS_KEY_OFF]
+	mvn	r1,r1
+	str	r1,[r0, #REGION_UNLOCK_OFF]
+	str	r2,[r0, #CLOCK_FREQ_SEL_OFF]
+
+
+	ENDIF	;EBAMCU
+	
 	IF (TARGET = "EBSA110") :LAND: (MEMMAP = "BOOT")
 
 ; Image is programmed into EPROM and we have to take the responsibility of
@@ -893,7 +1205,7 @@ movit           ldr     r3,[r1],#4
 
 		ldr     pc,=loalias             ;jump to the RAM copy
 herefar2
-	ENDIF
+	ENDIF	;EBSA110 BOOT 
 
 	IF      (TARGET = "EBSA110")
 
@@ -902,7 +1214,7 @@ herefar2
 		ldr     r1,[r0]
 		orr     r1,r1,#0x80             ;don't corrupt the DRAM type..
 		str     r1,[r0]
-	ENDIF
+	ENDIF	;EBSA110
 
 
 	IF (TARGET = "EBSA285")
@@ -911,7 +1223,7 @@ herefar2
 		ldr     r0,=4
 		ldr     r4,=ledport
 		str     r0,[r4]
-	ENDIF
+	ENDIF	;EBSA285
 
 	; common startup code for every TARGET and every MEMMAP
 		ldr     rsp, =RPP               ;init return stack pointer
@@ -958,7 +1270,7 @@ UZERO		DW	RXQ			;'ekey?
 		DW	0			;bal
 		DW	0			;notNONAME?
 		DW	0			;rakeVar
-NOrder0 	DW	2			;#order
+		DW	2			;#order
 		DW	FORTH_WORDLISTAddr	;search order stack
 		DW	NONSTANDARD_WORDLISTAddr
 		DS	(OrderDepth-2) * CELLL
@@ -1003,7 +1315,7 @@ ULAST
 
 	$THROWTABLE AddrTHROWMsgTbl,NumTHROWMsgs
 
-	$STR        CPUStr,'StrongARM'
+	$STR        CPUStr,'ARM Arch4'
 	$STR        ModelStr,'ROM Model'
 	$STR        VersionStr,'0.9.9'
 								    ;THROW code
@@ -1079,14 +1391,13 @@ ULAST
 ;	        Initialize the serial devices for terminal I/O
 
 		$CODE   3,'!IO',STOIO,_SLINK
-	IF ((TARGET = "EBSA110") :LOR: (TARGET = "EBSA285") :LOR: (TARGET = "COGENT"))
+	IF ((TARGET = "EBSA110") :LOR: (TARGET = "EBSA285") :LOR: (TARGET = "COGENT") :LOR: (TARGET = "EBAMCU"))
+;TODO That conditional includes *all* the supported targets..
 
-; This is a general purpose Reset for the serial chip, cancelling the current
-; transmission and reception and setting the baudrate according to IOBYTES
-
-;TODO this is only coded for SuperIO uarts, and it isn't exactly *efficient*!
-;TODO also, the conditional at the start includes *all* the supported
-;targets..
+; This is a general purpose Reset for the serial chip. Since this is called
+; by THROW, *try* to complete any current transmit gracefully. Once Tx is
+; done, re-initialise the UART and set the baudrate according to IOBYTES.
+; This is coded for 16550-compatible UART and isn't staggeringly efficient!
 
 		ldr     r0,=AddrIOBYTES
 		ldr     r1,[r0]
@@ -1095,9 +1406,16 @@ ULAST
 		ldreq	r4,=COM1Port
 		ldrne	r4,=COM2Port
 		cmp     r2,#&ff
-		beq     STOdone         ;DEMON SWI in use so don't touch the
+		beq     STOdone         ;ANGEL/DEMON SWI in use so don't touch the
 					;UART
-		ands    r1,r1,#&ff00    ;just look at baudrate
+		mov	r0,#&10000	;timeout counter
+01		subs	r0,r0,#1
+		beq	%f02
+		ldrb	r2,[r4,#LineStatus]
+		tst	r2,#LineTHREMsk	;EQ=> still transmitting, NE=>done
+		beq	%b01
+
+02		ands    r1,r1,#&ff00    ;just look at baudrate
 		subs    r1,r1,#&500
 		beq     Set19200        ;value of 5
 		subs    r1,r1,#&100
@@ -1160,12 +1478,12 @@ SetRate         LDR     r3,=0
 	ENDIF
 STOdone
 		$NEXT
-	ENDIF ; TARGET cogent or EBSA110 or EBSA285
+	ENDIF ; TARGET cogent or EBSA110 or EBSA285 or EBAMCU
 
-;   TRUE        ( -- f )
+;   TRUE        ( -- f )			\ CORE EXT
 ;	        Return the TRUE flag
 
-		$CONST  4,'TRUE',FTRUE,TRUEE,_SLINK
+		$CONST  4,'TRUE',FTRUE,TRUEE,_FLINK
 
 ;   RX?         ( -- flag )
 ;	        Return true if key is pressed.
@@ -1196,14 +1514,33 @@ STOdone
 		ldreq	r4,=COM1Port
 		ldrne	r4,=COM2Port
 		LDRB    tos, [r4,#Rx]           ;Read the character
+; FLOW control bodge. Using XON-OFF there is a critical path between
+; the receiver deciding it wants to stop the transmitter, transmitting
+; the XOFF and the receiver receiving the XOFF and actually ceasing to
+; send characters. In that "dead time" the receiver's input FIFO is being
+; filled with characters that the receiver is not ready to deal with. If
+; the dead time is too long the FIFO will fill up and overflow and input
+; will be lost.
+
+;		cmp	tos,#CRR
+;		bne	%f01
+;		pushD	tos
+;		mov	tos,#XOFF
+;		b	txstoreloop
+01
 		$NEXT
 
 ;   DRX@         ( -- u )
-;	        Receive one keyboard event u using DEMON SWI calls
+;               Receive one keyboard event u using ANGEL/DEMON SWI calls
 
 		$CODE   4,'DRX@',DRXFetch,_SLINK
-		pushD   tos                     ; make room
+		pushD   tos                     ;make room
+	IF (DEFIO = "DEMON")	
 		swi     4                       ;SWI_ReadC - byte is in r0
+	ELSE ; Assume ANGEL
+		ldr	r0,=SYS_READC
+		swi	angel_ARM		;byte is in r0
+	ENDIF
 		mov     tos,r0
 ;There is a BUG (IMO) in ARM's terminal emulator that it will never return CR
 ; - only LF. Since we expect CR to signal end-of-line, do a substitution here.
@@ -1227,7 +1564,7 @@ STOdone
 		LDRB    r2,[r4,#LineStatus]
 		TST     r2,#LineTHREMsk         ;Wait until ready to queue character
 		ldr     tos,=TRUEE              ;predict ready
-		ldrne   tos,=FALSEE
+		ldreq   tos,=FALSEE
 		$NEXT
 
 
@@ -1250,18 +1587,30 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 		$NEXT
 
 ;   DTX!        ( u -- )
-;	        Send char to the output device using DEMON SWI calls
+;               Send char to the output device using ANGEL/DEMON SWI calls
 
 		$CODE   4,'DTX!',DTXStore,_SLINK
+	IF (DEFIO = "DEMON")
 		mov     r0, tos                 ;pop character to r0
 		popD    tos
 		swi     0                       ;SWI_WriteC - write character
+	ELSE ; Assume ANGEL
+	;; yeuch -- for Angel, need to POINT to the byte with r1. Do this
+	;; by pushing the char onto the stack and referencing it through
+	;; r1 then popping it off again. Make sure this is interrupt-safe.
+		pushD	tos
+		mov	r1,dsp			;point to char in memory
+		ldr	r0,=SYS_WRITEC
+		swi	angel_ARM
+		add	dsp,dsp,#4		;drop
+		popD	tos 
+	ENDIF
 		$NEXT
 
 ;   CR          ( -- )                          \ CORE
 ;	        Carriage return and linefeed.
 ;
-;   : CR        carriage-return-char EMIT  linefeed-char EMIT ;
+;   : CR        [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
 
 		$COLON  2,'CR',CR,_FLINK
 		DW      DoLIT,CRR,EMIT,DoLIT,LFF,EMIT,EXIT
@@ -1274,9 +1623,16 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 		swi     011h                    ;SWI_Exit - halt execution and
 						;return to debugger
 	ELSE
+	     IF (MEMMAP = "ANGEL")
+		ldr	r0,=angel_SWIreason_ReportException
+		ldr	r1,=ADP_Stopped_ApplicationExit
+		SWI	angel_ARM
+	     ELSE
+
 		bl      DoLIST                  ;fake a colon definition
 		$INSTR  ' Sorry - nowhere to go!'
 		DW      TYPEE,CR,EXIT
+	     ENDIF
 	ENDIF
 
 ;   hi		( -- )
@@ -1286,12 +1642,12 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 ;		S" model" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
 ;		S" version"  ENVIRONMENT? DROP TYPE
 ;		."  by Wonyong Koh, 1997" CR
-;		." StrongARM port by neal.crook@reo.mts.dec.com" CR
+;		." ARM7TDMI/StrongARM port by nac@forth.org" CR ;
 ;		." ALL noncommercial and commercial uses are granted." CR
 ;		." Please send comment, bug report and suggestions to:" CR
-;		."   wykoh@pado.krict.re.kr or wykoh@free.xtel.com" CR ;
+;		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR
 
-		$COLON	2,'hi',HI,_SLINK
+		$COLON  2,'hi',HI,_SLINK
 		DW	CR
 		$INSTR	'hForth '
 		DW	TYPEE
@@ -1303,13 +1659,13 @@ txstoreloop     LDRB    r2,[r4,#LineStatus]
 		DW	ENVIRONMENTQuery,DROP,TYPEE
 		$INSTR	' by Wonyong Koh, 1997'
 		DW	TYPEE,CR
-		$INSTR	'StrongARM port by neal.crook@reo.mts.dec.com'
+		$INSTR	'ARM7TDMI/StrongARM port by nac@forth.org'
 		DW	TYPEE,CR
 		$INSTR	'All noncommercial and commercial uses are granted.'
 		DW	TYPEE,CR
 		$INSTR	'Please send comment, bug report and suggestions to:'
 		DW	TYPEE,CR
-		$INSTR	'  wykoh@pado.krict.re.kr or wykoh@free.xtel.com'
+		$INSTR	'  wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr'
 		DW	TYPEE,CR,EXIT
 
 ;   INIT-BUS ( -- )
@@ -1674,12 +2030,17 @@ coffm           EQU &ffffefff
 ;	        Currently, the only word that uses this is xt,
 
 		$CODE 11,'IDflushline',IDflushline,_SLINK
-;	                p15,??, arm_reg, co-proc_register, CRm, OPC_2
+	IF (TARGET = "EBAMCU")
+		;; do nothing - just ditch the address (no cache to flush)
+		popD	tos
+	ELSE
+;                       p15,??, arm_reg, co-proc_register, CRm, OPC_2
 		mcr     p15,0,tos,c7,c10,1      ;clean Dcache entry 
 		mcr     p15,0,tos,c7,c6,1       ;flush Dcache entry 
 		mcr     p15,0,tos,c7,c10,4      ;drain write buffer
 		mcr     p15,0,tos,c7,c5,0       ;flush Icache
 		popD    tos
+	ENDIF
 		$NEXT
 
 ;   same?	( c-addr1 c-addr2 u -- -1|0|1 )
@@ -1751,7 +2112,7 @@ SAME1
 ;		>R		\ wid  R: ca1 u
 ;		BEGIN @ 	\ ca2  R: ca1 u
 ;		   DUP 0= IF R> R> 2DROP EXIT THEN	\ not found
-;		   DUP COUNT [ =MASK ] LITERAL AND R@ = \ ca2 ca2+char f
+;		   DUP COUNT [ MASKK ] LITERAL AND R@ = \ ca2 ca2+char f
 ;		      IF   R> R@ SWAP DUP >R		\ ca2 ca2+char ca1 u
 ;			   same?			\ ca2 flag
 ;		    \ ELSE DROP -1	\ unnecessary since ca2+char is not 0.
@@ -1759,8 +2120,8 @@ SAME1
 ;		WHILE cell-		\ pointer to next word in wordlist
 ;		REPEAT
 ;		R> R> 2DROP DUP name>xt SWAP		\ xt ca2
-;		C@ DUP [ =COMP ] LITERAL AND 0= SWAP
-;		[ =IMED ] LITERAL AND 0= 2* 1+ ;
+;		C@ DUP [ COMPO ] LITERAL AND 0= SWAP
+;		[ IMMED ] LITERAL AND 0= 2* 1+ ;
 ;
 ;		  $COLON  17,'(search-wordlist)',ParenSearch_Wordlist,_SLINK
 ;		  DW	  ROT,ToR,SWAP,DUPP,ZBranch,PSRCH6
@@ -1823,14 +2184,14 @@ PSRCH3
 ;		optiCOMPILE for an example of usage
 ;
 ; 8086 version:
-;   : ?call	DUP @ call-code =
+;   : ?call	DUP @ [ CALLL ] LITERAL  =
 ;		IF   CELL+ DUP @ SWAP CELL+ DUP ROT + EXIT THEN
 ;			\ Direct Threaded Code 8086 relative call
 ;		0 ;
 ;
 ; ARM version: call is one cell and contains a signed 24-bit relative
 ; offset. The offset must be fixed up for pipeline prefetch:
-;   : ?call     DUP @ 0ff000000h AND call-code =
+;   : ?call     DUP @ 0ff000000h AND [ CALLL ] LITERAL =
 ;		\ that call-detection is crude - not an exact check..
 ;		IF DUP DUP @ 00ffffffh AND    \ it's a branch.. get offset
 ;		DUP 007fffffh > IF
@@ -1857,7 +2218,7 @@ QCALL1		DW	Zero,EXIT
 ;
 ; 8086 version:
 ;   : xt,	xhere ALIGNED DUP TOxhere SWAP
-;		call-code code, 	\ Direct Threaded Code
+;		[ CALLL ] LITERAL code, \ Direct Threaded Code
 ;		xhere CELL+ - code, ;	\ 8086 relative call
 
 ; ARM version: call is one cell and contains a signed 24-bit relative
@@ -2134,8 +2495,8 @@ QCALL1		DW	Zero,EXIT
 ;   ALIGNED	( addr -- a-addr )		\ CORE
 ;		Align address to the cell boundary.
 ;
-;   : ALIGNED	DUP 0 cell-size UM/MOD DROP DUP
-;		IF cell-size SWAP - THEN + ;	\ slow, very portable
+;   : ALIGNED	DUP 0 [ CELLL ] LITERAL UM/MOD DROP DUP
+;		IF [ CELLL ] LITERAL SWAP - THEN + ;	\ slow, very portable
 ;
 ;		  $COLON  7,'ALIGNED',ALIGNED,_FLINK
 ;		  DW	  DUPP,Zero,DoLIT,CELLL
@@ -2152,7 +2513,7 @@ QCALL1		DW	Zero,EXIT
 ;   CELLS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 cells.
 ;
-;   : CELLS	cell-size * ;	\ slow, very portable
+;   : CELLS	[ CELLL ] LITERAL * ;	\ slow, very portable
 ;   : CELLS	2* ;		\ fast, must be redefined for each system
 
 ;		$COLON	5,'CELLS',CELLS,_FLINK
@@ -2165,7 +2526,7 @@ QCALL1		DW	Zero,EXIT
 ;   CHARS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 characters.
 ;
-;   : CHARS	char-size * ;	\ slow, very portable
+;   : CHARS	[ CHARR ] LITERAL * ;	\ slow, very portable
 ;   : CHARS	;		\ fast, must be redefined for each system
 
 ;		$COLON  5,'CHARS',CHARS,_FLINK
@@ -2214,7 +2575,7 @@ QCALL1		DW	Zero,EXIT
 ;   DEPTH	( -- +n )			\ CORE
 ;		Return the depth of the data stack.
 ;
-;   : DEPTH	sp@ sp0 SWAP - cell-size / ;
+;   : DEPTH	sp@ sp0 SWAP - [ CELLL ] LITERAL / ;
 
 		$COLON	5,'DEPTH',DEPTH,_FLINK
 		DW	SPFetch,SPZero,SWAP,Minus
@@ -2759,7 +3120,7 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 ;   .ok 	( -- )
 ;		Display 'ok'.
 ;
-;   : .ok	." ok" ;
+;   : .ok	S" ok" TYPE ;
 
 		$COLON	3,'.ok',DotOK,_SLINK
 		$INSTR	'ok'
@@ -2849,7 +3210,7 @@ _VAR            SETA _VAR +CELLL
 ;   cell-	( a-addr1 -- a-addr2 )
 ;		Return previous aligned cell address.
 ;
-;   : cell-	-(cell-size) + ;
+;   : cell-	[ 0 CELLL - ] LITERAL  + ;
 
 ;		$COLON  5,'cell-',CellMinus,_SLINK
 ;		DW	DoLIT,0-CELLL,Plus,EXIT
@@ -2861,7 +3222,7 @@ _VAR            SETA _VAR +CELLL
 ;   COMPILE-ONLY   ( -- )
 ;		Make the most recent definition an compile-only word.
 ;
-;   : COMPILE-ONLY   lastName [ =comp ] LITERAL OVER @ OR SWAP ! ;
+;   : COMPILE-ONLY   lastName [ COMPO ] LITERAL OVER @ OR SWAP ! ;
 
 ;		$COLON  12,'COMPILE-ONLY',COMPILE_ONLY,_SLINK
 ;		DW	LastName,DoLIT,COMPO,OVER,Fetch,ORR,SWAP,Store,EXIT
@@ -2896,9 +3257,9 @@ _VAR            SETA _VAR +CELLL
 		$NEXT
 
 ;   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
-;		Run-time funtion of DO.
+;		Run-time function of DO.
 ;
-;   : doDO	>R max-negative + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
+;   : doDO	>R [ MaxNegative ] LITERAL + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
 
 		$COLON	COMPO+4,'doDO',DoDO,_SLINK
 		DW	ToR,DoLIT,MaxNegative,Plus,RFrom
@@ -2916,7 +3277,7 @@ _VAR            SETA _VAR +CELLL
 ;   : head,	PARSE-WORD DUP 0=
 ;		IF errWord 2! -16 THROW THEN
 ;				\ attempt to use zero-length string as a name
-;		DUP =mask > IF -19 THROW THEN	\ definition name too long
+;		DUP [ MASKK ] LITERAL > IF -19 THROW THEN	\ definition name too long
 ;		2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
 ;		IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
 ;		npVar @ OVER CHARS CHAR+ - 
@@ -2984,7 +3345,7 @@ INTERP4 	DW	DoLIT,-14,THROW
 ;		      2DROP EXIT THEN
 ;		    DUP CELL+ @ ['] EXIT = IF   \ if second word is EXIT
 ;		      @ DUP ['] doLIT XOR  \ make sure it is not literal value
-;		      IF SWAP THEN THEN
+;		      IF SWAP THEN
 ;		THEN THEN DROP COMPILE, ;
 
 		$COLON	12,'optiCOMPILE,',OptiCOMPILEComma,_SLINK
@@ -3021,7 +3382,7 @@ SINGLEO2	DW	EXIT
 ;		single cell number in compilation state.
 ;
 ;   : singleOnly,
-;		singleOnly LITERAL ;
+;		singleOnly POSTPONE LITERAL ;
 
 		$COLON	11,'singleOnly,',SingleOnlyComma,_SLINK
 		DW	SingleOnly,LITERAL,EXIT
@@ -3074,7 +3435,7 @@ DOUBLEA6        DW	One,EXIT                ; result is a single
 ;		compilation state.
 ;
 ;   : doubleAlso,
-;		(doubleAlso) 1- IF SWAP LITERAL THEN LITERAL ;
+;		(doubleAlso) 1- IF SWAP POSTPONE LITERAL THEN POSTPONE LITERAL ;
 
 		$COLON	11,'doubleAlso,',DoubleAlsoComma,_SLINK
 		DW	ParenDoubleAlso,OneMinus,ZBranch,DOUBC1
@@ -3143,7 +3504,7 @@ DOUBC1		DW	LITERAL,EXIT
 ;		cell-aligned address. Fill the rest of the last cell with
 ;		null character.
 ;
-;   : pack"     OVER max-counted-string SWAP U< 
+;   : pack"     OVER [ MaxCountedString ] LITERAL SWAP U< 
 ;		IF -18 THROW THEN	\ parsed string overflow
 ;		2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
 ;		ALIGNED cell- 0 SWAP !		\ fill 0 at the end of string
@@ -3158,6 +3519,7 @@ PACKQ1		DW	TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
 		DW	TwoDUP,CStore,CHARPlus,SWAP
 		DW	CHARS,MOVE,RFrom,ALIGNED,EXIT
 
+; TODO.. re-introduce the CODE version. Check H8 port's report of a bug in latest pack"
 ;                $CODE	COMPO+5,'pack"',PackQuote,_SLINK
 ;                ;assume strings don't overlap
 ;                popD    r0      ;u
@@ -3412,7 +3774,7 @@ _VAR            SETA _VAR +CELLL
 ;		Prepare the output string to be TYPE'd.
 ;		||xhere>WORD/#-work-area|
 ;
-;   : #>	2DROP hld @ xhere size-of-PAD + OVER - 1chars/ ;
+;   : #>	2DROP hld @ xhere [ PADSize CHARR * ] LITERAL + OVER - 1chars/ ;
 
 		$COLON	2,'#>',NumberSignGreater,_FLINK
 		DW	TwoDROP,HLD,Fetch,XHere,DoLIT,PADSize*CHARR,Plus
@@ -3469,7 +3831,7 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 ;   ,		( x -- )			\ CORE
 ;		Reserve one cell in RAM or ROM data space and store x in it.
 ;
-;   : , 	HERE ! cell-size hereVar +! ;
+;   : , 	HERE ! [ CELLL ] LITERAL hereVar +! ;
 
 ;		$COLON  1,',',Comma,_FLINK
 ;		DW	HERE,Store
@@ -3604,6 +3966,8 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 
 ;   2DROP	( x1 x2 -- )			\ CORE
 ;		Drop cell pair x1 x2 from the stack.
+;
+;   : 2DROP	DROP DROP ;
 
 ;		$COLON  5,'2DROP',TwoDROP,_FLINK
 ;		DW	DROP,DROP,EXIT
@@ -3616,6 +3980,8 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 
 ;   2DUP	( x1 x2 -- x1 x2 x1 x2 )	\ CORE
 ;		Duplicate cell pair x1 x2.
+;
+;   : 2DUP	OVER OVER ;
 
 ;		$COLON  4,'2DUP',TwoDUP,_FLINK
 ;		DW	OVER,OVER,EXIT
@@ -3704,7 +4070,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 ;		Initiate the numeric output conversion process.
 ;		||xhere>WORD/#-work-area|
 ;
-;   : <#	xhere size-of-PAD + hld ! ;
+;   : <#	xhere [ PADSize CHARR * ] LITERAL + hld ! ;
 
 ;		$COLON  2,'<#',LessNumberSign,_FLINK
 ;		DW	XHere,DoLIT,PADSize*CHARR,Plus,HLD,Store,EXIT
@@ -3721,7 +4087,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 ;   =		( x1 x2 -- flag )		\ CORE
 ;		Return true if top two are equal.
 ;
-;   : = 	XORR 0= ;
+;   : = 	XOR 0= ;
 
 ;		$COLON  1,'=',Equals,_FLINK
 ;		DW	XORR,ZeroEquals,EXIT
@@ -3741,7 +4107,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 		$COLON	1,'>',GreaterThan,_FLINK
 		DW	SWAP,LessThan,EXIT
 
-;   >IN 	( -- a-addr )
+;   >IN 	( -- a-addr )			\ CORE
 ;		Hold the character pointer while parsing input stream.
 
 		$VAR	3,'>IN',ToIN,_FLINK
@@ -3810,19 +4176,19 @@ TONUM3		DW	EXIT
 ;   : ACCEPT	FLOW-ON >R 0
 ;		BEGIN  DUP R@ < 		\ ca n2 f  R: n1
 ;		WHILE  KEY DUP BL <
-;		       IF   DUP  cr# = IF ROT 2DROP R> DROP FLOW-OFF EXIT THEN
-;			    DUP  tab# =
+;		       IF   DUP  [ CRR ] LITERAL = IF FLOW-OFF ROT 2DROP R> DROP EXIT THEN
+;			    DUP  [ TAB ] LITERAL =
 ;			    IF	 DROP 2DUP + BL DUP EMITE SWAP C! 1+
-;			    ELSE DUP  bsp# =
-;				 SWAP del# = OR
-;				 IF DROP DUP
+;			    ELSE DUP [ BKSPP ] LITERAL =
+;				 SWAP [ DEL ] LITERAL = OR
+;				 IF DUP
 ;					\ discard the last char if not 1st char
-;				 IF 1- bsp# EMITE BL EMITE bsp# EMITE THEN THEN
+;					IF 1- [ BKSPP ] LITERAL EMITE BL EMITE [ BKSPP ] LITERAL EMITE THEN
+;				 THEN
 ;			    THEN
 ;		       ELSE >R 2DUP CHARS + R> DUP EMITE SWAP C! 1+  THEN
-;		       THEN
-;		REPEAT SWAP  R> 2DROP FLOW-OFF ;
-
+;		REPEAT FLOW-OFF SWAP R> 2DROP ;
+	;; NAC -- I changed the hi-level code for flow on/off but not the code below! Doh!
 		$COLON	6,'ACCEPT',ACCEPT,_FLINK
 		DW	FLOW_ON,ToR,Zero
 ACCPT1		DW	DUPP,RFetch,LessThan,ZBranch,ACCPT5
@@ -3895,7 +4261,7 @@ AGAIN1		DW	DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 ;   CELL+	( a-addr1 -- a-addr2 )		\ CORE
 ;		Return next aligned cell address.
 ;
-;   : CELL+	cell-size + ;
+;   : CELL+	[ CELLL ] LITERAL + ;
 
 ;		$COLON  5,'CELL+',CELLPlus,_FLINK
 ;		DW	DoLIT,CELLL,Plus,EXIT
@@ -3907,7 +4273,7 @@ AGAIN1		DW	DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 ;   CHAR+	( c-addr1 -- c-addr2 )		\ CORE
 ;		Returns next character-aligned address.
 ;
-;   : CHAR+	char-size + ;
+;   : CHAR+	[ CHARR ] LITERAL + ;
 
 ;		$COLON  5,'CHAR+',CHARPlus,_FLINK
 ;		DW	DoLIT,CHARR,Plus,EXIT
@@ -4176,7 +4542,7 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 ;   KEY 	( -- char )			\ CORE
 ;		Receive a character. Do not display char.
 ;
-;   : KEY	EKEY max-char AND ;
+;   : KEY	EKEY [ MaxChar ] LITERAL AND ;
 
 		$COLON	3,'KEY',KEY,_FLINK
 		DW	EKEY,DoLIT,MaxChar,ANDD,EXIT
@@ -4287,8 +4653,8 @@ QUIT5		DW	SPZero,SPStore,Branch,QUIT1
 ;		from EVALUATE.
 ;
 ;   : REFILL	SOURCE-ID IF 0 EXIT THEN
-;		npVar @ [ size-of-PAD CHARS 2* ] LITERAL - DUP
-;		size-of-PAD ACCEPT sourceVar 2!
+;		npVar @ [ PADSize CHARS 2* ] LITERAL - DUP
+;		[ PADSize ] LITERAL ACCEPT sourceVar 2!
 ;		0 >IN ! -1 ;
 
 		$COLON	6,'REFILL',REFILL,_FLINK
@@ -4446,7 +4812,7 @@ TYPE2		DW	DROP,EXIT
 ;   UM* 	( u1 u2 -- ud ) 		\ CORE
 ;		Unsigned multiply. Return double-cell product.
 ;
-;   : UM*	0 SWAP cell-size-in-bits 0 DO
+;   : UM*	0 SWAP [ CELLL 8 * ] LITERAL 0 DO
 ;		   DUP um+ >R >R DUP um+ R> +
 ;		   R> IF >R OVER um+ R> + THEN	   \ if carry
 ;		LOOP ROT DROP ;
@@ -4472,11 +4838,10 @@ TYPE2		DW	DROP,EXIT
 ;
 ;   : UM/MOD	DUP 0= IF -10 THROW THEN	\ divide by zero
 ;		2DUP U< IF
-;		   NEGATE cell-size-in-bits 0
+;		   NEGATE [ CELLL 8 * ] LITERAL 0
 ;		   DO	>R DUP um+ >R >R DUP um+ R> + DUP
 ;			R> R@ SWAP >R um+ R> OR
-;			IF >R DROP 1+ R> THEN
-;			ELSE DROP THEN
+;			IF >R DROP 1+ R> ELSE DROP THEN
 ;			R>
 ;		   LOOP DROP SWAP EXIT
 ;		ELSE -11 THROW		\ result out of range
@@ -4500,7 +4865,7 @@ UMM4		DW	DoLIT,-11,THROW
 ;		An UNLOOP is required for each nesting level before the
 ;		definition may be EXITed.
 ;
-;   : UNLOOP	R> R> R> 2DROP >R ;
+;   : UNLOOP	R> R> R> 2DROP >R ; COMPILE-ONLY
 
 ;		$COLON  COMPO+6,'UNLOOP',UNLOOP,_FLINK
 ;		DW	RFrom,RFrom,RFrom,TwoDROP,ToR,EXIT
@@ -4559,7 +4924,7 @@ UMM4		DW	DoLIT,-11,THROW
 ;   (		( "ccc<)>" -- )                 \ CORE
 ;		Ignore following string up to next ) . A comment.
 ;
-;   : ( 	[CHAR] ) PARSE 2DROP ;
+;   : ( 	[CHAR] ) PARSE 2DROP ; IMMEDIATE
 
 		$COLON	IMMED+1,'(',Paren,_FLINK
 		DW	DoLIT,')',PARSE,TwoDROP,EXIT
@@ -4655,7 +5020,7 @@ TBODY1		DW	DoLIT,-31,THROW
 ;		Run-time ( i*x x1 -- | i*x ) ( R: j*x -- | j*x )
 ;		Conditional abort with an error message.
 ;
-;   : ABORT"    S" POSTPONE ROT
+;   : ABORT"    POSTPONE S" POSTPONE ROT
 ;		POSTPONE IF POSTPONE abort"msg POSTPONE 2!
 ;		-2 POSTPONE LITERAL POSTPONE THROW
 ;		POSTPONE ELSE POSTPONE 2DROP POSTPONE THEN
@@ -4709,7 +5074,7 @@ TBODY1		DW	DoLIT,-31,THROW
 ;		control stack.
 ;
 ;   : BEGIN	xhere 0 bal+		\ dest type is 0
-;		; COMPILE-ONLY IMMDEDIATE
+;		; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+5,'BEGIN',BEGIN,_FLINK
 		DW	XHere,Zero,BalPlus,EXIT
@@ -4717,7 +5082,7 @@ TBODY1		DW	DoLIT,-31,THROW
 ;   C,		( char -- )			\ CORE
 ;		Compile a character into data space.
 ;
-;   : C,	HERE C! char-size hereVar +! ;
+;   : C,	HERE C! [ CHARR ] LITERAL hereVar +! ;
 
 ;		$COLON  2,'C,',CComma,_FLINK
 ;		DW	HERE,CStore,DoLIT,CHARR,HereVar,PlusStore,EXIT
@@ -4773,7 +5138,7 @@ DOES2		DW	DoLIT,Pipe,COMPILEComma
 ;		Put the location of new unresolved forward reference orig2
 ;		onto control-flow stack.
 ;
-;   : ELSE	POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMDEDIATE
+;   : ELSE	POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+4,'ELSE',ELSEE,_FLINK
 		DW	AHEAD,TwoSWAP,THENN,EXIT
@@ -4847,7 +5212,7 @@ FIND1		DW	TwoDROP,Zero,EXIT
 ;   IMMEDIATE	( -- )				\ CORE
 ;		Make the most recent definition an immediate word.
 ;
-;   : IMMEDIATE   lastName [ =imed ] LITERAL OVER @ OR SWAP ! ;
+;   : IMMEDIATE   lastName [ IMMED ] LITERAL OVER @ OR SWAP ! ;
 
 ;		$COLON  9,'IMMEDIATE',IMMEDIATE,_FLINK
 ;		DW	LastName,DoLIT,IMMED,OVER,Fetch,ORR,SWAP,Store,EXIT
@@ -5005,7 +5370,7 @@ RECUR1		DW	Bal,OneMinus,TwoStar,OnePlus,PICK
 ;		Terminate a BEGIN-WHILE-REPEAT indefinite loop. Resolve
 ;		backward reference dest and forward reference orig.
 ;
-;   : REPEAT	AGAIN THEN ; COMPILE-ONLY IMMEDIATE
+;   : REPEAT	POSTPONE AGAIN POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+6,'REPEAT',REPEATT,_FLINK
 		DW	AGAIN,THENN,EXIT
@@ -5015,7 +5380,7 @@ RECUR1		DW	Bal,OneMinus,TwoStar,OnePlus,PICK
 ;		Put 0 into the most significant bits vacated by the shift.
 ;
 ;   : RSHIFT	?DUP IF
-;			0 SWAP	cell-size-in-bits SWAP -
+;			0 SWAP [ CELLL 8 * ] LITERAL SWAP -
 ;			0 DO  2DUP D+  LOOP
 ;			NIP
 ;		     THEN ;
@@ -5036,7 +5401,7 @@ RECUR1		DW	Bal,OneMinus,TwoStar,OnePlus,PICK
 ;		Run-time ( -- c-addr2 u )
 ;		Compile a string literal. Return the string on execution.
 ;
-;   : SLITERAL	DUP LITERAL POSTPONE doS"
+;   : SLITERAL	DUP POSTPONE LITERAL POSTPONE doS"
 ;		CHARS xhere 2DUP + ALIGNED TOxhere
 ;		SWAP MOVE ; COMPILE-ONLY IMMEDIATE
 
