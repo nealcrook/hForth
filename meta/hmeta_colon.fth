@@ -1,5 +1,9 @@
 \ $Id$
 \ $Log$
+\ Revision 1.2  1998/06/14 18:30:54  crook
+\ meta compilation debug. tPOSTPONE still not working, literals not
+\ implemented.
+\
 \ Revision 1.1  1998/06/07 22:51:02  crook
 \ Initial revision
 \
@@ -127,10 +131,21 @@ WORDLIST WORDLIST-NAME its-words-WORDLIST
 : it-words GET-ORDER NIP it-words-WORDLIST SWAP SET-ORDER ;
 : its-words GET-ORDER NIP its-words-WORDLIST SWAP SET-ORDER ;
 
-\ TODO - save and restore search order properly
 \ TODO - ought to use this for CODE words, too?
-: save-order ;
-: restore-order ONLY ALSO EXTENSIONS ALSO FORTH ;
+CREATE order-! 5 CELLS ALLOT
+: save-order
+	GET-ORDER DUP 4 > IF
+		ABORT" Too many wids for save-order storage"
+	THEN DUP order-! !
+	0 DO I 1+ CELLS order-! + ! LOOP ;
+
+: restore-order
+	order-! @ DUP 4 > SWAP 0= OR IF
+		ABORT" wid count in save-order storage is illegal"
+	THEN
+	order-! DUP DUP @ CELLS + \ last-a first-a to be stacked
+	DO I @ 1 CELLS NEGATE +LOOP SET-ORDER ;
+
 : tc-order t-words-WORDLIST it-words-WORDLIST 2 SET-ORDER ;
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
