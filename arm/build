@@ -3,6 +3,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.7  1997/08/18 10:27:25  crook
+# fix tidy-up at end
+#
 # Revision 1.6  1997/08/18 10:22:59  crook
 # update to allow DEMON version to be built, and to add release script
 #
@@ -29,7 +32,7 @@
 #
 
 #default_target=ebsa110pbl
-default_target=ebsa285pbl
+default_target=ebamcuangel
 
 target=${1:-$default_target}
 
@@ -38,37 +41,44 @@ target=${1:-$default_target}
 # build some images -nodebug to make them smaller? need KEEP in assembler source to make a difference
 
 
-if [ $target = all ] || [ $target = ebsa110demon ] ; then
+if [ $target = all ] || [ $target = ebamcuangel ] ; then
   echo
-  echo building hf110bl.aif for EBSA-110, for loading and starting via PBL
+  echo building hfmcuan.aif for EB-AMCU, for loading and starting via Angel
   rm -f hfsarom.lst hfsarom.o
   gawk -f modsntx.awk hfsarom.asm
-  gawk -v dict_pc=1073807360 -f makesrc.awk hfsarom.asms
-  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA110"' -PD 'MEMMAP SETS "DEMON"' -PD 'DEFIO SETS "COMDSWI"' -PD 'DEFBAUD SETA 4'
-  armlink -aif -bin -base 0x40000000 -entry 0x40000000 -nodebug -output hf110dm.aif hfsarom.o
+  # Code starts at 0x8000, ends at 0x18000 so dict_pc is 0x1800
+  gawk -v dict_pc=98304 -f makesrc.awk hfsarom.asms
+  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBAMCU"' -PD 'MEMMAP SETS "ANGEL"' -PD 'DEFIO SETS "COMASWI"' -PD 'DEFBAUD SETA 4'
+  armlink -aif -base 0x8000 -entry 0x8080 -output hfmcuan.aif hfsarom.o -nodebug
+  cp hfmcuan.aif ../image
 fi
 
-if [ $target = all ] || [ $target = ebsa110pbl ] ; then
+# TODO: should leave a gap at the top of the image so there is room for the PIL header.
+
+if [ $target = all ] || [ $target = ebamcupil ] ; then
   echo
-  echo building hf110bl.aif for EBSA-110, for loading and starting via PBL
+  echo building hfmcupl.aif for EB-AMCU, for loading and starting via the primary image loader
   rm -f hfsarom.lst hfsarom.o
   gawk -f modsntx.awk hfsarom.asm
-#  gawk -v udebug=1 dict_pc=1073807360 -f makesrc.awk hfsarom.asms
-  gawk -v dict_pc=1073807360 -f makesrc.awk hfsarom.asms
-#  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA110"' -PD 'MEMMAP SETS "DEMON"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
-  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA110"' -PD 'MEMMAP SETS "PBLOADED"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
-  armlink -aif -bin -base 0x400000c0 -entry 0x400000c0 -nodebug -output hf110bl.aif hfsarom.o
+  # code starts at 0, ends at 0x10000 - 0x20 (the trailer) , gets copied into place by the PIL
+#  gawk -v udebug=1 dict_pc=65504 -f makesrc.awk hfsarom.asms
+  gawk -v dict_pc=65504 -f makesrc.awk hfsarom.asms
+  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBAMCU"' -PD 'MEMMAP SETS "PBLOADED"' -PD 'DEFIO SETS "COM1"' -PD 'DEFBAUD SETA 4'
+  armlink -aif -bin -base 0x80 -entry 0x80 -nodebug -output hfmcupl.aif hfsarom.o -nodebug
+  cp hfmcupl.aif ../image
 fi
 
-if [ $target = all ] || [ $target = ebsa285pbl ] ; then
+if [ $target = all ] || [ $target = ebamcuboot ] ; then
   echo
-  echo building hf285bl.aif for EBSA-285, for loading and starting via PBL
+  echo building hfmcubo.bin for EB-AMCU, for loading and starting as a boot ROM
   rm -f hfsarom.lst hfsarom.o
   gawk -f modsntx.awk hfsarom.asm
-#  gawk -v udebug=1 dict_pc=131072 -f makesrc.awk hfsarom.asms
-  gawk -v dict_pc=131072 -f makesrc.awk hfsarom.asms
-  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA285"' -PD 'MEMMAP SETS "PBLOADED"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
-  armlink -aif -bin -base 0x000100c0 -entry 0x000100c0 -nodebug -output hf285bl.aif hfsarom.o
+  # code starts at 0, ends at 0x10000 -0x20 (the trailer), contains its own code for init and copying from ROM.
+#  gawk -v udebug=1 dict_pc=65504 -f makesrc.awk hfsarom.asms
+  gawk -v dict_pc=65504 -f makesrc.awk hfsarom.asms
+  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBAMCU"' -PD 'MEMMAP SETS "BOOT"' -PD 'DEFIO SETS "COM1"' -PD 'DEFBAUD SETA 4'
+  armlink -bin -base 0x0 -entry 0x0 -nodebug -output hfmcubo.bin hfsarom.o -nodebug
+  cp hfmcubo.bin ../image
 fi
 
 
@@ -108,7 +118,7 @@ if [ $target = release ]  ; then
   uuencode hf.tar.gz hf.tar.gz > hfarm.uu
 fi
 
-rm -f hfsarom.o hfsarom.asms hfsarom.asmsc hfsarom.asmsd hfsarom.asmst hfsarom.asmsw mucca.txt
+# rm -f hfsarom.o hfsarom.asms hfsarom.asmsc hfsarom.asmsd hfsarom.asmst hfsarom.asmsw mucca.txt
 
 exit 0
 
