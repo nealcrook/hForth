@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.1  1998/06/07 22:50:31  crook
+\ Initial revision
+\
 
 \ experimental meta-compiled version. See how many dependecies there are
 \ on words defined earlier and whether these can be removed by re-ordering
@@ -18,6 +21,11 @@
 \ The compiler can range-check to ensure that no out-of-range code was
 \ ever generated.
 
+\ ** BUGs in my source
+\ the hi-level source for FILE was wrong.. missing @?
+\ and HAND 
+\ FLOW-ON had typo: # after XON
+
 \ ** "Bugs" in Wonyong's source
 \ 2DROP 2DUP had no high-level definition
 \ "=mask" in head, should be =MASK
@@ -33,6 +41,10 @@
 \ CHARS and ALIGNED and use char-size and cell-size whereas assembler
 \ source uses CHARR and CELLL
 \ call-code in FORTH, CALLL in assembler
+\ carriage-return-char, linefeed-char  in FORTH, CRR, LFF in assembler
+\ max-negative in FORTH, MaxNegative in assembler
+\ .ok asm def not the same as high-level def. Equivalent hi-level def
+\  is S" ok" TYPE
 
 \ ** things that have been re-ordered
 
@@ -290,6 +302,9 @@ VARIABLE _SLINK 0 _SLINK ! \ force a null link
 VARIABLE _FLINK 0 _FLINK ! \ force a null link
 
 \ Code generation - emit n at the target PC and increment the target PC
+\ TODO change _CODE to use cpVar and xhere like hForth source
+\ ..problem is that xhere is not defined yet.
+\ and tidy up defns. accordingly
 : meta-asm,32 ( n -- )
 	_CODE t! _CODE CELLL + TO _CODE ;
 
@@ -328,8 +343,10 @@ CR .( *** Assembly macros)
 	FFFFFFFC AND ;
 ALSO its-words
 \ Add a name to name space of dictionary.
+\ TODO - do I need to add this to TDEF? TDEF Can't currently cope with
+\ quote-delimited strings.
 : $STR' \ $STR' string' label
-	TDEF [CHAR] ' PARSE \ addr len
+	[CHAR] ' PARSE \ addr len
 	\ hForth originally used aligned strings but I pack them on any
 	\ boundary because ARM allows it and it saves space
 	DUP >R _NAME OVER - \ save length and calculate destination addr
@@ -345,7 +362,7 @@ _NAME CONSTANT AddrTHROWMsgTbl
 \ Add a THROW message in name space. THROW messages won't be
 \ needed if target system does not need names of Forth words.
 : $THROWMSG' \ $THROWMSG' string'
-	TDEF [CHAR] ' PARSE \ addr len
+	[CHAR] ' PARSE \ addr len
 	\ hForth originally used aligned strings but I pack them on any
 	\ boundary because ARM allows it and it saves space
 	DUP >R _NAME OVER - \ save length and calculate destination addr
@@ -375,18 +392,6 @@ VARIABLE META-DEPTH
 \ Words to set flags in the dictionary (eg immediate, compile-only bits)
 \ can be used at any time before a new definition is started, but a
 \ consistent approach is recommended.
-
-
-: myPARSE-WORD \ TODO cen't find PARSE-WORD yet, so bolt this in
-	BL
-	>R SOURCE >IN @ /STRING    \ c_addr u  R: char
-	DUP IF
-	   BEGIN  OVER C@ R@ =
-	   WHILE  1- SWAP CHAR+ SWAP DUP 0=
-	   UNTIL  R> DROP EXIT
-	   ELSE THEN
-	   DROP SOURCE DROP -  >IN ! R> PARSE EXIT
-	THEN R> DROP ;
 
 : $CODE ( n -- )
 	>R
@@ -431,7 +436,7 @@ MICRO-DEBUG [IF]
 	CELLL # [ fpc ] PC LDR, ;
 [THEN]
 
-PREVIOUS
+PREVIOUS \ take ASSEMBLER off search order
 
 \ TODO ultimately these will be replaced by COMPILE-ONLY and IMMEDIATE
 \ Set COMPILE bit of most recent definition
@@ -456,6 +461,8 @@ ALSO ASSEMBLER \ make BL, available
 	_VAR meta-asm,32 \ TODO -- meta-asm,32 is really target COMPILE,
 	_VAR CELLL + TO _VAR ;
 
+\ TODO this (and $VAR, $VAL) should really be expressed using the target
+\ versions of CONSTANT, VARIABLE, VALUE.
 \ <value> $xCONST string - compile a system/Forth CONSTANT header
 : $SCONST
 	_SLINK $CODE PREVIOUS
@@ -494,6 +501,7 @@ ALSO ASSEMBLER \ make BL, available
 
 \ TODO - may be better to perform this in the true compiler.
 \ Compile an inline string
+\ .. definitely would be.
 : $INSTR'
 	DoLIT meta-asm,32
 	[CHAR] ' PARSE
@@ -504,33 +512,9 @@ ALSO ASSEMBLER \ make BL, available
 	R> _CODE + $ALIGN TO _CODE ;	\ update code pointer
 
 
-PREVIOUS
+PREVIOUS \ take ASSEMBLER off search order
 
 META-TODO [IF]
-
-
-;       Compile a colon definition header.
-
-$COLON  MACRO   LEX,NAME,LABEL,LINK
-	$CODE   LEX,NAME,LABEL,LINK
-	bl      DoLIST
-	ENDM
-
-
-;       Compile an inline string.
-
-$INSTR  MACRO   STRNG
-	DW      DoLIT
-	_LEN    = $                             ;save address of count
-	DW      0                               ;count
-	DW      DoSQuote                        ;doS"
-	DB      STRNG                           ;store string
-	_CODE   = $                             ;save code pointer
-ORG     _LEN                                    ;point to count byte
-	DW      _CODE-_LEN-2*CELLL              ;set count
-ORG     _CODE                                   ;restore code pointer
-	$ALIGN
-	ENDM
 
 ;       Compile a environment query string header.
 
@@ -549,6 +533,19 @@ ORG     _CODE
 	ENDM
 
 [THEN]
+
+
+CR .( *** Make : invoke t: and ; invoke t; )
+ALSO it-words
+\ put these into FORTH
+: h: : ;
+: h; hPOSTPONE ; ; IMMEDIATE
+: : t: ;
+\ put this into it-words
+ALSO it-words DEFINITIONS
+h: ; nit; h; IMMEDIATE
+PREVIOUS DEFINITIONS
+PREVIOUS
 
 
 
@@ -947,16 +944,13 @@ TAR_COGENT [IF] \ TODO Carey has a delay loop here.
 		0 SWI,				\ SWI_WriteC - write character
 		$NEXT
 
-META-TODO [IF]
 
 \   CR		( -- )				\ CORE
 \		Carriage return and linefeed.
 \
-;   : CR        carriage-return-char EMIT  linefeed-char EMIT ;
-
-		$COLON  2,'CR',CR,_FLINK
-		DW      DoLIT,CRR,EMIT,DoLIT,LFF,EMIT,EXIT
-[THEN]
+\ TODO - this is a defn. change; a bug in wonyong's source
+xf-DEF
+: CR  [ CRR ] LITERAL EMIT [ LFF ] LITERAL EMIT ;
 
 
 \   BYE		( -- )				\ TOOLS EXT
@@ -978,36 +972,17 @@ META-TODO [IF]
 
 ;   hi          ( -- )
 ;
-;   : hi        CR ." hForth "
-;               S" CPU" ENVIRONMENT? DROP TYPE SPACE
-;               S" model" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
-;               S" version"  ENVIRONMENT? DROP TYPE
-;               ."  by Wonyong Koh, 1997" CR
-;               ." StrongARM port by neal.crook@reo.mts.dec.com" CR ;
-;               ." ALL noncommercial and commercial uses are granted." CR
-;               ." Please send comment, bug report and suggestions to:" CR
-;               ."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR
+xS-DEF
+  : hi		CR ." hForth "
+		S" CPU" ENVIRONMENT? DROP TYPE SPACE
+		S" model" ENVIRONMENT? DROP TYPE SPACE [CHAR] v EMIT
+		S" version"  ENVIRONMENT? DROP TYPE
+		."  by Wonyong Koh, 1997" CR
+		." StrongARM port by neal.crook@reo.mts.dec.com" CR
+		." ALL noncommercial and commercial uses are granted." CR
+		." Please send comment, bug report and suggestions to:" CR
+		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR ;
 
-		$COLON  2,'hi',HI,_SLINK
-		DW      CR
-		$INSTR  'hForth '
-		DW      TYPEE
-		$INSTR  'CPU'
-		DW      ENVIRONMENTQuery,DROP,TYPEE,SPACE
-		$INSTR  'model'
-		DW      ENVIRONMENTQuery,DROP,TYPEE,SPACE,DoLIT,'v',EMIT
-		$INSTR  'version'
-		DW      ENVIRONMENTQuery,DROP,TYPEE
-		$INSTR  ' by Wonyong Koh, 1997'
-		DW      TYPEE,CR
-		$INSTR  'StrongARM port by neal.crook@reo.mts.dec.com'
-		DW      TYPEE,CR
-		$INSTR  'All noncommercial and commercial uses are granted.'
-		DW      TYPEE,CR
-		$INSTR  'Please send comment, bug report and suggestions to:'
-		DW      TYPEE,CR
-		$INSTR  '  wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr'
-		DW      TYPEE,CR,EXIT
 
 ;   INIT-BUS ( -- )
 ;               For the 21285, need to init some PCI stuff to avoid hanging
@@ -1101,6 +1076,7 @@ COLD1           DW      SPZero,SPStore,RPZero,RPStore
 		DW      DoLIT,FTRUE,DoTO,AddrTEKEYQ
 SETIOV2         DW      EXIT
 
+
 \   FILE	( -- )
 \		Set FILE bit in IOBYTES to disable local echo and impose
 \		XON/XOFF flow control for host file download
@@ -1109,6 +1085,7 @@ SETIOV2         DW      EXIT
 		$COLON 4,'FILE',FILE,_SLINK
 		DW      DoLIT,AddrIOBYTES,Fetch,DoLIT,010000000h,ORR
 		DW      DoTO,AddrIOBYTES,EXIT
+
 
 ;   HAND        ( -- )
 ;               Clear FILE bit in IOBYTES to turn off XON/XOFF handshake
@@ -1119,12 +1096,15 @@ SETIOV2         DW      EXIT
 		DW      DoLIT,AddrIOBYTES
 		DW      Fetch,DoLIT,0efffffffh,ANDD,DoTO,AddrIOBYTES,EXIT
 
+[THEN]
+
 \   FLOW-ON	( -- )
 \		Send an XON character for the file downloading process.
-;   : FLOW-ON   XON# EMIT ;
+xS-DEF
+\ TODO another change from previous high-level code
+: FLOW-ON [ XON ] LITERAL EMIT ;
 
-		$COLON  7,'FLOW-ON',FLOW_ON,_SLINK
-		DW      DoLIT,XON,EMIT,EXIT
+META-TODO [IF]
 
 \   FLOW-OFF	( -- )
 \		Send an XOFF character for the file downloading process; ONLY
@@ -1813,11 +1793,9 @@ CR .( ***        32-bit Forth for ARM RISC)
 \   ALIGN	( -- )				\ CORE
 \		Align the data space pointer.
 \
-\   : ALIGN     hereVar DUP @ ALIGNED SWAP ! ;
-
-\		$COLON  5,'ALIGN',ALIGNN,_FLINK
-\		DW      HereVar,DUPP,Fetch,ALIGNED,SWAP,Store,EXIT
-
+xF-DEF META-HI [IF]
+: ALIGN     hereVar DUP @ ALIGNED SWAP ! ;
+[ELSE]
 \ TODO real definition
 0 CONSTANT LocHereVar
 		$FCODE ALIGN
@@ -1828,24 +1806,20 @@ CR .( ***        32-bit Forth for ARM RISC)
 		3 # R2 R2 BIC,			\ round it up
 		[ R1 ] R2 STR,
 		$NEXT
+[THEN]
 
 \   ALIGNED	( addr -- a-addr )		\ CORE
 \		Align address to the cell boundary.
 \
-\   : ALIGNED   DUP 0 CELLL UM/MOD DROP DUP
-\		IF CELLL SWAP - THEN + ;    \ slow, very portable
-\
-\                 $COLON  7,'ALIGNED',ALIGNED,_FLINK
-\		  DW      DUPP,Zero,DoLIT,CELLL
-\		  DW      UMSlashMOD,DROP,DUPP
-\		  DW      ZBranch,ALGN1
-\		  DW      DoLIT,CELLL,SWAP,Minus
-\ ALGN1           DW      Plus,EXIT
-
+xF-DEF META-HI [IF]
+: ALIGNED   DUP 0 CELLL UM/MOD DROP DUP
+	IF CELLL SWAP - THEN + ;    \ slow, very portable
+[ELSE]
 		$FCODE ALIGNED
 		3 # tos tos ADD,
 		3 # tos tos BIC,		\ round it up
 		$NEXT
+[THEN]
 
 \ pack" is dependent of cell alignment.
 \
@@ -1854,17 +1828,12 @@ CR .( ***        32-bit Forth for ARM RISC)
 \		cell-aligned address. Fill the rest of the last cell with
 \		null character.
 \
-\   : pack"     2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
-\		1 CHARS - 0 SWAP !              \ fill 0 at the end of string
-\		2DUP C! CHAR+ SWAP              \ c-addr a-addr+1 u
-\		CHARS MOVE R> ; COMPILE-ONLY
-
-\		$COLON  COMPO+5,'pack"',PackQuote,_SLINK
-\		DW      TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
-\		DW      DoLIT,CHARR,Minus,Zero,SWAP,Store
-\		DW      TwoDUP,CStore,CHARPlus,SWAP
-\		DW      CHARS,MOVE,RFrom,EXIT
-
+xS-DEF META-HI [IF]
+: pack" 2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
+	1 CHARS - 0 SWAP !              \ fill 0 at the end of string
+	2DUP C! CHAR+ SWAP              \ c-addr a-addr+1 u
+	CHARS MOVE R> ; COMPILE-ONLY
+[ELSE]
 		$SCODE pack"
 		\ assume strings don't overlap
 		R0 popD,			\ u
@@ -1884,31 +1853,28 @@ CR .( ***        32-bit Forth for ARM RISC)
 		02 L# NE B,
 \ drop through if no bytes to fill or at end
 		$NEXT $COMPO
+[THEN]
 
 \   CELLS	( n1 -- n2 )			\ CORE
 \		Calculate number of address units for n1 cells.
-\
-\   : CELLS     CELLL * ;   \ slow, very portable
-\   : CELLS     2* ;            \ fast, must be redefined for each system
 
-\		$COLON  5,'CELLS',CELLS,_FLINK
-\		DW      TwoStar,TwoStar,EXIT    \ multiply by 4 for ARM
-
+xF-DEF META-HI [IF]
+: CELLS     CELLL * ;   \ slow, very portable
+[ELSE]
 		$FCODE CELLS
 		2 # LSL tos tos MOV,		\ multiply by 4
 		$NEXT
+[THEN]
 
 \   CHARS	( n1 -- n2 )			\ CORE
 \		Calculate number of address units for n1 characters.
-\
-\   : CHARS     char-size * ;   \ slow, very portable
-\   : CHARS     ;               \ fast, must be redefined for each system
 
-\		$COLON  5,'CHARS',CHARS,_FLINK
-\		DW      EXIT
-
-		$FCODE CHARS
+xF-DEF META-HI [IF]
+: CHARS CHARR * ;   \ slow, very portable
+[ELSE]
+		$FCODE CHARS	\ no-op for ARM
 		$NEXT
+[THEN]
 
 \   !		( x a-addr -- )			\ CORE
 \		Store x at a aligned address.
@@ -2426,20 +2392,15 @@ PARDD1          DW      LessNumberSign,NumberSignS,ROT
 
 \   .ok         ( -- )
 \		Display 'ok'.
-\
-
-: .ok       ." ok" ;
-
-\		$COLON  3,'.ok',DotOK,_SLINK
-\		$INSTR  'ok'
-\		DW      TYPEE,EXIT
+xS-DEF
+: .ok       S" ok" TYPE ;
 
 [THEN]
 
 \   .prompt	( -- )
 \		Display Forth prompt. This word is vectored.
 META-HI [IF]
-   : .prompt   'prompt EXECUTE ;
+  : .prompt	'prompt EXECUTE ;
 [ELSE]
 		$SCODE .prompt
 		AddrTprompt R0 =,
@@ -2461,7 +2422,7 @@ META-HI [IF]
 
 \   1		( -- 1 )
 \		Return one.
-META-HI [IF]
+xS-DEF META-HI [IF]
 		1 $SCONST 1
 [ELSE]
 		$SCODE 1
@@ -2472,7 +2433,7 @@ META-HI [IF]
 
 \   -1		( -- -1 )
 \		Return -1.
-META-HI [IF]
+xS-DEF META-HI [IF]
 		-1 $SCONST -1
 [ELSE]
 		$SCODE -1
@@ -2489,8 +2450,8 @@ META-HI [IF]
 \   bal+        ( -- )
 \		Increase bal by 1.
 \
-META-HI [IF]
-   : bal+      bal 1+ TO bal ;
+xS-DEF META-HI [IF]
+  : bal+	bal 1+ TO bal ;
 [ELSE]
 		$SCODE bal+
 		AddrBal R0 =,
@@ -2503,8 +2464,8 @@ META-HI [IF]
 \   bal-	( -- )
 \		Decrease bal by 1.
 \
-META-HI [IF]
-   : bal-	bal 1- TO bal ;
+xS-DEF META-HI [IF]
+  : bal-	bal 1- TO bal ;
 [ELSE]
 		$SCODE bal-
 		AddrBal R0 =,
@@ -2519,8 +2480,8 @@ META-HI [IF]
 \   cell-	( a-addr1 -- a-addr2 )
 \		Return previous aligned cell address.
 \
-META-HI [IF]
-   : cell-	-(cell-size) + ; \ TODO change to CELLL
+xS-DEF META-HI [IF]
+  : cell-	-(cell-size) + ; \ TODO change to CELLL
 [ELSE]
 		$SCODE cell-
 		CELLL # tos tos SUB,
@@ -2531,8 +2492,8 @@ META-HI [IF]
 \   COMPILE-ONLY   ( -- )
 \		Make the most recent definition an compile-only word.
 \
-META-HI [IF]
-   : COMPILE-ONLY   lastName [ =COMP ] LITERAL OVER @ OR SWAP ! ;
+xS-DEF META-HI [IF]
+  : COMPILE-ONLY   lastName [ =COMP ] LITERAL OVER @ OR SWAP ! ;
 [ELSE]
 		$SCODE COMPILE-ONLY
 		AddrNPVar R0 =,
@@ -2565,13 +2526,11 @@ META-HI [IF]
 
 \   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
 \		Run-time funtion of DO.
-\
-\ TODO
-\   : doDO	>R max-negative + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
 
-\		$COLON  COMPO+4,'doDO',DoDO,_SLINK
-\		DW      ToR,DoLIT,MaxNegative,Plus,RFrom
-\		DW      OVER,Minus,SWAP,RFrom,SWAP,ToR,SWAP,ToR,ToR,EXIT
+\ TODO
+\ xS-DEF
+\ : doDO >R MaxNegative + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
+
 
 \   errWord	( -- a-addr )
 \		Last found word. To be used to display the word causing error.
@@ -2687,15 +2646,15 @@ SINGLEO1        DW      TwoDROP,RFrom,ZBranch,SINGLEO2
 		DW      NEGATE
 SINGLEO2        DW      EXIT
 
-\   singleOnly,	( c-addr u -- )
+
+xS-DEF
+: singleOnly, ( c-addr u -- )
 \		Handle the word not found in the search-order. Compile a
 \		single cell number in compilation state.
-\
-\   : singleOnly,
-\		singleOnly LITERAL ;
+singleOnly LITERAL ;
 
-		$COLON  11,'singleOnly,',SingleOnlyComma,_SLINK
-		DW      SingleOnly,LITERAL,EXIT
+
+
 
 \   (doubleAlso) ( c-addr u -- x 1 | x x 2 )
 \		If the string is legal, leave a single or double cell number
@@ -2728,16 +2687,19 @@ DOUBLEA4        DW      TwoDROP,RFrom,ZBranch,DOUBLEA6
 		DW      NEGATE
 DOUBLEA6        DW      One,EXIT		 ; result is a single
 
+[THEN]
+
 \   doubleAlso  ( c-addr u -- x | x x )
 \		Handle the word not found in the search-order. If the string
 \		is legal, leave a single or double cell number in
 \		interpretation state.
-\
-\   : doubleAlso
-\		(doubleAlso) DROP ;
 
-		$COLON  10,'doubleAlso',DoubleAlso,_SLINK
-		DW      ParenDoubleAlso,DROP,EXIT
+\ TODO
+\ xS-DEF
+\ : doubleAlso (doubleAlso) DROP ;
+
+
+META-TODO [IF]
 
 \   doubleAlso, ( c-addr u -- )
 \		Handle the word not found in the search-order. If the string
@@ -2752,17 +2714,16 @@ DOUBLEA6        DW      One,EXIT		 ; result is a single
 		DW      SWAP,LITERAL
 DOUBC1          DW      LITERAL,EXIT
 
+[THEN]
+
 \   -.          ( -- )
 \		You don't need this word unless you care that '-.' returns
 \		double cell number 0. Catching illegal number '-.' in this way
 \		is easier than make 'interpret' catch this exception.
-\
-\   : -.        -13 THROW ; IMMEDIATE   \ undefined word
 
-		$COLON  IMMED+2,'-.',MinusDot,_SLINK
-		DW      DoLIT,-13,THROW
+\ xS-DEF
+\ : -.        -13 THROW ; IMMEDIATE   \ undefined word
 
-[THEN]
 
 \   lastName	( -- c-addr )
 \		Return the address of the last definition name.
@@ -3003,33 +2964,24 @@ META-HI [IF]
 		[ R1 ] R2 STR,
 		$NEXT
 
-
 CR .( *** Words for multitasking)
-
-
-META-TODO [IF]
 
 \   PAUSE       ( -- )
 \		Stop current task and transfer control to the task of which
 \		'status' USER variable is stored in 'follower' USER variable
 \		of current task.
-\
-\   : PAUSE     rp@ sp@ stackTop !  follower @ >R ; COMPILE-ONLY
+xS-DEF
+  : PAUSE	rp@ sp@ stackTop !  follower @ >R ; COMPILE-ONLY
 
-		$COLON  COMPO+5,'PAUSE',PAUSE,_SLINK
-		DW      RPFetch,SPFetch,StackTop,Store,Follower,Fetch,ToR,EXIT
 
 \   wake        ( -- )
 \		Wake current task.
 \
-\   : wake      R> userP !      \ userP points 'follower' of current task
-\		stackTop @ sp!          \ set data stack
-\		rp! ; COMPILE-ONLY      \ set return stack
+xS-DEF
+  : wake	R> userP !      \ userP points 'follower' of current task
+		stackTop @ sp!          \ set data stack
+		rp! ; COMPILE-ONLY      \ set return stack
 
-		$COLON  COMPO+4,'wake',Wake,_SLINK
-		DW      RFrom,UserP,Store,StackTop,Fetch,SPStore,RPStore,EXIT
-
-[THEN]
 
 CR .( *** Essential Standard words - Colon definitions)
 
@@ -3068,19 +3020,17 @@ NUMSS1          DW      NumberSign,TwoDUP,ORR
 		DW      ZeroEquals,ZBranch,NUMSS1
 		DW      EXIT
 
+[THEN] \ meta-todo
+
 \   '           ( "<spaces>name" -- xt )        \ CORE
 \		Parse a name, find it and return xt.
-\
-\   : '         (') DROP ;
+xF-DEF
+  : '		(') DROP ;
 
-		$COLON  1,"'",Tick,_FLINK
-		DW      ParenTick,DROP,EXIT
-
-[THEN] \ meta-todo
 
 \   +           ( n1|u1 n2|u2 -- n3|u3 )        \ CORE
 \		Add top two items and gives the sum.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : +          um+ DROP ;
 [ELSE]
 		$FCODE +
@@ -3091,7 +3041,7 @@ META-HI [IF]
 
 \   +!          ( n|u a-addr -- )		\ CORE
 \		Add n|u to the contents at a-addr.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : +!         SWAP OVER @ + SWAP ! ;
 [ELSE]
 		$FCODE +!
@@ -3105,7 +3055,7 @@ META-HI [IF]
 
 \   ,           ( x -- )		         \ CORE
 \		Reserve one cell in RAM or ROM data space and store x in it.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : ,          HERE ! CELLL hereVar +! ;
 [ELSE]
 		$FCODE ,
@@ -3120,7 +3070,7 @@ META-HI [IF]
 
 \   -           ( n1|u1 n2|u2 -- n3|u3 )        \ CORE
 \		Subtract n2|u2 from n1|u1, giving the difference n3|u3.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : -          NEGATE + ;
 [ELSE]
 		$FCODE -
@@ -3131,7 +3081,7 @@ META-HI [IF]
 
 \   .           ( n -- )		         \ CORE
 \		Display a signed number followed by a space.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : .          S>D D. ;
 [ELSE]
 		$FCODE .
@@ -3143,29 +3093,23 @@ META-HI [IF]
 		$END-CODE			\ tidy up
 [THEN]
 
-META-TODO [IF]
 \   /           ( n1 n2 -- n3 )		  \ CORE
 \		Divide n1 by n2, giving single-cell quotient n3.
-\
-\   : /          /MOD NIP ;
+xF-DEF
+  : /		/MOD NIP ;
 
-		$COLON  1,'/',Slash,_FLINK
-		DW      SlashMOD,NIP,EXIT
 
 \   /MOD        ( n1 n2 -- n3 n4 )              \ CORE
 \		Divide n1 by n2, giving single-cell remainder n3 and
 \		single-cell quotient n4.
 \
-\   : /MOD       >R S>D R> FM/MOD ;
+xF-DEF
+  : /MOD	>R S>D R> FM/MOD ;
 
-		$COLON  4,'/MOD',SlashMOD,_FLINK
-		DW      ToR,SToD,RFrom,FMSlashMOD,EXIT
-
-[THEN]  \ META-TODO
 
 \   /STRING     ( c-addr1 u1 n -- c-addr2 u2 )  \ STRING
 \		Adjust the char string at c-addr1 by n chars.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : /STRING    DUP >R - SWAP R> CHARS + SWAP ;
 [ELSE]
 		$FCODE /STRING
@@ -3179,7 +3123,7 @@ META-HI [IF]
 
 \   1+          ( n1|u1 -- n2|u2 )              \ CORE
 \		Increase top of the stack item by 1.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : 1+         1 + ;
 [ELSE]
 		$FCODE 1+
@@ -3189,7 +3133,7 @@ META-HI [IF]
 
 \   1-		( n1|u1 -- n2|u2 )              \ CORE
 \		Decrease top of the stack item by 1.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : 1-		-1 + ;
 [ELSE]
 		$FCODE 1-
@@ -3200,8 +3144,8 @@ META-HI [IF]
 \   2!		( x1 x2 a-addr -- )		\ CORE
 \		Store the cell pare x1 x2 at a-addr, with x2 at a-addr and
 \		x1 at the next consecutive cell.
-META-HI [IF]
-   : 2!         SWAP OVER ! CELL+ ! ;
+xF-DEF META-HI [IF]
+  : 2!		SWAP OVER ! CELL+ ! ;
 [ELSE]
 		$FCODE 2!
 		R0 popD,
@@ -3215,8 +3159,8 @@ META-HI [IF]
 \   2@		( a-addr -- x1 x2 )		\ CORE
 \		Fetch the cell pair stored at a-addr. x2 is stored at a-addr
 \		and x1 at the next consecutive cell.
-META-HI [IF]
-   : 2@         DUP CELL+ @ SWAP @ ;
+xF-DEF META-HI [IF]
+  : 2@		DUP CELL+ @ SWAP @ ;
 [ELSE]
 		$FCODE 2@
 		4 # [ tos ] R0 LDR,	\ x2
@@ -3228,8 +3172,8 @@ META-HI [IF]
 
 \   2DROP       ( x1 x2 -- )			\ CORE
 \		Drop cell pair x1 x2 from the stack.
-META-HI [IF]
-   : 2DROP      DROP DROP ;
+xF-DEF META-HI [IF]
+  : 2DROP	DROP DROP ;
 [ELSE]
 		$FCODE 2DROP
 		tos popD,			\ TODO could do this in 1 op..
@@ -3239,8 +3183,8 @@ META-HI [IF]
 
 \   2DUP	( x1 x2 -- x1 x2 x1 x2 )	\ CORE
 \		Duplicate cell pair x1 x2.
-META-HI [IF]
-   : 2DUP OVER OVER ;
+xF-DEF META-HI [IF]
+  : 2DUP	OVER OVER ;
 [ELSE]
 		$FCODE 2DUP
 		R0 popD,			\ TODO could save 1 op here..
@@ -3252,8 +3196,8 @@ META-HI [IF]
 
 \   2SWAP       ( x1 x2 x3 x4 -- x3 x4 x1 x2 )  \ CORE
 \		Exchange the top two cell pairs.
-META-HI [IF]
-   : 2SWAP      ROT >R ROT R> ;
+xF-DEF META-HI [IF]
+  : 2SWAP	ROT >R ROT R> ;
 [ELSE]
 		$FCODE 2SWAP
 		R0 popD, 		\ x3
@@ -3266,23 +3210,26 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-META-TODO [IF]
 \   :           ( "<spaces>name" -- colon-sys ) \ CORE
 \		Start a new colon definition using next word as its name.
-\
-\   : :         :NONAME ROT head,  -1 TO notNONAME? ;
+xF-DEF
+  : :		:NONAME ROT head,  -1 TO notNONAME? ;
 
-		$COLON  1,':',COLON,_FLINK
-		DW      ColonNONAME,ROT,HeadComma
-		DW      DoLIT,-1,DoTO,AddrNotNONAMEQ,EXIT
+
+META-TODO [IF]
+
 
 \   :NONAME     ( -- xt colon-sys )             \ CORE EXT
 \		Create an execution token xt, enter compilation state and
 \		start the current definition.
-\
-\   : :NONAME   bal IF -29 THROW THEN           \ compiler nesting
-\		['] doLIST xt, DUP -1
-\		0 TO notNONAME?  1 TO bal  ] ;
+xF-DEF
+  : :NONAME	bal IF -29 THROW THEN           \ compiler nesting
+		['] doLIST xt, DUP -1
+		0 TO notNONAME?  1 TO bal  ] ;
+
+\ TODO - the above compiles OK except it barfes on "]" which it ought to
+\ understand. Perhaps the defn of : above is messing it up?
+\ also, can't expect it to work because the IF isn't ported yet
 
 		$COLON  7,':NONAME',ColonNONAME,_FLINK
 		DW      Bal,ZBranch,NONAME1
@@ -3354,15 +3301,11 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-META-TODO [IF]
 \   >           ( n1 n2 -- flag )		\ CORE
 \		Returns true if n1 is greater than n2.
-\   : >         SWAP < ;
+xF-DEF
+  : >		SWAP < ;
 
-		$COLON  1,'>',GreaterThan,_FLINK
-		DW      SWAP,LessThan,EXIT
-
-[THEN]
 
 \   >IN		( -- a-addr )			\ TODO - s/b labelled CORE
 \		Hold the character pointer while parsing input stream.
@@ -3403,7 +3346,7 @@ TONUM3          DW      EXIT
 
 \   ?DUP        ( x -- x x | 0 )		 \ CORE
 \		Duplicate top of the stack if it is not zero.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : ?DUP       DUP IF DUP THEN ;
 [ELSE]
 		$FCODE ?DUP
@@ -3916,6 +3859,8 @@ PARSE3          DW      NIP,OVER,Minus,DUPP,OneCharsSlash,CHARPlus
 PARSE5          DW      ToIN,PlusStore
 PARSE4          DW      RFrom,DROP,EXIT
 
+\ TODO - 58 should be expressed as 'numthrowmsgs' and need to be in DECIMAL
+\ to just express it as a raw number
 \   QUIT        ( -- ) ( R: i*x -- )            \ CORE
 \		Empty the return stack, store zero in SOURCE-ID, make the user
 \		input device the input source, and start text interpreter.
@@ -4524,7 +4469,7 @@ FIND1           DW      TwoDROP,Zero,EXIT
 
 \   IMMEDIATE   ( -- )				\ CORE
 \		Make the most recent definition an immediate word.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : IMMEDIATE  lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
 [ELSE]
 		$FCODE IMMEDIATE
@@ -4540,7 +4485,7 @@ META-HI [IF]
 
 \   J           ( -- n|u ) ( R: loop-sys -- loop-sys )  \ CORE
 \		Push the index of next outer loop.
-META-HI [IF]
+xF-DEF META-HI [IF]
    : J          rp@ [ 3 CELLS ] LITERAL + @
 		rp@ [ 4 CELLS ] LITERAL + @  +  ; COMPILE-ONLY
 [ELSE]
@@ -5021,16 +4966,21 @@ VTOP            EQU     _VAR-0          ;next available memory in variable area
 [THEN]
 
 CR CR .( Start definition of test words )
-ALSO its-words
+
 : tester ALIGN ALIGN + - + * ;
 : jim tester ;
 \ expect this to be found
-: test1 S" ALIGN" mFORTH-WORDLIST mSEARCH-WORDLIST .S ;
+\ TODO immediate version of S" must parse
+\ : test1 S" ALIGN" mFORTH-WORDLIST mSEARCH-WORDLIST .S ;
 \ expect this to NOT be found
-: test2 S" ALIGN" NONSTANDARD-WORDLIST mSEARCH-WORDLIST .S ;
+\ : test2 S" ALIGN" NONSTANDARD-WORDLIST mSEARCH-WORDLIST .S ;
 \ expect this to be found - search all in search list
-: test3 S" ALIGN" search-word .S ;
-PREVIOUS
+\ : test3 S" ALIGN" search-word .S ;
 
 \ t: neal ." Hello" t;
 \ t: forb neal t;
+
+: freddy IF THEN ;
+: freddy1 IF SWAP ALIGN THEN ;
+\ : frederic IF ELSE THEN ;
+\ : fred 	(doubleAlso) 1- IF SWAP LITERAL THEN LITERAL ;
