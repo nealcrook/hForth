@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.10  1998/09/02 20:40:53  crook
+\ fix init code.
+\
 \ Revision 1.9  1998/09/01 22:26:19  crook
 \ fix all assembler references to variables and the udebug routines
 \
@@ -55,10 +58,6 @@
 \ the target defn - non-portable at the moment (Actually, this applies
 \ to *all* stuff within [ ] ). Should change the search list so that, by
 \ default, no words are available
-
-
-\ TODO --- need to go through and make sure the wordlists are right to
-\ put each definition in the right place.
 
 
 \ ** BUGs in my source
@@ -222,10 +221,10 @@ HEX 0EB000000	hCONSTANT CALLL
 \ RAM0 MMU0 RAMEnd ROM0 ROMEnd must be defined by this point, to define the
 \ memory map of the target image; currently they are defined in hmeta.fth
 
-ROM0		hCONSTANT COLDD \ cold start vector
-RAMEnd		hCONSTANT RPP \ start of return stack (RP0)
-RPP RTCells CELLL * - hCONSTANT SPP \ start of data stack (SP0)
-SPP DTCells CELLL * - hCONSTANT RAMT0 \ top of free RAM area
+ROM0			hCONSTANT COLDD \ cold start vector
+RAMEnd			hCONSTANT RPP   \ start of return stack (RP0)
+RPP RTCells CELLL * - 	hCONSTANT SPP   \ start of data stack (SP0)
+SPP DTCells CELLL * - 	hCONSTANT RAMT0 \ top of free RAM area
 
 \ *******************************************************************
 \
@@ -317,13 +316,13 @@ SuperIObase 2F8 2 LSHIFT + hCONSTANT COM2Port
 \ Addresses are in target space.
 \ The LINK addresses have to be variables rather than values since
 \ accesses are vectored.
-0	VALUE _THROW \ current throw string
-RAM0	VALUE _VAR   \ initial data space pointer
-ROM0	VALUE _CODE  \ initial code space pointer
-ROMEnd	VALUE     _NAME  \ initial name space pointer.. decrement before use
-VARIABLE _SLINK 0 _SLINK ! \ force a null link
-VARIABLE _FLINK 0 _FLINK ! \ force a null link
-VARIABLE _ENVLINK 0 _ENVLINK ! \ force a null link
+0	VALUE	 _THROW \ current throw string
+RAM0	VALUE	 _VAR   \ initial data space pointer
+ROM0	VALUE	 _CODE  \ initial code space pointer
+ROMEnd	VALUE	 _NAME  \ initial name space pointer.. decrement before use
+	VARIABLE _SLINK		0 _SLINK ! \ force a null link
+	VARIABLE _FLINK		0 _FLINK ! \ force a null link
+	VARIABLE _ENVLINK	0 _ENVLINK ! \ force a null link
 
 \ Code generation - emit n at the target PC and increment the target PC
 \ TODO change _CODE to use cpVar and xhere like hForth source
@@ -460,11 +459,13 @@ MICRO-DEBUG [IF]
 	CELLL # [ fpc ] PC LDR, ;
 [THEN]
 
-PREVIOUS \ take ASSEMBLER off search order
+\ TODO these are forward definitions of XTs for the $VAR $CONST $VALUE $USER
+\ definitions.. 
+4000059C hCONSTANT doVALUE
+40000590 hCONSTANT doCONST
+400005D4 hCONSTANT doUSER
 
 
-
-ALSO ASSEMBLER \ make BL, available
 \ $xVALUE string <label> - compile a system/Forth VALUE header
 : $SVALUE
 	_SLINK $CODE PREVIOUS
@@ -550,25 +551,6 @@ PREVIOUS \ take ASSEMBLER off search order
 	2DUP UZERO + t! UZERO0 + t!
 ;
 
-CR .( *** Make : invoke t: and ; invoke t; )
-\ compilation wordlist is FORTH
-
-ALSO it-words \ find these in it-words and put them into FORTH
-: h: : ;
-: h; hPOSTPONE ; ; hIMMEDIATE
-: : t: ;
-
-ALSO it-words DEFINITIONS \ put this into it-words
-h: ; nit-; h; hIMMEDIATE
-
-PREVIOUS PREVIOUS DEFINITIONS \ compilation wordlist back to FORTH
-
-\ doesn't really matter what the compilation wordlist is at this point
-\ As long as these words are the the search order:
-\ : IMMEDIATE COMPILE-ONLY ]  
-\ the target definitions can (and do) change the compilation and search
-\ wordlists as they see fit.
-
 
 CR .( *** Executable image entry point)
 
@@ -599,7 +581,7 @@ TAR_EBSA110 MM_BOOT AND [IF]
 \ at 8000.00XX
 
 		03 L# R0 =,
-		0000FFFF # R1 =,
+		0000FFFF R1 =,
 		R1 R0 R0 AND,		\ get the low-order part
 
 		80000000 # R0 R0 ORR,	\ high-order alias
@@ -621,13 +603,14 @@ TAR_EBSA110 MM_BOOT AND [IF]
 \ now we're going to jump to the RAM copy..
 
 		05 L# R0 =,
-		0000FFFF # R1 =,
+		0000FFFF R1 =,
 		R1 R0 R0 AND,		\ get the low-order part
 
 		40000000 # R0 R0 ORR,	\ point to RAM copy
 		R0 PC MOV,		\ jump to RAM copy 
 05 L.
 [THEN]
+
 
 TAR_EBSA110 [IF]
 	\ turn off the DEBUG LED to prove we got here.
@@ -649,7 +632,7 @@ TAR_EBSA285 [IF]
 		SPP dsp =,		\ init data stack pointer
 
 \ TODO this is a forward defn.
-\		GetVarAdr trapfpc R0 =,
+\		GetVaxAdr trapfpc R0 =,
 		0 # R1 MOV,
 		[ R0 ] R1 STR,		\ turn off udebug
 
@@ -1068,7 +1051,7 @@ S-DEF
 		$SCODE doUSER
 		tos pushD,
 		[ R14 ] tos LDR,
-		GetVarAdr userP R0 =,
+		GetVaxAdr userP R0 =,
 		[ R0 ] R1 LDR,
 		R1 TOS TOS ADD,
 		$NEXT COMPILE-ONLY
@@ -1181,6 +1164,7 @@ S-DEF
 		0 # tos tos ADC,		\ get carry flag
 		R1 pushD,			\ store sum
 		$NEXT
+
 
 CR .( *** Standard words - Processor-dependent definitions)
 CR .( ***        32-bit Forth for ARM RISC)
@@ -1372,6 +1356,34 @@ F-DEF
 		R1 tos tos EOR,
 		$NEXT
 
+\ TODO *could* put the immediate defn further forward now, except
+\ that I am about to redefine : so that it is not available
+\ for those defns.. could change : to h: in hmeta_imm but that's messy..
+include hmeta_imm.fth
+CR .( *** Make : invoke t: and ; invoke t; )
+\ compilation wordlist is FORTH
+
+ALSO it-words \ find these in it-words and put them into FORTH
+: h: : ;
+: h; hPOSTPONE ; ; hIMMEDIATE
+: : t: ;
+
+ALSO it-words DEFINITIONS \ put this into it-words
+h: ; nit-; h; hIMMEDIATE
+
+PREVIOUS PREVIOUS DEFINITIONS \ compilation wordlist back to FORTH
+
+CR .( Check search order -> ) ORDER
+CR .( *** Ready for colon defns..)
+
+
+\ doesn't really matter what the compilation wordlist is at this point
+\ As long as these words are the the search order:
+\ : IMMEDIATE COMPILE-ONLY ]  
+\ the target definitions can (and do) change the compilation and search
+\ wordlists as they see fit.
+
+
 \   +           ( n1|u1 n2|u2 -- n3|u3 )        \ CORE
 \		Add top two items and gives the sum.
 \
@@ -1384,7 +1396,6 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
-
 F-DEF
 
 \   EMIT        ( x -- )				\ CORE
@@ -1394,7 +1405,7 @@ META-HI [IF]
 : EMIT		'emit EXECUTE ;
 [ELSE]
 		$FCODE EMIT
-01 G.		GetValAdr 'emit R0 =,
+01 G.		GetVaxAdr 'emit R0 =,
 		[ R0 ] R1 LDR,
 		R1 PC MOV,
 		$END-CODE
@@ -1420,7 +1431,7 @@ CR .( *** System dependent words -- Must be re-defined for each system.)
 \ transmission and reception and setting the baudrate according to IOBYTES
 
 \ TODO this is only coded for SuperIO uarts, and it isn't exactly *efficient*!
-		GetValAdr IOBYTES R0 =,
+		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
 		0FF # R1 R2 ANDS,
 		1 # R2 CMP,
@@ -1538,7 +1549,7 @@ META-HI [IF]
 
 		$SCODE RX?
 		tos pushD,			\ make room for flag
-		GetValAdr IOBYTES R0 =,
+		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
 		0FF # R1 R1 ANDS,
 		1 # R1 CMP,
@@ -1556,7 +1567,7 @@ META-HI [IF]
 
 		$SCODE RX@
 		tos pushD,			\ make room
-		GetValAdr IOBYTES R0 =,
+		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
 		0FF # R1 R1 ANDS,
 		1 # R1 CMP,
@@ -1585,7 +1596,7 @@ META-HI [IF]
 
 		$SCODE TX?
 		tos pushD,			\ make room
-		GetValAdr IOBYTES R0 =,
+		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
 		0FF # R1 R1 ANDS,
 		1 # R1 CMP,
@@ -1602,7 +1613,7 @@ META-HI [IF]
 \		device is ready because TX? is NOT called first
 
 		$SCODE TX!
-		GetValAdr IOBYTES R0 =,
+		GetVaxAdr IOBYTES R0 =,
 		[ R0 ] R1 LDR,
 		0FF # R1 R1 ANDS,
 		1 # R1 CMP,
@@ -1627,7 +1638,6 @@ META-HI [IF]
 S-DEF
 
 CR .( *** MS-DOS only words -- not necessary for other systems.)
-
 
 CR .( *** Non-Standard words - Processor-dependent definitions)
 CR .( ***        32-bit Forth for ARM RISC)
@@ -1683,7 +1693,7 @@ ALSO ASSEMBLER
 \ note that the udebug trap cannot be in the table of initialised variables
 \ because we want to use the debugger *before* that table is initialised.
 00 G. \ udebug
-		GetVarAdr trapfpc R0 =,
+		GetVaxAdr trapfpc R0 =,
 		[ R0 ] R1 LDR,
 		fpc R1 CMP,		\ compare the stored address with
 					\ the address we're about to get the
@@ -1911,6 +1921,8 @@ META-HI [IF]
 		$NEXT
 [THEN]
 
+\ QUIT
+
 \   INVERT      ( x1 -- x2 )		     \ CORE
 \		Return one's complement of x1.
 \
@@ -1951,7 +1963,7 @@ META-HI [IF]
 \		Return true if top two are equal.
 \
 META-HI [IF]
-: =		XOR 0= ;
+: =		AND 0= ;
 [ELSE]
 		$FCODE =
 		R0 popD,
@@ -1985,7 +1997,7 @@ META-HI [IF]
 [ELSE]
 		$SCODE rp0
 		tos pushD,
-		GetVarAdr userP R0 =,
+		GetVaxAdr userP R0 =,
 		[ R0 ] R1 LDR,
 		CELLL 2 * # R1 R1 ADD,
 		[ R1 ] tos LDR,
@@ -2000,7 +2012,7 @@ META-HI [IF]
 [ELSE]
 		$SCODE sp0
 		tos pushD,
-		GetVarAdr userP R0 =,
+		GetVaxAdr userP R0 =,
 		[ R0 ] R1 LDR,
 		CELLL # R1 R1 ADD,
 		[ R1 ] tos LDR,
@@ -2054,7 +2066,7 @@ META-HI [IF]
 [ELSE]
 		$SCODE lastName
 		tos pushD,
-		GetValAdr npVar R0 =,
+		GetVaxAdr npVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] tos LDR,
 		CELLL 2 * # tos tos ADD,
@@ -2241,6 +2253,8 @@ FFFFEFFF hCONSTANT coffm
 		tos popD,
 		$NEXT
 
+\ TODO the cut-off point should be the first thing that needs to use
+\ an IMMEDIATE within a high-level definition.
 
 CR .( *** Slightly less trivial high-level words )
 
@@ -2491,7 +2505,7 @@ META-HI [IF]
 [ELSE]
 		$SCODE xhere
 		tos pushD,
-		GetValAdr CpVar R0 =,
+		GetVaxAdr CpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] tos LDR,
 		$NEXT
@@ -2504,7 +2518,7 @@ META-HI [IF]
 : TOxhere	cpVar ! ;
 [ELSE]
 		$SCODE TOxhere
-		GetValAdr CpVar R0 =,
+		GetVaxAdr CpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] tos STR,
 		tos popD,
@@ -2518,7 +2532,7 @@ META-HI [IF]
 : code,		xhere DUP CELL+ TOxhere ! ;
 [ELSE]
 		$SCODE code,
-		GetValAdr CpVar R0 =,
+		GetVaxAdr CpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
 		CELLL # [ R2 ] tos STR,
@@ -2679,7 +2693,7 @@ META-HI [IF]
 : .prompt	'prompt EXECUTE ;
 [ELSE]
 		$SCODE .prompt
-		GetValAdr 'prompt R0 =,
+		GetVaxAdr 'prompt R0 =,
 		[ R0 ] R1 LDR,
 		R1 PC MOV,
 		$END-CODE			\ tidy up
@@ -2698,7 +2712,7 @@ META-HI [IF]
 : bal+		bal 1+ TO bal ;
 [ELSE]
 		$SCODE bal+
-		GetValAdr bal R0 =,
+		GetVaxAdr bal R0 =,
 		[ R0 ] R1 LDR,
 		1 # R1 R1 ADD,
 		[ R0 ] R1 STR,
@@ -2713,7 +2727,7 @@ META-HI [IF]
 : bal-		bal 1- TO bal ;
 [ELSE]
 		$SCODE bal-
-		GetVarAdr bal R0 =,
+		GetVaxAdr bal R0 =,
 		[ R0 ] R1 LDR,
 		1 # R1 R1 SUB,
 		[ R0 ] R1 STR,
@@ -2727,7 +2741,7 @@ META-HI [IF]
 : COMPILE-ONLY	lastName [ =COMP ] LITERAL OVER @ OR SWAP ! ;
 [ELSE]
 		$SCODE COMPILE-ONLY
-		GetValAdr npVar R0 =,
+		GetVaxAdr npVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
 		CELLL 2 * # R2 R2 ADD,	\ Lastname
@@ -2744,7 +2758,7 @@ META-HI [IF]
 : IMMEDIATE	lastName [ =IMED ] LITERAL OVER @ OR SWAP ! ;
 [ELSE]
 		$FCODE IMMEDIATE
-		GetValAdr npVar R0 =,
+		GetVaxAdr npVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
 		CELLL 2 * # R2 R2 ADD,		\ Lastname
@@ -2767,7 +2781,7 @@ META-HI [IF]
 : [		0 STATE ! ; COMPILE-ONLY IMMEDIATE
 [ELSE]
 		$FCODE [
-		GetVarAdr STATE R0 =,
+		GetVaxAdr STATE R0 =,
 		0 # R1 MOV,
 		[ R0 ] R1 STR,
 		$NEXT COMPILE-ONLY IMMEDIATE
@@ -2780,7 +2794,7 @@ META-HI [IF]
 : ]		-1 STATE ! ;
 [ELSE]
 		$FCODE ]
-		GetVarAdr STATE R0 =,
+		GetVaxAdr STATE R0 =,
 		1 # R1 MVN,
 		[ R0 ] R1 STR,
 		$NEXT
@@ -3057,11 +3071,11 @@ META-HI [IF]
 : linkLast	lastName GET-CURRENT ! ;
 [ELSE]
 		$SCODE linkLast
-		GetValAdr npVar R0 =,
+		GetVaxAdr npVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,
 		CELLL 2 * # R2 R2 ADD,	\ address of last definition name
-		GetVarAdr Current R0 =,
+		GetVaxAdr Current R0 =,
 		[ R0 ] R1 LDR,		\ wid of compilation wordlist
 		[ R1 ] R2 STR,		\ gets bumped up by new addition
 		$NEXT
@@ -3203,7 +3217,7 @@ META-HI [IF]
 : HOLD		hld @  1 CHARS - DUP hld ! C! ;
 [ELSE]
 		$FCODE HOLD
-		GetVarAdr hld R0 =,
+		GetVaxAdr hld R0 =,
 		[ R0 ] R1 LDR,
 		CHARR # R1 R1 SUB,
 		[ R1 ] tos STRB,
@@ -3244,11 +3258,11 @@ META-HI [IF]
 : <#		xhere [ PADSize ] LITERAL + hld ! ;
 [ELSE]
 		$FCODE <#
-		GetValAdr CpVar R0 =,
+		GetVaxAdr CpVar R0 =,
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,		\ xhere address
 		PADSize CHARR * # R2 R2 ADD,
-		GetVarAdr hld R3 =,
+		GetVaxAdr hld R3 =,
 		[ R3 ] R2 STR,
 		$NEXT
 [THEN]
@@ -3267,7 +3281,7 @@ META-HI [IF]
 [ELSE]
 		$FCODE HERE
 		tos pushD,
-		GetValAdr hereVar R0 =,
+		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] tos LDR,			\ get its value
 		$NEXT
@@ -3280,7 +3294,7 @@ META-HI [IF]
 : ,		HERE ! [ CELLL ] LITERAL hereVar +! ;
 [ELSE]
 		$FCODE ,
-		GetValAdr hereVar R0 =,
+		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		CELLL # [ R2 ] tos STR,
@@ -3316,7 +3330,7 @@ META-HI [IF]
 : ALIGN		hereVar DUP @ ALIGNED SWAP ! ;
 [ELSE]
 		$FCODE ALIGN
-		GetValAdr hereVar R0 =,
+		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		3 # R2 R2 ADD,
@@ -3486,7 +3500,7 @@ META-HI [IF]
 \ TODO test the high-level definition.. think I need @ after IOBYTES
 [ELSE]
 		$FCODE EMITE
-		GetValAdr IOBYTES R0 =,		\ find out whether to emit it
+		GetVaxAdr IOBYTES R0 =,		\ find out whether to emit it
 		[ R0 ] R1 LDR,
 		10000000 # R1 R1 ANDS,
 		01 G# EQ B,			\ yes, do it
@@ -3574,7 +3588,7 @@ META-HI [IF]
 : DECIMAL	H# 0A BASE ! ;
 [ELSE]
 		$FCODE DECIMAL
-		GetVarAdr BASE R0 =,
+		GetVaxAdr BASE R0 =,
 		0A # R1 MOV,
 		[ R0 ] R1 STR,
 		$NEXT
@@ -3844,7 +3858,7 @@ META-HI [IF]
 : ALLOT		hereVar +! ;
 [ELSE]
 		$FCODE ALLOT
-		GetValAdr hereVar R0 =,
+		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		R2 tos R2 ADD,
@@ -3868,7 +3882,7 @@ META-HI [IF]
 : C,		HERE C! [ CHARR ] LITERAL hereVar +! ;
 [ELSE]
 		$FCODE C,
-		GetValAdr ereVar R0 =,
+		GetVaxAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		CHARR # [ R2 ] tos STRB,
@@ -4090,9 +4104,9 @@ META-HI [IF]
 : \		SOURCE >IN ! DROP ; IMMEDIATE
 [ELSE]
 		$FCODE \
-		GetVarAdr sourceVar R0 =,
+		GetVaxAdr sourceVar R0 =,
 		[ R0 ] R1 LDR,
-		GetVarAdr >IN R3 =,
+		GetVaxAdr >IN R3 =,
 		[ R3 ] R1 STR,
 		$NEXT IMMEDIATE
 [THEN]
@@ -4147,9 +4161,9 @@ ALSO its-words \ find XTs for these words in the target wordlist on the host
 ' hi			4 $INIT	\ 'boot
 InitIOBYTES		4 $INIT	\ IOBYTES
 0			4 $INIT	\ SOURCE-ID
-GetVarAdr ROMB		4 $INIT	\ CPVar
-GetVarAdr ROMT		4 $INIT	\ NPVar
-GetVarAdr RAMB		4 $INIT	\ hereVar points RAM space
+GetVaxAdr ROMB		4 $INIT	\ CPVar
+GetVaxAdr ROMT		4 $INIT	\ NPVar
+GetVaxAdr RAMB		4 $INIT	\ hereVar points RAM space
 				\ execution vectors for 'doWord
 ' optiCOMPILE,		4 $INIT	\ nonimmediate word - compilation
 ' EXECUTE		4 $INIT	\ nonimmediate word - interpretation
@@ -4168,12 +4182,12 @@ RAMT0			4 $INIT	\ RAMT
 \ search order stack - number of orders, followed by the stack and space for
 \ a defined number of further entries
 2			4 $INIT	\ #order
-GetVarAdr FORTH-WORDLIST	4 $INIT
-GetVarAdr NONSTANDARD-WORDLIST 4 OrderDepth 2 - CELLL * + $INIT
+GetVaxAdr FORTH-WORDLIST	4 $INIT
+GetVaxAdr NONSTANDARD-WORDLIST 4 OrderDepth 2 - CELLL * + $INIT
 
-GetVarAdr FORTH-WORDLIST 	4 $INIT	\ current pointer
+GetVaxAdr FORTH-WORDLIST 	4 $INIT	\ current pointer
 LASTFORTH		4 $INIT	\ FORTH-WORDLIST
-GetVarAdr NONSTANDARD-WORDLIST 4 $INIT \ wordlist link
+GetVaxAdr NONSTANDARD-WORDLIST 4 $INIT \ wordlist link
 GetNameAdr FORTH-WORDLIST	4 $INIT \ name of the WORDLIST
 LASTSYSTEM		4 $INIT \ NONSTANDARD-WORDLIST
 0			4 $INIT \ wordlist link
