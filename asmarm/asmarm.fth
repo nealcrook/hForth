@@ -4,6 +4,9 @@
 
 \ $Id$
 \ $Log$
+\ Revision 1.2  1998/09/02 20:40:24  crook
+\ fix labels for cross-assembly
+\
 \ Revision 1.1  1998/06/07 22:55:01  crook
 \ Initial revision
 \
@@ -891,7 +894,7 @@ VARIABLE SYM-TABLE
 		\ check this entry..
 		I @ FFFFFFFF = IF
 			\ empty entry so assign n to it
-			I ! ASM. I CELL+ ." newunres:" .S ! UNLOOP EXIT
+			I ! ASM. I CELL+ ( ." newunres:" .S) ! UNLOOP EXIT
 		THEN
 	2 CELLS +LOOP 1D huh ;
 
@@ -1003,8 +1006,8 @@ VARIABLE SYM-TABLE
 		\ (or 0 if this is the first puddle) and update the head
 		\ pointer to point to this new puddle
 		LTORG-HEAD @ ASM,32 LTORG-HEAD !
-		0 ASM,32 \ number of literals used in this pool
-		DUP ASM,32 \ number of literals in this pool
+		0 ASM,32 \ number of literals used in this puddle
+		DUP ASM,32 \ number of literals in this puddle
 		1 DO 0 ASM,32 LOOP \ init each literal to 0
 	ELSE 18 huh THEN ;
 
@@ -1043,9 +1046,11 @@ VARIABLE SYM-TABLE
 		\ is reachable (a conservative approximation)
 		ASM. R@ - 1004 <
 		AND
-	WHILE	\ reachable puddle.. search it
-		R@ SWAP R@ CELL+ ASM@ 3 + CELLS R@ + R> 3 CELLS + DO
-			DUP I ASM@ = IF \ found sharable entry
+	WHILE	\ reachable puddle.. search all used entries in it
+		\ .. need ?DO here as there may be *no* used entries
+		R@ SWAP R@ CELL+ ASM@ 3 + CELLS R@ + R> 3 CELLS + ?DO
+			DUP I ASM@ = IF
+				( ." [Shared literal]" )
 				\ nxt-puddle-ptr literal 
 				DROP DROP I UNLOOP EXIT
 			THEN
@@ -1070,6 +1075,14 @@ VARIABLE SYM-TABLE
 	\ that the literal is within reach so do a sanity test here
 	DUP ABS FFFFF000 AND 0 <> IF 1B huh THEN ;
 
+\ TODO: bug
+\ FF # R1 =, will map to a MOV and will generate a "too many immediates"
+\ error, ?because the =, checks and sets the immediate bit?
+\ FFFF # R1 =, will need a literal pool entry and map to an LDR
+\ but will NOT generate an error. The presence or absence of the #
+\ makes no difference to the code that is produced. The syntax ought to
+\ require the #, I think. In any case, it ought to be consistent.
+
 \ attempt to translate a line of the format: immediate Rn =,
 \ this will map into one of:
 \ MOV Rn,#immediate
@@ -1085,6 +1098,7 @@ VARIABLE SYM-TABLE
 		\ When the forward reference is resolved it will use the
 		\ offset in the LDR to locate and fix-up the literal
 		\ pool value
+." Unres fref"
 		0 NEWLIT ABS2OS \ allocate a literal pool entry (0 for now)
 		this-op DUP @ 80000000 OR SWAP ! \ set IMMEDIATE flag
 		0 oldreg R15 reg LDR, \ see comments below..
