@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.8  1998/09/01 21:41:35  crook
+\ build initilaisation tables correctly.
+\
 \ Revision 1.11  1998/08/25 00:59:13  crook
 \ minor tweak for naming of non-immediate target words
 \
@@ -444,9 +447,9 @@ ALSO ASSEMBLER
 
 MICRO-DEBUG [IF]
 : $NEXT
-	udebug B, $END-CODE ;
+	00 G# B, $END-CODE ; \ udebug
 : $NEXT-EARLY
-	udebug B, ;
+	00 G# B, ; \ udebug
 [ELSE]
 : $NEXT
 	CELLL # [ fpc ] PC LDR,	$END-CODE ;
@@ -572,7 +575,7 @@ CR .( *** Executable image entry point)
 \ initialises the virtual machine and branches to the Forth COLD definition
 
 ALSO ASSEMBLER init-asm
-10 10 10 MK-SYM-TABLE
+10 10 30 MK-SYM-TABLE
 0 LTORG-HEAD ! \ make sure no other puddle exists
 20 LTORG \ create the first puddle in the literal pool
 
@@ -640,7 +643,8 @@ TAR_EBSA285 [IF]
 		RPP rsp =,		\ init return stack pointer
 		SPP dsp =,		\ init data stack pointer
 
-\ TODO		ldr     r0,=AddrTrapfpc
+\ TODO this is a forward defn.
+\		GetVarAdr trapfpc R0 =,
 		0 # R1 MOV,
 		[ R0 ] R1 STR,		\ turn off udebug
 
@@ -1669,13 +1673,11 @@ CR .( ***        32-bit Forth for ARM RISC)
 \ Clearly, you could overcome these limitations by making udebug more
 \ complex -- but then you run the risk of introducing bugs in that code.
 
-META-TODO [IF]
 ALSO ASSEMBLER
-\ TODO -- the udebug trap is NOT at UZERO - it is at AddrTrapFPC
-\ - it cannot be in the table of initialised variables, because we want
-\ to use the debugger *before* that table is initialised.
-\ udebug
-		RAM0 R0 =,		\ where UZERO table will go to
+\ note that the udebug trap cannot be in the table of initialised variables
+\ because we want to use the debugger *before* that table is initialised.
+00 G. \ udebug
+		GetVarAdr trapfpc R0 =,
 		[ R0 ] R1 LDR,
 		fpc R1 CMP,		\ compare the stored address with
 					\ the address we're about to get the
@@ -1685,7 +1687,7 @@ ALSO ASSEMBLER
 		[ R0 ] R1 STR,
 		CELLL # [ fpc ] pc LDR,	\ make debugger TRAP at this address
 PREVIOUS
-[THEN]
+
 
 \   W!		( c a -- )      "w store"
 \		Store word (16-bit) value at word address.
@@ -3195,7 +3197,7 @@ META-HI [IF]
 : HOLD		hld @  1 CHARS - DUP hld ! C! ;
 [ELSE]
 		$FCODE HOLD
-		LocHLD R0 =,
+		GetVarAdr hld R0 =,
 		[ R0 ] R1 LDR,
 		CHARR # R1 R1 SUB,
 		[ R1 ] tos STRB,
@@ -3240,7 +3242,7 @@ META-HI [IF]
 		[ R0 ] R1 LDR,
 		[ R1 ] R2 LDR,		\ xhere address
 		PADSize CHARR * # R2 R2 ADD,
-		LocHLD R3 =,
+		GetVarAdr hld R3 =,
 		[ R3 ] R2 STR,
 		$NEXT
 [THEN]
@@ -3259,7 +3261,7 @@ META-HI [IF]
 [ELSE]
 		$FCODE HERE
 		tos pushD,
-		LocHereVar R0 =,
+		GetValAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] tos LDR,			\ get its value
 		$NEXT
@@ -3272,7 +3274,7 @@ META-HI [IF]
 : ,		HERE ! [ CELLL ] LITERAL hereVar +! ;
 [ELSE]
 		$FCODE ,
-		LocHereVar R0 =,
+		GetValAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		CELLL # [ R2 ] tos STR,
@@ -3307,9 +3309,8 @@ META-HI [IF]
 META-HI [IF]
 : ALIGN		hereVar DUP @ ALIGNED SWAP ! ;
 [ELSE]
-		0 CONSTANT LocHereVar \ TODO real definition
 		$FCODE ALIGN
-		LocHereVar R0 =,
+		GetValAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		3 # R2 R2 ADD,
@@ -3567,7 +3568,7 @@ META-HI [IF]
 : DECIMAL	H# 0A BASE ! ;
 [ELSE]
 		$FCODE DECIMAL
-		LocBASE R0 =,
+		GetVarAdr BASE R0 =,
 		0A # R1 MOV,
 		[ R0 ] R1 STR,
 		$NEXT
@@ -3837,7 +3838,7 @@ META-HI [IF]
 : ALLOT		hereVar +! ;
 [ELSE]
 		$FCODE ALLOT
-		LocHereVar R0 =,
+		GetValAdr hereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		R2 tos R2 ADD,
@@ -3861,7 +3862,7 @@ META-HI [IF]
 : C,		HERE C! [ CHARR ] LITERAL hereVar +! ;
 [ELSE]
 		$FCODE C,
-		LocHereVar R0 =,
+		GetValAdr ereVar R0 =,
 		[ R0 ] R1 LDR,			\ point to ROM or RAM pointer
 		[ R1 ] R2 LDR,			\ get its value
 		CHARR # [ R2 ] tos STRB,
@@ -4083,9 +4084,9 @@ META-HI [IF]
 : \		SOURCE >IN ! DROP ; IMMEDIATE
 [ELSE]
 		$FCODE \
-		LocSourceVar R0 =,
+		GetVarAdr sourceVar R0 =,
 		[ R0 ] R1 LDR,
-		LocToIN R3 =,
+		GetVarAdr >IN R3 =,
 		[ R3 ] R1 STR,
 		$NEXT IMMEDIATE
 [THEN]
@@ -4142,7 +4143,7 @@ InitIOBYTES		4 $INIT	\ IOBYTES
 0			4 $INIT	\ SOURCE-ID
 GetVarAdr ROMB		4 $INIT	\ CPVar
 GetVarAdr ROMT		4 $INIT	\ NPVar
-GetVarAdr RAMB		4 $INIT	\ HereVar points RAM space
+GetVarAdr RAMB		4 $INIT	\ hereVar points RAM space
 				\ execution vectors for 'doWord
 ' optiCOMPILE,		4 $INIT	\ nonimmediate word - compilation
 ' EXECUTE		4 $INIT	\ nonimmediate word - interpretation
