@@ -3,6 +3,9 @@
 # $Id$
 #
 # $Log$
+# Revision 1.3  1997/03/03 09:51:13  crook
+# update for new build options in hfsarom.asm
+#
 # Revision 1.2  1997/03/01 17:04:53  crook
 # show usage of udebug parameter inot makesrc
 #
@@ -75,7 +78,8 @@ if [ $target = all ] || [ $target = ebsaflash ] ; then
   gawk -f modsntx.awk hfsarom.asm
 #  gawk -v udebug=1 dict_pc=1073807360 -f makesrc.awk hfsarom.asms
   gawk -v dict_pc=1073807360 -f makesrc.awk hfsarom.asms
-  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA"' -PD 'MEMMAP SETS "DEMON"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETS "4"'
+#  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA"' -PD 'MEMMAP SETS "DEMON"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
+  armasm -ARCH 4 hfsarom.asmsw -list hf.lst -PD 'TARGET SETS "EBSA"' -PD 'MEMMAP SETS "PBLOADED"' -PD 'DEFIO SETS "COM2"' -PD 'DEFBAUD SETA 4'
   armlink -aif -bin -base 0x400000c0 -entry 0x400000c0 -nodebug -output hfebfl.aif hfsarom.o
 fi
 
