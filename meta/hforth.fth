@@ -1,5 +1,14 @@
+- things to merge in from latest hfsarom
+I added maxstring - wonyon has called it maxcountedstring
+
+-- I think the AddrFRDD I put into the assembler source is unneeded
+now because the awk macros insert an equivalent  label
+
 \ $Id$
 \ $Log$
+\ Revision 1.13  1998/10/01 00:17:24  crook
+\ fixed bug in ACCEPT that stopped backspace from working.
+\
 \ Revision 1.12  1998/09/30 23:55:22  crook
 \ First working binary.
 \
@@ -64,18 +73,6 @@
 \ the target defn - non-portable at the moment (Actually, this applies
 \ to *all* stuff within [ ] ). Should change the search list so that, by
 \ default, no words are available
-
-
-\ ** BUGs in my source
-\ the hi-level source for FILE was wrong.. missing @?
-\ and HAND 
-\ FLOW-ON had typo: # after XON
-\ FLOW-ON and FLOW-OFF needed [ ] LITERAL around XOFF XON characters
-\ set-i/ov hi-level defn had "AddrIOBYTES @" - should simply be IOBYTES
-\ .. also had ' that needed to be ['] (4 instances)
-\ errors in high-level definition of EMITE
-\ CELL- in xt, should be cell-
-\ the address for udebug is wrong - should be AddrTrapfpc
 
 \ ** "Bugs" in Wonyong's source
 \ 2DROP 2DUP had no high-level definition
