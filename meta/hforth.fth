@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.16  1998/10/06 00:27:14  crook
+\ fixed many assembler TODOs.
+\
 \ Revision 1.15  1998/10/03 18:05:09  crook
 \ Updates to head, pack" ACCEPT PARSE REFILL SPACES from Wonyong's
 \ release of 05-Jan-1998
@@ -58,10 +61,6 @@
 \ Revision 1.1  1998/06/07 22:50:31  crook
 \ Initial revision
 \
-
-\ highlight areas that still need work
-0 CONSTANT META-TODO
-
 
 \ TODO --- could change all xts to be BL instructions - then need
 \ to rearrange the return stack and FPC somewhat but can remove the
@@ -302,7 +301,9 @@ ROMEnd	VALUE	 _NAME  \ initial name space pointer.. decrement before use
 \ hidden; replace by facilites of the traget compiler. Specifically, these
 \ words all refer to the target system:
 \ : ; ] COMPILE-ONLY IMMEDIATE 
-LOAD-COLON
+
+DEPTH S" hmeta_colon.fth" INCLUDED CR DEPTH 1- -
+[IF] .( hmeta_colon affected DEPTH) ABORT [THEN] CR .( ..hmeta_colon loaded OK)
 
 CR .( *** Assembly macros)
 
@@ -348,14 +349,14 @@ _NAME CONSTANT AddrTHROWMsgTbl
 	_THROW CELLL + TO _THROW
 	_NAME AddrTHROWMsgTbl _THROW - t! ;
 
-\ TODO add similar variable in ASMARM
+\ TODO add similar variable for code defns in ASMARM
 VARIABLE META-DEPTH
 
 
-\ TODO have a flag that is set by $CODE and cleared by $END-CODE etc.
-\ that way, $CODE can tell whether the previous defn was terminated
-\ correctly, to avoid those nasty wordlist errors that occur due to this
-\ mistake.
+\ TODO as well as META-DEPTH, should have a flag that is set by $CODE and
+\ cleared by $END-CODE etc. that way, $CODE can tell whether the previous defn
+\ was terminated correctly, to avoid those nasty wordlist errors that occur
+\ due to this mistake.
 
 \ General-purpose routine for producing a dictionary entry. n is the address
 \ of the variable used as the link address.
@@ -409,19 +410,13 @@ MICRO-DEBUG [IF]
 	CELLL # [ fpc ] PC LDR, ;
 [THEN]
 
-\ TODO these are forward definitions of XTs for the $VAR $CONST $VALUE $USER
-\ definitions..
-4000059C hCONSTANT doVALUE
-40000590 hCONSTANT doCONST
-400005D4 hCONSTANT doUSER
-
-
 
 \ $xVALUE string <label> - compile a system/Forth VALUE header
 : $SVALUE
 	_SLINK $CODE PREVIOUS
 	doVALUE BL, \ source and dest are target space addresses.
 	_VAR meta-asm,32 \ TODO -- meta-asm,32 is really target COMPILE,
+\ TODO use meta-asm, or ASM,32 ??
 	_VAR CELLL + TO _VAR ;
 
 : $FVALUE
@@ -516,9 +511,6 @@ init-asm
 0 LTORG-HEAD ! \ make sure no other puddle exists
 
 		00 L# B, \ branch past literal pool
-\ TODO this literal pool is reported as having 64 entries
-\ ..if I make it half the size the compilation falls over with a
-\ seeminlgy non-literal-pool-related error
 		20 LTORG \ create the first puddle in the literal pool
 00 L.
 
@@ -606,11 +598,9 @@ CR .( *** Build THROW messages at top of name space)
 \ Before the text of the messages is defined, reserve room for a table of
 \ vectors to the messages
 
-\ TODO - had to put in the -3 to match the prebuilt image, but don't see
-\ how it got there.. could be a bug in the awk scripts.
-\ check in asm source and fix there and here if possible.
-_NAME NumTHROWMsgs CELLL * - 3 - TO _NAME
+_NAME NumTHROWMsgs CELLL * - TO _NAME
 
+\ TODO-GFORTH these fall over with gforth stack underflow
 $ENVSTR" StrongARM" CPUStr \ TODO -- should be ARM4T or somesuch
 $ENVSTR" ROM Model" ModelStr
 $ENVSTR" 0.9.9" VersionStr
@@ -691,10 +681,11 @@ _CODE hCONSTANT ULAST
 _CODE TO UZERO0
 _CODE INIT_SIZE + TO _CODE
 
-
 CR .( *** System constants and variables)
 S-DEF
 
+\ TODO-GFORTH -- doesn't see ( as a comment in this context -- looks like a string parsing problem
+\ and that could also be what't wrong with $ENVSTR above.
 RAM0 $SCONST var0	( -- a-addr )
 \		Start of system variable area.
 
@@ -877,7 +868,7 @@ SysUser1 SysUserP - $SUSER user1
 
 \ NOTE: the following variables do NOT get initialised from the table
 
-\   THROWMsgTbl ( -- a-addr )			\ CORE - TODO - is it really?
+\   THROWMsgTbl ( -- a-addr )
 \		Return the address of the THROW message table.
 \
 AddrTHROWMsgTbl $SCONST THROWMsgTbl
@@ -1310,9 +1301,8 @@ F-DEF
 		R1 tos tos EOR,
 		$NEXT
 
-
-CR .( *** Loading immediate words that run on the host..)
-include hmeta_imm.fth
+DEPTH S" hmeta_imm.fth" INCLUDED CR DEPTH 1- -
+[IF] .( hmeta_imm affected DEPTH) ABORT [THEN] CR .( ..hmeta_imm loaded OK)
 
 CR .( *** Make : invoke t: and ; invoke t; )
 \ compilation wordlist is FORTH
@@ -1357,7 +1347,6 @@ CR .( *** System-dependent I/O -- Must be re-defined for each system.)
 		1 # R2 CMP,
 		COM1Port R4 EQ =,
 		COM2Port R4 NE =,
-		0FF # R1 R2 ANDS,	\ TODO - don't need this instruction
 		0FF # R2 CMP,
 		00 L# EQ B,		\ DEMON SWI in use so don't touch the
 					\ UART
@@ -1820,9 +1809,7 @@ META-HI [IF]
 [ELSE]
 		$SCODE -1
 		tos pushD,
-		1 # tos MVN, \ TODO make assembler accept -1 & gen MVN
-\ TODO or see whether 	-1 tos =, works -- which might be the nicer way
-\ of doing it.
+		-1 tos =,
 		$NEXT
 [THEN]
 
@@ -2002,7 +1989,8 @@ META-HI [IF]
 : 2DROP		DROP DROP ;
 [ELSE]
 		$FCODE 2DROP
-		tos popD,			\ TODO could do this in 1 op..
+\ faster than the obvious "tos popD, tos popD," -- it saves one data access
+		dsp CELLL # dsp ADD,	\ bump up the stack pointer 
 		tos popD,
 		$NEXT
 [THEN]
@@ -2014,8 +2002,7 @@ META-HI [IF]
 : 2DUP		OVER OVER ;
 [ELSE]
 		$FCODE 2DUP
-		R0 popD,			\ TODO could save 1 op here..
-		R0 pushD,
+		[ dsp ] R0 LDR,	\ copy x1 without popping stack
 		tos pushD,
 		R0 pushD,
 		$NEXT
@@ -2200,8 +2187,7 @@ META-HI [IF]
 		\ The code version doesn't save fpc on return stack so
 		\ it doesn't have to do the same save/restore as the
 		\ colon version
-		R0 popR,
-		R0 popR,	\ TODO could just bump it up.. save time
+		rsp CELLL 2 * # rsp ADD, \ 2DROP from return stack
 		$NEXT COMPILE-ONLY
 [THEN]
 
@@ -2379,10 +2365,10 @@ META-HI [IF]
 : ABORT		-1 THROW ;
 [ELSE]
 		$FCODE ABORT
-		tos pushD,	\ TODO gonna trash the stack so no need..
-		1 # tos MVN,
+		-1 tos =,	\ overwrite the top stack item - going to reset
+				\ the data stack, so who cares..
 		' THROW B,
-		$END-CODE			\ tidy up
+		$END-CODE	\ tidy up
 [THEN]
 
 \ same?		( c-addr1 c-addr2 u -- -1|0|1 )
@@ -2585,12 +2571,6 @@ ENV-DEF
 : EXCEPTION-EXT [ TRUEE ] LITERAL ;
 : WORDLISTS [ OrderDepth ] LITERAL ;
 
-\ TODO the error was rather nasty/unhelpful when this puddle wasn't present
-
-		ALSO ASSEMBLER
-		20 LTORG \ create the 2nd puddle in the literal pool
-		PREVIOUS
-
 CR .( *** Non-Standard words - Colon definitions)
 S-DEF
 
@@ -2713,6 +2693,14 @@ META-HI [IF]
 \
 $SVAR abort"msg _VAR CELLL + TO _VAR
 
+\ TODO the error was rather nasty/unhelpful when this puddle wasn't present
+\ it was "fatal internal error"
+\ due to the TODO highlighted in line 1074 of asmarm.fth
+\ baically, it means that the current literal pool is unreachable 
+
+		ALSO ASSEMBLER
+		10 LTORG \ create the 2nd puddle in the literal pool
+		PREVIOUS
 
 \   bal+        ( -- )
 \		Increase bal by 1.
@@ -2804,7 +2792,7 @@ META-HI [IF]
 [ELSE]
 		$FCODE ]
 		GetVaxAdr STATE R0 =,
-		1 # R1 MVN,
+		-1 R1 =,
 		[ R0 ] R1 STR,
 		$NEXT
 [THEN]
@@ -3070,11 +3058,6 @@ META-HI [IF]
 
 \   linkLast	( -- )
 \		Link the word being defined to the current wordlist.
-\		Do nothing if the last definition is made by :NONAME .
-\
-\ TODO: that comment about doing nothing.. is is really true? Looks like
-\ the caller already checks, and only calls linklast if the defn is not
-\ made with :NONAME.
 \
 META-HI [IF]
 : linkLast	lastName GET-CURRENT ! ;
@@ -3218,12 +3201,6 @@ S-DEF
 
 CR .( *** Essential Standard words - Colon definitions)
 F-DEF
-
-		ALSO ASSEMBLER
-		10 LTORG \ create the 3rd puddle in the literal pool
-		PREVIOUS
-
-
 
 \   HOLD	( char -- )			\ CORE
 \		Add char to the beginning of pictured numeric output string.
@@ -3447,10 +3424,14 @@ META-HI [IF]
 : ;
   bal 1- IF D# -22 THROW THEN        \ control structure mismatch
   NIP 1+ IF D# -22 THROW THEN        \ colon-sys type is -1
-  notNONAME? IF   \ if the last definition is not created by ':'
+  notNONAME? IF   \ if the last definition is created by ':'
     linkLast 0 TO notNONAME?     \ link the word to wordlist
   THEN  POSTPONE EXIT     \ add EXIT at the end of the definition
   0 TO bal POSTPONE [ ; COMPILE-ONLY IMMEDIATE
+
+		ALSO ASSEMBLER
+		8 LTORG \ create the 3rd puddle in the literal pool
+		PREVIOUS
 
 S-DEF
 : FILE		( -- )
@@ -3682,8 +3663,6 @@ S-DEF
 		." Please send comment, bug report and suggestions to:" CR
 		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR ;
 
-\ TODO - 58 should be expressed as 'numthrowmsgs' and need to be in DECIMAL
-\ to just express it as a raw number
 \   QUIT        ( -- ) ( R: i*x -- )            \ CORE
 \		Empty the return stack, store zero in SOURCE-ID, make the user
 \		input device the input source, and start text interpreter.
@@ -3699,7 +3678,7 @@ S-DEF
       DUP D# -2 = IF SPACE abort"msg 2@ TYPE ELSE   \ ABORT"
 	SPACE errWord 2@ TYPE
 	SPACE [CHAR] ? EMIT SPACE
-	DUP D# -1 D# -58 WITHIN
+	DUP D# -1 [ 0 NumTHROWMsgs - ] LITERAL WITHIN
         IF ." Exception # " . ELSE \ undefined exception
 	  CELLS THROWMsgTbl + @ COUNT TYPE
         THEN
@@ -3739,10 +3718,6 @@ ALSO ASSEMBLER 02 G. PREVIOUS
   sp0 sp! rp0 rp!		\ initialize stack
   'init-i/o EXECUTE 'boot EXECUTE
   INIT-BUS QUIT ;		\ start interpretation
-
-		ALSO ASSEMBLER
-		40 LTORG \ create the 4th puddle in the literal pool
-		PREVIOUS
 
 CR .( *** Rest of CORE words and two facility words, EKEY? and EMIT?)
 F-DEF
