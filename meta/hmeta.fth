@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.3  1998/08/18 00:00:02  crook
+\ much closer to finishing
+\
 \ Revision 1.2  1998/06/14 18:31:33  crook
 \ minor tweaks
 \
@@ -232,5 +235,5 @@ PREVIOUS
 CR .( Name pointer is 0x) _NAME U.
 CR .( Space is 0x) _NAME _CODE - U.
 ALSO its-words TUNRESOLVED @ PREVIOUS
-CR .( Unresolved high-level forward references ) U.
+CR .( Unresolved high-level forward references 0x) U.
 
