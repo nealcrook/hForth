@@ -16,6 +16,10 @@
 # $Id$
 #
 # $Log$
+# Revision 1.6  1997/03/01 18:43:13  crook
+# change THROWMSG expansion so it doesn't require a label in the source --
+# brings it in line with Wonyong's latest.
+#
 # Revision 1.5  1997/03/01 17:05:27  crook
 # merge Carey's changes for building in DOS environment and make it
 # easier to invoke udebug routine (can now do it from the build file)
@@ -283,8 +287,9 @@ function do_envir_header() {
     #print("$VALUE expansion")
     do_code_header(4)
     print("\t\tbl\tDoVALUE") > codefile
-    #print("$VALUE:",$0) > codefile
+    #print("$VALUE:",$0)
     print("\t\tDCD _VAR") > codefile
+    print("Loc" param[3] "\tEQU _VAR") > codefile
     print("_VAR\t\tSETA _VAR + CELLL") > codefile
   }
   else
@@ -294,6 +299,7 @@ function do_envir_header() {
     print("\t\tbl\tDoCONST") > codefile
     #print("$VAR:",$0) > codefile
     print("\t\tDCD _VAR") > codefile
+    print("Loc" param[3] "\tEQU _VAR") > codefile
     print("_VAR SETA _VAR + CELLL") > codefile
   }
   else
