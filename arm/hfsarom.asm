@@ -5,6 +5,9 @@
 ;; $Id$
 ;;
 ;; $Log$
+;; Revision 1.1  1997/01/13 09:44:59  crook
+;; Initial revision
+;;
 
 ;===============================================================
 ;
@@ -1085,7 +1088,7 @@ PutByteLoop	LDR     r1, [r3, #SR]		;get the status register
 
                 $COLON  2,'hi',HI,_SLINK
                 DW      CR
-;;;NAC gets here OK
+;;;NAC gets here OK but goes wrong returning from DoSQuote
                 D$      DoSQuote,'systemID'
 ;;;NAC at this point dstack should hold (address length) for string
                 DW      ENVIRONMENTQuery,DROP,TYPEE,SPACE,DoLIT,'v',EMIT
@@ -2227,6 +2230,10 @@ _VAR		SETA _VAR +CELLL
                 $COLON  COMPO+4,'do."',DoDotQuote,_SLINK
                 DW      RFrom,COUNT,TwoDUP,TYPEE,Plus,ALIGNED,ToR,EXIT
 
+
+;;;NAC:	goes wrong in this routine.. when it comes to EXIT, the value on the
+;;;NAC:	return stack is wrong; one celll too small. HAven't worked out which
+;;;NAC: of the words here is going wrong.
 ;NAC documentation bug: stack-action is actually ( -- c-addr u)
 ;   doS"        ( -- c-addr )
 ;               Run-time function of S" .
