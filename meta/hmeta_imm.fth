@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.3  1998/11/25 21:48:57  crook
+\ check-point before starting on STC modifications.
+\
 \ Revision 1.2  1998/09/30 23:57:15  crook
 \ first working binary.
 \
@@ -259,38 +262,41 @@ PREVIOUS \ back to standard
 
 
 \ immediate words for the target definitions - go into a special wordlist.
+\ all target definitions are actually build whilst the host is in
+\ interpret state, so there is no need to actually flag any of these
+\ words as immediate; they will never compile into target definitions.
 ALSO it-words DEFINITIONS PREVIOUS
 ALSO its-words
 
-: -. nit--. ; hIMMEDIATE
-: [ nit-[ ; hIMMEDIATE hCOMPILE-ONLY
-\ : ; nit-; ; hCOMPILE-ONLY hIMMEDIATE \ may not want this yet
-: BEGIN nit-BEGIN ; hCOMPILE-ONLY hIMMEDIATE
-: DO nit-DO ; hCOMPILE-ONLY hIMMEDIATE
-: LOOP nit-LOOP ; hCOMPILE-ONLY hIMMEDIATE
-: +LOOP nit-+LOOP ; hCOMPILE-ONLY hIMMEDIATE
-: UNTIL nit-UNTIL ; hCOMPILE-ONLY hIMMEDIATE
-: DOES> nit-DOES> ; hCOMPILE-ONLY hIMMEDIATE
-: LEAVE nit-LEAVE ; hCOMPILE-ONLY hIMMEDIATE
-: RECURSE nit-RECURSE ; hCOMPILE-ONLY hIMMEDIATE
-: IF nit-IF ; hCOMPILE-ONLY hIMMEDIATE
-: THEN nit-THEN ; hCOMPILE-ONLY hIMMEDIATE
-: AHEAD nit-AHEAD ; hCOMPILE-ONLY hIMMEDIATE
-: ELSE nit-ELSE ; hCOMPILE-ONLY hIMMEDIATE
-: AGAIN nit-AGAIN ; hCOMPILE-ONLY hIMMEDIATE
-: REPEAT nit-REPEAT ; hCOMPILE-ONLY hIMMEDIATE
-: WHILE nit-WHILE ; hCOMPILE-ONLY hIMMEDIATE
-: LITERAL nit-LITERAL ; hCOMPILE-ONLY hIMMEDIATE
-: ( nit-( ; hIMMEDIATE
-: SLITERAL nit-SLITERAL ; hCOMPILE-ONLY hIMMEDIATE
-: S" nit-S" ; hCOMPILE-ONLY hIMMEDIATE
-: ." nit-." ; hCOMPILE-ONLY hIMMEDIATE
-: ['] nit-['] ; hCOMPILE-ONLY hIMMEDIATE
-: TO nit-TO ; hIMMEDIATE
-: [CHAR] nit-[CHAR] ; hCOMPILE-ONLY hIMMEDIATE
-: POSTPONE nit-POSTPONE ; hCOMPILE-ONLY hIMMEDIATE
-: ABORT" nit-ABORT" ; hCOMPILE-ONLY hIMMEDIATE
-: \ nit-\ ; hIMMEDIATE
+: -. nit--. ;
+: [ nit-[ ;
+\ : ; nit-; ;
+: BEGIN nit-BEGIN ;
+: DO nit-DO ;
+: LOOP nit-LOOP ;
+: +LOOP nit-+LOOP ;
+: UNTIL nit-UNTIL ;
+: DOES> nit-DOES> ;
+: LEAVE nit-LEAVE ;
+: RECURSE nit-RECURSE ;
+: IF nit-IF ;
+: THEN nit-THEN ;
+: AHEAD nit-AHEAD ;
+: ELSE nit-ELSE ;
+: AGAIN nit-AGAIN ;
+: REPEAT nit-REPEAT ;
+: WHILE nit-WHILE ;
+: LITERAL nit-LITERAL ;
+: ( nit-( ;
+: SLITERAL nit-SLITERAL ;
+: S" nit-S" ;
+: ." nit-." ;
+: ['] nit-['] ;
+: TO nit-TO ;
+: [CHAR] nit-[CHAR] ;
+: POSTPONE nit-POSTPONE ;
+: ABORT" nit-ABORT" ;
+: \ nit-\ ;
 16 N# H#
 10 N# D#
 
