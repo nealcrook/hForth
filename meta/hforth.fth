@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.12  1998/09/30 23:55:22  crook
+\ First working binary.
+\
 \ Revision 1.11  1998/09/05 12:07:57  crook
 \ many changes to allow immediates to be defined in a separate file
 \
@@ -129,6 +132,8 @@
 \  initialised from the table at reset
 \ pack" fill-to-end part may attempt a ! to an unaligned address. Fix is
 \  to be able to round-down the address.
+\ -------------- bugs discovered after reporting the first set
+\ in ACCEPT " IF DROP DUP IF 1-" should be "IF DUP IF 1-"
 
 \ This is derived from 1.17 of hfsarom.asm
 \ which in turn is derived from Wonyong's v0.9.9
@@ -3353,8 +3358,6 @@ META-HI [IF]
 \		Align address to the cell boundary by rounding UP if necessary
 \
 META-HI [IF]
-\ Wonyong's code would find Zero in dictionary rather than as a number, if
-\ defn's are ordered correctly
 : ALIGNED	DUP 0 [ CELLL ] LITERAL UM/MOD DROP DUP
 		IF [ CELLL ] LITERAL SWAP - THEN + ;    \ slow, very portable
 [ELSE]
@@ -3559,7 +3562,7 @@ META-HI [IF]
 	            IF   DROP 2DUP + BL DUP EMITE SWAP C! 1+
 	            ELSE DUP [ BKSPP ] LITERAL =
 			  SWAP [ DEL ] LITERAL = OR
-			  IF DROP DUP
+			  IF DUP
 		            \ discard the last char if not 1st char
 			    IF 1- [ BKSPP ] LITERAL EMITE BL EMITE
 			      [ BKSPP ] LITERAL EMITE
