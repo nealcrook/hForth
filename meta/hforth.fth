@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.9  1998/09/01 22:26:19  crook
+\ fix all assembler references to variables and the udebug routines
+\
 \ Revision 1.8  1998/09/01 21:41:35  crook
 \ build initilaisation tables correctly.
 \
@@ -574,11 +577,14 @@ CR .( *** Executable image entry point)
 \ of any real Forth definition. It does any low-level hardware setup, then
 \ initialises the virtual machine and branches to the Forth COLD definition
 
-ALSO ASSEMBLER init-asm
+ALSO ASSEMBLER
+init-asm
 10 10 30 MK-SYM-TABLE
 0 LTORG-HEAD ! \ make sure no other puddle exists
-20 LTORG \ create the first puddle in the literal pool
 
+		00 L# B, \ branch past literal pool
+		20 LTORG \ create the first puddle in the literal pool
+00 L.
 
 MM_DEMON [IF]
 	16 SWI, \ DEMON SWI to go into Supervisor mode
@@ -592,36 +598,35 @@ TAR_EBSA110 MM_BOOT AND [IF]
 \ running at 0, but after the first WRITE we will be magically running
 \ at 8000.00XX
 
-		03 G# R0 =,
+		03 L# R0 =,
 		0000FFFF # R1 =,
 		R1 R0 R0 AND,		\ get the low-order part
 
 		80000000 # R0 R0 ORR,	\ high-order alias
 		R0 PC MOV,		\ jump to high-order alias
-\ TODO - these globals don't work -- reports that it's trying to spit
-\ code out at the wrong place.
-03 G.		0 # R0 MOV,
+
+03 L.		0 # R0 MOV,
 		[ R1 ] R0 STR,		\ switch memory map
 
 \ now running in ROM alias at &8000.00xx copy image from ROM to SSRAM
-		40000000 # R0 =,	\ destination
-		80000000 # R1 =,	\ source
-		10000 4 / # R2 =,	\ number of Dwords (64Kbytes)
+		40000000 R0 =,	\ destination
+		80000000 R1 =,	\ source
+		10000 4 / R2 =,	\ number of Dwords (64Kbytes)
 
-04 G.		4 # [ R1 ] R3 LDR,
+04 L.		4 # [ R1 ] R3 LDR,
 		4 # [ R0 ] R3 STR,
 		1 # R2 R2 SUBS,
-		04 G# NE B,
+		04 L# NE B,
 
 \ now we're going to jump to the RAM copy..
 
-		05 G# R0 =,
+		05 L# R0 =,
 		0000FFFF # R1 =,
 		R1 R0 R0 AND,		\ get the low-order part
 
 		40000000 # R0 R0 ORR,	\ point to RAM copy
 		R0 PC MOV,		\ jump to RAM copy 
-05 G.
+05 L.
 [THEN]
 
 TAR_EBSA110 [IF]
@@ -653,6 +658,7 @@ TAR_EBSA285 [IF]
 		02 G# B,
 		$ALIGN
 
+LOCAL-RESOLVED \ Check that all labels used in the init code are resolved
 PREVIOUS \ ALSO ASSEMBLER for initial code stuff
 
 
