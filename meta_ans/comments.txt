@@ -1,0 +1,137 @@
+comments on "The optional Cross-compiler word set" (chapter x, version of
+~1-Jun-1999).
+
+[All comments are 'in my opinion' and 'according to my understanding of this
+topic']
+
+x.3.1.1 HOST INTERPRETER COMPILER TARGET should be included as
+definitions in the glossary
+
+Is it true to say that the accessibility of a word in a given scope
+depends upon the scope in which it is defined? I think so. If that is
+the case, I think that the glossary could be simplified by simply
+stating which scope a word is defined in. The rules in x.3.1.* then
+specify where it can be used. Currently, the glossary uses
+inconsistent wording to refer to a small set of possible
+behaviours. The only difficulty I can see with this approach is that a
+word like CHARS needs to be defined in both COMPILER and INTERPRETER
+scopes accoring to the current rules in the glossary and scopes
+sections.
+
+x.3.1.1 para 1 "(host scope) also includes the other scope selector
+words" -- actually, all scope selector words must be accessible from
+every other scope else the result is embarassing (well, I was
+embarassed when I tried debugging it..)
+
+x.3.1.1 para 2 "..executable only on the host system in HOST or
+INTERPRETER scopes;" -- must specify that words in HOST scope have
+priority over words in INTERPRETER scope otherwise you cannot meet the
+next requirement: that HOST memory allocation words affect the host
+dictionary.
+
+x.3.1.3 para 2 1st sentence should read "Words defined in COMPILER
+scope will be executed automatically by the host when encountered in a
+target definition"
+
+x.3.1.3 para 3 "while in compiler state" - it's possible to implement a
+cross-compiler without modifying the outer interpreter of the host system,
+in which case there is no particular relationship between the value of STATE
+(a variable that exists on the host) and whether the host is compiling
+or interpreting for the target. Therefore, I think that "while in compiler
+state" is an ambiguous term.. if you're going to use it, explain exactly
+what you mean by it.
+
+x.3.1.4 list after para 2 needs CVARIABLE added
+
+x.3.2.1 table needs CVARIABLE added
+
+x.3.2.1 final para "..HOST words that manage data space always act on
+the current section of the current section type" -- this contradicts
+the statement in x.3.1.1 para 2 that says "HOST memory allocation
+words affect the host dictionary only"
+
+x.3.2.2.1 Think it would be worth emphasising that the addresses here
+represent addresses on the target. Should show <type> as [<type>] (ie,
+optional).
+
+There seems to be a general problem with the cross-compiler which
+comes to light at this point; once the words are loaded, there is no
+way of 'turning it off'. Need a default section name that returns
+ALLOT etc. to allocating memory for definitions on the host... maybe
+HOST is intended to do this: if so, there are a couple of bugs in the
+way it is spec'd (specifically, x.3.2.1 mentioned above).
+
+It would be very useful to have a standard mechanism for allocating memory
+from the *top* of a section downwards, as well as from the bottom of a
+section upwards.
+
+x.3.3.3.2 para 1 "..and ALIGN shall be" --> "..and ALIGN (and RESERVE,
+in UData) shall be"
+
+x.3.2.6 When you do an environmental query, there is no way of knowing
+whether MAX-CHAR represents a value for the *host* or a value on the
+*target*. Again, once the cross-compiler is loaded, there is no way of
+getting access to the host definition. A program cannot even use the
+existence of the CROSS environment variable as a way of inferring that the
+other environment variables refer to the target (because a particular
+implementation may only implement a subset of the CROSS words and therefore
+not be entitled to set the CROSS environment variable). What you *really*
+need is for enviroment variables to be scoped.. but that seems a lot of work.
+
+x3.3.3.2 end of 1st para "subject to the restrictions .." is a cut/n/paste
+sentence out of context
+
+x.3.4 "Normally.. the target system" -> "Normally, the primary role of a
+cross-compiler is to build data structures for the target system"
+
+x.6 in words ! @ C! FILL BLANK ERASE MOVE CREATE what does "in
+interpreting state" mean (see x.3.1.3 notes above)
+
+in FILL BLANK ERASE presumably (c-)addr is a target address and an
+ambiguous condition arises if it isn't.
+
+in MOVE addr2 is a *target* address. Is addr1 required *not* to be a target
+address? Seems like 2 versions of MOVE are needed: one in which addr1 is
+in target space, and one in which it is in host space.
+
+in word "," "C," need to specify what scopes these apply to.
+
+in words ALIGN ALLOT what does "or in an INTERPRETER definition" mean? Does it
+mean "or within a definition in INTERPRETER scope"
+
+Why isn't there a "C@" ?
+
+SAVE-SECTIONS what does "section context" mean.. does it mean the pointers
+for all the sections or does it mean the contents of the sections (eg to
+mass-storage in some implementation-defined object-file format). If not the
+latter, then the latter mechanism is missing.
+
+in SECTION, worth repeating that these are *target* addresses.
+
+what scope is SECTION in? A.x.3.2.2.1 says it's in INTERPRETER scope,
+which make sense.. think it should be here rahter than in the appendix.
+Are UDATA etc. in the same scope?
+
+para 1: delete "The address of the next available location in name has
+initial value addr1" and amend para 2: "..is the current section of
+that section type, and addr1 is the first address that will be
+allocated for that section."
+
+the definitions of words VARIABLE 2VARIABLE CVARIABLE should all use
+similar wording. 2VARIABLE mentions scope, but the other two don't.
+
+what scopes is BUFFER:  available in?
+
+why does RESERVE exist at all? Surely it is trivially easy to switch
+sections and use ALLOT. ", starting at addr" -> ", which start at target
+address addr".
+
+in EQU, what scopes in the host definition available in?  Think you
+need to add an ambiguous condition: "An ambiguous condition exists if
+/name/ also exists as a definition defined in TARGET scope." (because
+otherwise you need to define which gets used when referenced within a
+target colon definition).
+
+I think this chapter should discuss how [ and ] behave in a
+cross-compiler environment.
+

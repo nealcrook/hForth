@@ -1,0 +1,207 @@
+Comments on The Optional Cross-Compiler Wordset, version 4.
+
+version 4 looks way better than the earlier versions, with lots of
+ambiguity resolved. However, I now have a fixed mental picture of how
+all this stuff should work, and either my mental picture is wrong, or
+a number of phrases have crept in which are ambiguous if taken at face
+value. Detailed comments follow.
+
+x.2.1 suggest addition of "active section: the current section of the
+current section type". This would shorten many glossary entries.
+
+x.3.1.1 para 2 "words affects" -> "words affect"
+
+x.3.1.4 The behaviour described when a target data object is accessed
+interpretively on the host is inappropriate for a VALUE. The behaviour
+should be to return the value of the VALUE's data, not its address. As
+a consequence of this, I think the CROSS EXT needs to gain the word
+TO, specified to search target words like ' (tick) does.
+
+x.3.2.2.1 should "<type>" be "[<type>]" to show that it is optional.
+
+x.3.2.2.2 add CMOVEC to the list of words.
+
+para 2: I'm worried by the phrase "within a defined CData or IData
+section".  Given that I could have many of each section, the
+implication is that I must search to see whether the address is in the
+current CData section or in the current IData section or even in some
+non-current section. Aside from the implementation burden, this
+introduces ambiguity since I could have a CData and an IData section
+with overlapping addresses (Harvard architecture machine). I hope that
+your intent is more precisely defined thus: "within the active
+section, or if the active section type is UData,"
+
+Given the detail in this section, would it be appropriate to replace the
+duplicate text in the glossary entries for ! , .. MOVE CMOVEC to simply
+say "See: x.3.2.2.2 Memory access" ?
+
+The "rules" for the use of these words are now broken with respect to
+the search-order implementation described in the appendix. For
+example, C! can be "executed in TARGET scope or in an INTERPRETER or
+COMPILER definition" but x.3.1.2 indicates that C! is defined in
+INTERPRETER scope, and INTERPRETER words are not available for use in
+COMPILER definitions, according to A.x.3.1.2. Not sure whether is is
+desirable or not for this word to be available for use in COMPILER
+definitions, so I'm not sure what the solution to this problem is.
+
+x.3.2.6 Should there be a "CROSS" and a "CROSS-EXT" environmental query
+string?
+
+x.3.4 para after bullet list "invoked in TARGET scope and interpreting
+state" -> "invoked while interpreting in TARGET scope".  "Target data
+object... because their behavior is not executable" -> "A target data
+object... because its behavior is not executable"
+
+x.3.5 some of these are repeated in the glossary; others are in the
+glossary but not here. The convention in the present ANS Forth
+doc. seems to be:
+-- list all the conditions and the words they apply to
+-- in every word that has an ambiguous condition, duplicate the text
+   "an ambiguous condition exists if ...<blah"
+
+x.6.1.0010 text for "!" and "@" should match "C@" (but see mods to C@ below)
+
+x.6.1.0705 "to be cell aligned" -> "to be aligned to the size of a /target/
+cell" (cf CELL+).
+
+x.6.1.0710 Ambiguous condition if insufficient space in the active section
+(I guess this allies to all allocation words..) Interestingly, the current
+ANS Forth spec does not list a similar ambiguous condition for ALLOT. If it
+were noted as ambiguous there, then this defn would "inherit" that and there
+would be no need to add any text here...
+
+x.6.1.0870 see comments above regarding "in a defined CData or IData
+section".
+
+x.6.1.0890 "the size a /target/ cells." -> "the size of a /target/ cell."
+
+x.6.1.1650 "In COMPILER scope, this is the current CData section" What is the
+raionale for adding this text? It sort-of implies that the implementation
+must have a scope-dependent behaviour for HERE, which is annoying unless
+there's a good reason for it.
+
+x.6.1.nnn IDATA - again, a word that is "executed in TARGET scope, or
+used in INTERPRETER or COMPILER definitions" does not fit with any of
+the scope behaviours described in the introduction or Appendix A
+material.
+
+x.6.1.1900 MOVE (also CMOVE CMOVE>) I think that a typical use for these
+would be:
+
+- do some work on the host to create a data representation (for example,
+  parse a text string from the input buffer and return a *host* address
+  and a length for the string
+- copy the data into a target section (ie from a *host* address to a target
+  address).
+
+For this example, MOVE etc. would have to specify addr1 = host
+address, addr2 = target address. I would impose the further
+restriction that addr2 must be a valid address within the active
+section (the current section of the current section type).
+
+Another reason that I can see for doing copying is to build a final
+image in memory for a taret system. For example, I have a CData
+section, and this represents an image of what my EPROM will contain on
+the target system. I have a couple of IData sections and I need a
+mechanism to have these initialised on the target system. In order to
+initialise them, I would make a copy of the IData section within the
+CData section, and add some code to the CData section that will copy
+the IData image, at target startup time, to the appropriate place in
+target memory. In order to be able to do this, I need a new word
+-- call in CMOVEC, though it doesn't have the behaviour of the current
+CMOVEC. The behaviour of 'my' CMOVEC is this:
+
+CMOVEC ( c-addr1 c-addr2 u -- ) Copy u consecutive characters from
+c-addr1 (which must be a valid target address in the active section)
+to c-addr2 (which must be a valid target address in the current CData
+section)
+
+These definitions lead to an almost trivially straightforward
+implementation. I'd be interested to understand a scenario where a
+more complex arrangement is needed. Also, if MOVE takes addr1 = target
+address, where would it ever be useful, and how would you solve the
+problem I describe here?
+
+
+x.6.1.nnnn RESTORE-SECTION still need more detail here. I think I now
+understand why these are needed and suggest this definition for
+"current section context": "An implementation-dependent representation
+of current section type and an implementation-dependent representation
+the current IDATA, UDATA and CDATA sections (if any)"
+
+I'd also offer these words for the Appendix A commentary on
+SAVE-SECTION: "Since IDATA, UDATA, CDATA and a name created by SECTION
+can all be used within COMPILER or INTERPRETER definitions,
+SAVE-SECTION and RESTORE-SECTION provide a mechanism to preserve and
+restore all the section context within such definitions, if necessary."
+
+.. of course, I may have misunderstood what these words are for...
+
+x.6.1.nnnn SECTION: "in the host only" -> "in the host dictionary only".
+What scopes can SECTIONS be defined in, and in what scopes are the
+execution semantics available?
+
+x.6.1.2410 re-write this to add execution semantics, cf CVARIABLE.
+
+x.6.2.0440 2VARIABLE "cells in data space reserved" -> "cells
+reserved" cf CVARIABLE.
+
+x.6.2.nnnn BUFFER: What scopes can SECTIONS be defined in, and in what
+scopes are the execution semantics available?
+
+x.6.2.nnnn CMOVEC "or UData" but p3 says "UData may not be read or
+written during compilation"
+
+x.6.2.nnnn EQU (rephasing my comment from the previous version).
+Consider this code fragment:
+
+HOST
+42 EQU foo
+
+TARGET
+: myword .. foo .. ;
+
+it's clear that the expected behaviour is equivalent to this:
+: myword .. 42 .. ;
+ie a literal in the target definition. Now consider this code fragment:
+
+HOST
+42 EQU foo
+
+TARGET
+: foo 2 * ;
+: myword .. foo .. ;
+
+should myword use the host defn of foo, or the target definition of foo, or
+should it be stated as an ambiguous condition?
+
+
+x.6.2.2405 VALUE -- add Execution semantics (and see comments on
+x.3.1.4 above)
+
+----
+Comments on Appendix A.X version 4
+
+A.x.3.1.4 para 1 "INTERPRETER (only) -> "*INTERPRETER (only)"
+"This has the effect ...directives" is a cut/n/paste error from a previous
+section.
+
+A.x.3.2.2.1 para 2 "Note that you must be..your sections" I suggest moving
+the equivalent information to the main glossary entry for SECTION.
+
+A.x.3.2.2.2 "interpreting state in TARGET scope" -> "when interpreting
+in TARGET scope".
+
+A.x.3.4 final sentence "cData" -> "CData"
+
+A.x.6.2.nnnn @C C@C CMOVEC The text for these makes no sense to
+me. The *target* may have a harvard architecture, but these words
+access a section on the *host* and the section is most definitely in
+the host's data space. What you're actually describing appears to be a
+facility that will be useful to have implemented on a target system
+(ie words that you might want to use in a target program) which is
+very different from words that you need in order to build the target
+image. If the intention is simply to allow access to code space in the
+cross-compiler environment, this has already been achieved by changing @ !
+etc. to allow them to work on CData as well as IData.
+
