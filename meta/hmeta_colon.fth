@@ -1,5 +1,8 @@
 \ $Id$
 \ $Log$
+\ Revision 1.9  1998/09/01 22:26:19  crook
+\ fix assembler references to variables
+\
 \ Revision 1.8  1998/09/01 21:46:27  crook
 \ tidy up organisation of immediate words
 \
@@ -48,7 +51,7 @@
 \ 9. ? order of immediate words in hforth
 \ 10. When are immediate words first needed? Make it as late as possible
 \ 11. Fix bug in GetNameAdr
-
+\ 12. fix labels in assembler
 
 \ colon compiler and immediate words for hForth
 MARKER *hmc*
