@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: hmeta_imm.fth,v 1.5 1999/06/26 17:53:10 crook Exp $
+\ $Log: hmeta_imm.fth,v $
+\ Revision 1.5  1999/06/26 17:53:10  crook
+\ removed some redundant definitions.
+\
 \ Revision 1.4  1999/06/25 00:40:08  crook
 \ "immediate" target words don't actually need to be labelled as
 \ immediate on the host.

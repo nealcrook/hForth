@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: hforth.fth,v 1.19 2015/03/14 17:20:46 crook Exp $
+\ $Log: hforth.fth,v $
+\ Revision 1.19  2015/03/14 17:20:46  crook
+\ get repository in line with checkout before migration to git.
+\
 \ Revision 1.18  1998/11/25 21:48:57  crook
 \ check-point before starting on STC modifications.
 \
@@ -82,7 +85,7 @@
 
 \ This is derived from 1.17 of hfsarom.asm
 \ which in turn is derived from Wonyong's v0.9.9
-\ $Id$
+\ $Id: hforth.fth,v 1.19 2015/03/14 17:20:46 crook Exp $
 
 \ The following values of TARGET are supported:
 \ EBSA110 - EBSA-110, SA-110 StrongARM Evaluation Board

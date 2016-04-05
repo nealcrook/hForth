@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: hmeta.fth,v 1.11 2001/07/24 03:38:19 crook Exp $
+\ $Log: hmeta.fth,v $
+\ Revision 1.11  2001/07/24 03:38:19  crook
+\ slight refinement to formatting of messages
+\
 \ Revision 1.10  1998/11/25 21:48:57  crook
 \ check-point before starting on STC modifications.
 \

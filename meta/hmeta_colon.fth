@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: hmeta_colon.fth,v 1.17 2001/07/24 03:49:14 crook Exp $
+\ $Log: hmeta_colon.fth,v $
+\ Revision 1.17  2001/07/24 03:49:14  crook
+\ added debugging notes from old hack verison.
+\
 \ Revision 1.16  1998/11/25 21:48:57  crook
 \ check-point before starting on STC modifications.
 \
