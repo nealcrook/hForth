@@ -1,0 +1,59 @@
+The following bugs exist in the latest hf86rom.asm source and have not been
+reported to the author.
+
+
+1.
+
+;   THROWMsgTbl ( -- a-addr )			\ CORE
+
+.. should not be labelled as "core"
+
+
+2.
+
+;   : pack"     OVER max-counted-string SWAP U< 
+
+should be:
+
+;   : pack"     OVER [ MaxCountedString ] LITERAL SWAP U< 
+
+3. 
+
+;   : 2DUP	DUP DUP ;
+
+		$COLON	4,'2DUP',TwoDUP,_FLINK
+		DW	OVER,OVER,EXIT
+
+..high level defn should be : 2DUP OVER OVER ;
+
+4.
+
+;		notNONAME? IF	\ if the last definition is not created by ':'
+
+.. shouldn't this say, "if the last definition is creared by ':'" ??
+
+5.
+
+;   linkLast	( -- )
+;		Link the word being defined to the current wordlist.
+;		Do nothing if the last definition is made by :NONAME .
+
+.. I think "Do nothing..:NONAME." should be deleted. It appears that
+linkLast *always* makes a link.
+
+6. 
+
+;   : UM/MOD	DUP 0= IF -10 THROW THEN	\ divide by zero
+;		2DUP U< IF
+;		   NEGATE [ cell-size-in-bits ] LITERAL 0
+;		   DO	>R DUP um+ >R >R DUP um+ R> + DUP
+;			R> R@ SWAP >R um+ R> OR
+;			IF  >R DROP 1+ R>  ELSE  DROP  THEN
+
+                        R>
+
+;		   LOOP DROP SWAP EXIT
+;		ELSE -11 THROW		\ result out of range
+;		THEN ;
+
+.. additional R> to match assembler definition.
