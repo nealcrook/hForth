@@ -1,4 +1,4 @@
-\ $Id$
+\ $Id: armtest.fth,v 1.4 1998/10/23 05:27:31 crook Exp $
 \
 \ test file to exercise all ARM op-codes in order to compare ARM's assembler
 \ with my Forth ARM assembler

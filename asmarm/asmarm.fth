@@ -1,4 +1,4 @@
-\ $Id$
+\ $Id: asmarm.fth,v 1.8 1999/07/11 10:17:36 crook Exp $
 \
 \ ARM assembler. (c) Neal Andrew Crook 1998. nac@forth.org
 \ Some parts and lots of ideas are thanks to hForth asm8086.
@@ -11,7 +11,10 @@
 \ Refer to asmarm.txt for documentation
 \
 \
-\ $Log$
+\ $Log: asmarm.fth,v $
+\ Revision 1.8  1999/07/11 10:17:36  crook
+\ remove vector init -- it's application-dependent.
+\
 \ Revision 1.7  1999/07/11 10:08:05  crook
 \ removed :CODE stuff .. should be in application.
 \

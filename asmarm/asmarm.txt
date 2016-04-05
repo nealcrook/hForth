@@ -1,4 +1,4 @@
-$Id$
+$Id: asmarm.txt,v 1.2 1998/10/07 21:49:12 crook Exp $
 
 Documentation for the Forth ARM assembler
 =========================================
