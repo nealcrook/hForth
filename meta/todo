@@ -1,0 +1,53 @@
+should be able to go
+
+gforth hmeta.fth
+
+.. it used to work with pfe 
+
+now, problems are:
+
+- gforth fails in hForth.fth where there are TAB characters separating
+words. Think there should be some way of swapping out WORD in favour
+of SWORD, which should solve the problem; but I'm not sure whether the
+problem is in GFORTH or the hForth parser.
+
+I used "expand" to get rid of the tabs.
+
+.. think the problem is with PARSE-WORD in definition of $CODE in
+hforth.fth
+
+.. that's it: after that, it builds!!
+
+.. don't know why it ever worked before. Seems that PARSE-WORD is
+simply an implementation of what hForth does -- and hForth doesn't
+treat tabs like other whitespace. Maybe it was just a source tidyup
+that I did and it broke something and I didn't notice. The proper
+fix would be to modify skipPARSE so that, when it sees an argument
+of BL it uses either BL or TAB as a delimiter. That will probably be
+a pain!!
+
+build gotcha: need a forward.fth file. I stole one from the other
+development area. Once it exists, with whatever bogus entries in it,
+the meta-compiler will build. Once built, it will spit out a new
+forward.fth containing the *Correct* values. Build again and make
+sure all the foward references return -1.
+
+
+TODO -- to make the meta-compiler cleaner, could write all the stuff
+that needs to exist in the host dictionary so that the code can be read
+in twice: first time it will compile the appropriate stuff into the host
+dictionary, second time it will compile the source to build the target
+dictionary; that would be a nice bootstrap and would reduce the amount of
+code duplication.
+
+TODO -- whole thing would be far easier if it were self-hosting: ie if
+the target image were generated from an hForth system. The reason is that
+the inner interpreter already has hooks to aid vectored code emission, and
+for processing numbers; the two things that make it necessary to re-write
+big chunks of stuff for the meta-compiler. So, a route would be:
+
+- get eForth running properly under Linux (syscalls for non-polled I/O)
+- port original x86 hForth to Linux (32-bit)
+- bootstrap to be self-hosting
+- add meta-compiler framework
+
