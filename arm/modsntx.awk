@@ -10,9 +10,12 @@
 # - change DB to DCB
 # - change DS to % 
 
-# $Id$
+# $Id: modsntx.awk,v 1.1 1997/01/13 09:41:28 crook Exp $
 #
-# $Log$
+# $Log: modsntx.awk,v $
+# Revision 1.1  1997/01/13 09:41:28  crook
+# Initial revision
+#
 
 BEGIN {
   fixedfile = ARGV[1] "s"

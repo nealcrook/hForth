@@ -59,7 +59,7 @@
 ;; own all CPU cycles; it burns spare cycles in the getchar routines and the
 ;; multitasker.
 
-;; $Id$
+;; $Id: hfsarom.asm,v 1.22 1999/10/30 17:45:29 crook Exp $
 ;;
 ;; This port supports a number of targets and target options that are
 ;; controlled by parameters passed to this file and the AWK files through the
@@ -113,7 +113,10 @@
 ;; Some (but not all) illegal permutations will generate a fatal error at
 ;; build time.
 
-;; $Log$
+;; $Log: hfsarom.asm,v $
+;; Revision 1.22  1999/10/30 17:45:29  crook
+;; Merge in Wonyong's latest changes.
+;;
 ;; Revision 1.21  1999/07/13 21:20:28  crook
 ;; Mods for EB-AMCU; released by permission of Bob Van Steenburgh.
 ;;

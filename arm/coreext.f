@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: coreext.f,v 1.1 1997/08/13 18:11:54 crook Exp $
+\ $Log: coreext.f,v $
+\ Revision 1.1  1997/08/13 18:11:54  crook
+\ Initial revision
+\
 \
 \ COREEXT.F
 \ More Core Extention wordset words for hForth - code definitions

@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: muldemo.f,v 1.1 1997/08/14 14:02:44 crook Exp $
+\ $Log: muldemo.f,v $
+\ Revision 1.1  1997/08/14 14:02:44  crook
+\ Initial revision
+\
 \
 \ Multitasker Demo Program
 \

@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: amcu_hu.f,v 1.1 1999/10/31 17:09:52 crook Exp $
+\ $Log: amcu_hu.f,v $
+\ Revision 1.1  1999/10/31 17:09:52  crook
+\ AMCU utility words -- only partially working.
+\
 \
 \ eb-amcu hForth utility words
 \ these utilities expect optional.f to be loaded; they require

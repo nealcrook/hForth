@@ -13,9 +13,13 @@
 #
 # need comma but no space between string and label in colon defn
 
-# $Id$
+# $Id: makesrc.awk,v 1.8 1997/04/01 17:37:00 crook Exp $
 #
-# $Log$
+# $Log: makesrc.awk,v $
+# Revision 1.8  1997/04/01 17:37:00  crook
+# tail of environment word list was not set to 0, leading to erratic
+# operation when searching this list
+#
 # Revision 1.7  1997/03/25 09:54:44  crook
 # auto-generate labels for VAR and VALUE locations
 #

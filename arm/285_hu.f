@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: 285_hu.f,v 1.2 1997/08/18 10:22:23 crook Exp $
+\ $Log: 285_hu.f,v $
+\ Revision 1.2  1997/08/18 10:22:23  crook
+\ add .CONFIG
+\
 \ Revision 1.1  1997/08/13 18:12:33  crook
 \ Initial revision
 \

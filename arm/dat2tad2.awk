@@ -6,9 +6,12 @@
 # the first entry (set of 3 lines) needs to be at the *end* of the
 # file, and vice versa.
 
-# $Id$
+# $Id: dat2tad2.awk,v 1.1 1998/10/03 23:47:24 crook Exp $
 #
-# $Log$
+# $Log: dat2tad2.awk,v $
+# Revision 1.1  1998/10/03 23:47:24  crook
+# Initial revision
+#
 
 BEGIN {
   infile = ARGV[1]

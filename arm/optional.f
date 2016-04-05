@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: optional.f,v 1.2 1997/08/14 16:02:46 crook Exp $
+\ $Log: optional.f,v $
+\ Revision 1.2  1997/08/14 16:02:46  crook
+\ change DUMP format to print 8-digit address
+\
 \ Revision 1.1  1997/08/13 18:11:54  crook
 \ Initial revision
 \

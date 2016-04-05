@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: multi.f,v 1.1 1997/08/14 14:02:30 crook Exp $
+\ $Log: multi.f,v $
+\ Revision 1.1  1997/08/14 14:02:30  crook
+\ Initial revision
+\
 \
 \ hForth multitasker
 \

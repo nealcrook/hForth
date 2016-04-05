@@ -6,9 +6,12 @@
 # the first entry (set of 3 lines) needs to be at the *end* of the
 # file, and vice versa.
 
-# $Id$
+# $Id: dat2tad.awk,v 1.4 1997/03/30 21:15:58 crook Exp $
 #
-# $Log$
+# $Log: dat2tad.awk,v $
+# Revision 1.4  1997/03/30 21:15:58  crook
+# much, much faster algorithm (only read file once)
+#
 # Revision 1.3  1997/03/01 16:38:27  crook
 # merge Carey's changes for DOS build environment
 #

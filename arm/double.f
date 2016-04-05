@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: double.f,v 1.1 1997/08/14 14:01:19 crook Exp $
+\ $Log: double.f,v $
+\ Revision 1.1  1997/08/14 14:01:19  crook
+\ Initial revision
+\
 \ DOUBLE.F
 \ Double wordset words for hForth
 \

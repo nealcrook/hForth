@@ -1,5 +1,8 @@
-\ $Id$
-\ $Log$
+\ $Id: 110_hu.f,v 1.3 1997/04/03 15:03:18 crook Exp $
+\ $Log: 110_hu.f,v $
+\ Revision 1.3  1997/04/03 15:03:18  crook
+\ bugfix to FLASHFORTH
+\
 \ Revision 1.2  1997/04/02 09:47:40  crook
 \ FLASHFORTH and most other stuff now works
 \
