@@ -1,0 +1,6 @@
+gforth fails in a couple of places when trying to compile the meta-compiler.
+In addition, annoying lackings compared with pfe:
+
+- "words" listing doesn't have built-in pager
+- some of the CR formatting isn't as nice
+- really, really miss the help facility and online ANS standard 
