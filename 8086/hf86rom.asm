@@ -7,6 +7,18 @@ PAGE 62,132	;62 lines per page, 132 characters per line
 ;	hForth 8086 ROM model v0.9.9 by Wonyong Koh, 1997
 ;
 ;
+; 1999. 3. 5.
+;	Fix bugs reported by Mr. Neal Crook. Thank Neal Crook.
+;	Fix Forth definition of ACCEPT. 
+;	Add high-level definition of 2DROP and 2DUP.
+;	Remove superfluous THEN in optiCOMPILE,ACCEPT, and UM/MOD.
+;	LITERAL in the high-level definitions of doubleAlso, singleOnly,
+;		and SLITERAL should have been 'POSTPONE LITERAL'.
+;	S" in the high-level definitions of ABORT" should have been 
+;		'POSTPONE S"'.
+;       The hith-level definition of REPEAT should have been 
+;		'POSTPONE AGAIN POSTPONE THEN'.
+;	Add COMSTANT word 'sysVar00'.
 ; 1998. 1. 5.
 ;	Mr. Kwon Hyuk Kun reported several bugs. Thank Mr. Kwon.
 ;	Fix REFILL . 'Fetch' was missing in DW statement. Thank Kwon Hyuk Kun.
@@ -142,59 +154,56 @@ PAGE 62,132	;62 lines per page, 132 characters per line
 ; 1995. 6. 5.
 ;	Fix SOURCE-ID .
 ;
-$)C
-;;	hForth ROM !!É7å 8â7å 8÷ /!/áIÑ5Á  øB4a ,i	Á4v/ó!á. KâS!
-;;	7!u7å ROM /% é4áá;! 4çå RAM(non-volatile RAM, NVRAM)7!á
-;;	ROM 5Á#ÉÁ7!Haé 3áå BÁ-!På7 $é /!/áIÑ5Á  ø	Á
-;;	,i	Á4v/ó!á. $éPáå 74å5Áå "ROM"7 6÷7é 	!C) . 76	!
-;;	$é7! ûá!å 7! "ROM"7 6÷7é /)9Á ,á6÷É /!/áIÑ7 ;%<á ROM5Á
-;;	5+) . 76/ó!á. 5E,wÅ /!/áIÑ5Á M!/á IÂ/áKá I75â!á
-;;	O)6á4tá!å 7!ñ 8á!å 5E,wÅ /!/áIÑ5Á M!PñÉ O)6áá 4t/ó!á.
-;;	ANS M!/á Ná:7 3!4õ û é(Core wordset)7é !! M!PñPå E!á
-;;	8á!7 Gá!å 6 K$á7!Ká7!	! 5á!5Á OPTIONAL.F5Á é4a 76å
-;;	WORDS5A HEX5A SEE ÷7 û é(Optional wordset)7é aPá!å E!á
-;;	8á!å 8 K$á7!Ká73!á. hForth RAM !!É5Áå BÁ-! 1 KB7 RAM7!
-;;	O)6áPó!á.
+;;	hForth ROM ¡¡•I·e ¸b·e ¸w ¯¡¯aÉQµA  xÂ´á ¬é‰–A´ö¯s“¡”a. ËbÓ¡
+;;	·¡ˆõ·e ROM ”¯¥ i´aˆa»¡ ´g“e RAM(non-volatile RAM, NVRAM)·¡a
+;;	ROM µA£IA·¡ÈáŸi ³a“e ÂA­¡Ðe· ˆ¤i ¯¡¯aÉQµA  x‰A
+;;	¬é‰–A´ö¯s“¡”a. ˆ¤iÐa“e •·´eµA“e "ROM"· ¶w·i ‰¡Ã© ® ·¶‰¡
+;;	ˆ¤i·¡ {a¡e ·¡ "ROM"· ¶w·i ¯©¹A ¬a¶w–I ¯¡¯aÉQ· »¥¼a ROMµA
+;;	µ«‹© ® ·¶¯s“¡”a. µÅ¬÷–E ¯¡¯aÉQµA Í¡¯a ÉB¯aËa É·µb‹¡ˆa
+;;	Ï©¶a´ô”a¡e ·¡Ÿq ¸aŸ¡“e µÅ¬÷–E ¯¡¯aÉQµA Í¡Ðq–I Ï©¶aˆa ´ô¯s“¡”a.
+;;	ANS Í¡¯a Îaº…· ³¡´u { i(Core wordset)·i ¡¡– Í¡ÐqÐe Å¡—a
+;;	¸aŸ¡· Ça‹¡“e 6 K¤a·¡Ëa·¡‰¡ µa‹¡µA OPTIONAL.FµA —i´á ·¶“e
+;;	WORDSµÁ HEXµÁ SEE —w· { i(Optional wordset)·i ”áÐa¡e Å¡—a
+;;	¸aŸ¡“e 8 K¤a·¡Ëa·³“¡”a. hForth RAM ¡¡•IµA“e ÂA­¡ 1 KB· RAM·¡
+;;	Ï©¶aÐs“¡”a.
 ;;
-;;	ANS M!/á Ná:7å M!/á ,á8e7é E!á 8á!5A 7!ñ 8á!5A 8áá 8á!!
-;;	á4v/ó!á. hForth ROM !!É7! /!8âPá!å E!á 8á!å ROM7 4á
-;;	&&5Á, 7!ñ 8á!å ROM7 6a &&5Á, 8áá 8á!å RAM5Á 8á!8ó	!
-;;	76/ó!á. "ROM"5Á 3é . 76á!å , û éé7 E!á5A 7!ñ7å ROM7
-;;	4á5A 6a5Á á!á! é4aó!á. "ROM"5Á 3é . 4tá!å , û é7
-;;	E!á5A 8ááå RAM7 4á &&5Á 7!ñ7å RAM7 6a &&7é @á;!Pá	Á
-;;	Ó!á.
+;;	ANS Í¡¯a Îaº…·e Í¡¯a ¬a¸å·i Å¡—a ¸aŸ¡µÁ ·¡Ÿq ¸aŸ¡µÁ ¸aža ¸aŸ¡¡
+;;	a’´ö¯s“¡”a. hForth ROM ¡¡•I·¡ ¯¡¸bÐa¡e Å¡—a ¸aŸ¡“e ROM· ´aœ
+;;	¦¦…µA, ·¡Ÿq ¸aŸ¡“e ROM· ¶á ¦¦…µA, ¸aža ¸aŸ¡“e RAMµA ¸aŸ¡¸s‰¡
+;;	·¶¯s“¡”a. "ROM"µA ³i ® ·¶”a¡e ¬ { i—i· Å¡—aµÁ ·¡Ÿq·e ROM·
+;;	´aœµÁ ¶áµA ˜a¡˜a¡ —i´áˆs“¡”a. "ROM"µA ³i ® ´ô”a¡e ¬ { i·
+;;	Å¡—aµÁ ¸aža“e RAM· ´aœ ¦¦…µA ·¡Ÿq·e RAM· ¶á ¦¦…·i Àa»¡Ða‰A
+;;	–S“¡”a.
 ;;
-;;	RAM	A ROM û é7é 0a,a 8áá 	7å7! RAM5Á 76	Á Páaá ROM5Á 76	Á
-;;	Pé . 76/ó!á.
+;;	RAM‰Á ROM { i·i °á¬á ¸aža ‰·ˆe·¡ RAMµA ·¶‰A Ðaˆáa ROMµA ·¶‰A
+;;	Ði ® ·¶¯s“¡”a.
 ;;
 ;;	    ROM  CREATE TTABLE	1 , 2 , 3 ,
 ;;
-;;	7å ROM 8á!5Á #!! ô7! 8wP;% Ná TTABLE7é  åé	!
+;;	·e ROM ¸aŸ¡µA £¡Ÿ¡ ˆt·¡ ¸÷Ð»¥ Îa TTABLE·i  e—i‰¡
 ;;
 ;;	    RAM  CREATE AARRAY	10 CELLS ALLOT
 ;;
-;;	7å RAM 8á!5Á ô7é 0a }7é . 76å 10 Då $5é7é  åó!á.
+;;	·e RAM ¸aŸ¡µA ˆt·i °á ý·i ® ·¶“e 10 Äe ¤µi·i  e—s“¡”a.
 ;;
-;;	hForthå 1990 å5Á Bill Muench5A Dr. C. H. Ting7! $éNáPå eForthé
-;;	$áH÷7á!  åé4a,a %%7 eForth7 Kâ;7é7é á! ,éö/ó!á.
-;;	4áå 8086 eForth $áH÷%%5Á,a á 5% u73!á.
+;;	hForth“e 1990 ‘eµA Bill MuenchµÁ Dr. C. H. Ting·¡ ¤iÎaÐe eForthŸi
+;;	¤aÈw·a¡  e—i´á¬á ¥¥œ· eForth· Ëb»·—i·i ‹a”¡ ¬iv¯s“¡”a.
+;;	´aœ“e 8086 eForth ¤aÈw¥¥µA¬á ˜a µ¥ ˆõ·³“¡”a.
 ;;
-;;	  > ââ7  á7!Gá!Oá!-Á,a5Á  øB !ù 4åÁå CODE û éé	A !!å
-;;	  >    á7!Gá!Oá!-Á,a5Á 	7I77% 	!ó (high level) û éé!
-;;	  >   7!4a9á 76/ó!á.
-;;	  > 6%/!E!áå MASM 4a-Ñ'éa6÷73!á.
-;;	  > ;"8s E (direct threaded) $÷$s7é 3ó!á.
-;;	  > ,á8e7 E!á5A 7!ñ7! !Á!!!5Á á! 8á!Pó!á.
-;;	  > 73B	â7å á!G1 û é7é I7Pá	! : DqOÁHa(host computer)é
-;;	  >   å é!5A Lá7) 73B	â5Á 7!6÷Pó!á.
-;;	  > 9Á4åÅ #!
- Ná: M!/á(ANS Forth)7 $÷P77é áö/ó!á.
-;;	  > Kâ8wPå  á7!Gá!Oá!-Á,a5Á  øB4a BÁ8bQAPá!á .s/ó!á.
+;;	  > ˆbˆb·  a·¡Ça¡Ïa¡­A¬áµA  xÂ… ¡y ´e–A“e CODE { i—i‰Á ¡¡—e
+;;	  >    a·¡Ça¡Ïa¡­A¬áµA ‰·É··¥ ‰¡‹s (high level) { i—i¡
+;;	  >   ·¡ž´á¹a ·¶¯s“¡”a.
+;;	  > ¶¥¯¡Å¡—a“e MASM ´á­Q§iœá¶w·³“¡”a.
+;;	  > »¢¸ó ŽÅ (direct threaded) ¤w¤ó·i ³s“¡”a.
+;;	  > ¬a¸å· Å¡—aµÁ ·¡Ÿq·¡ ¡A¡¡Ÿ¡µA ˜a¡ ¸aŸ¡Ðs“¡”a.
+;;	  > ·³Â‰b·e ˆaŸ¡Ç± { i·i É·Ða‰¡ º ÄñÏAÈá(host computer)Ÿi
+;;	  >   ”e i‹¡µÁ Ìa·© ·³Â‰bµA ·¡¶wÐs“¡”a.
+;;	  > ¹A´e–E £¡Š‚ Îaº… Í¡¯a(ANS Forth)· ¤wÐ··i ˜aœv¯s“¡”a.
+;;	  > Ëb¸÷Ðe  a·¡Ça¡Ïa¡­A¬áµA  xÂ´á ÂA¸âÑÁÐa‹¡ˆa ®ó¯s“¡”a.
 ;;
-;;	7!ué7å á! hForth7 ,w;)73!á. á!	! hForth å ANS Forth
-;;	Ná:7 $÷P7 å7é ááå u7! 4á!á ANS M!/á Ná:7 6á
-
-;;	9!e7é !!  å9"Páå ANS Ná: M!/á /!/áIÑ73!á.
+;;	·¡ˆõ—i·e ‹a”¡ hForth· ¬÷»©·³“¡”a. ‹aŸ¡‰¡ hForth “e ANS Forth
+;;	Îaº…· ¤wÐ· e·i ˜aŸa“e ˆõ·¡ ´a“¡œa ANS Í¡¯a Îaº…· ¶aŠ
+;;	¹¡ˆå·i ¡¡–  e¹¢Ða“e ANS Îaº… Í¡¯a ¯¡¯aÉQ·³“¡”a.
 ;;
 ;;
 ;	hForth ROM model is designed for small embedded system.
@@ -536,7 +545,7 @@ UZERO		DW	RXQ			;'ekey?
 		DW	0			;bal
 		DW	0			;notNONAME?
 		DW	0			;rakeVar
-NOrder0 	DW	2			;#order
+		DW	2			;#order
 		DW	FORTH_WORDLISTAddr	;search order stack
 		DW	NONSTANDARD_WORDLISTAddr
 		DW	(OrderDepth-2) DUP (0)
@@ -679,7 +688,7 @@ RXFET1: 	$NEXT
 ;   CR		( -- )				\ CORE
 ;		Carriage return and linefeed.
 ;
-;   : CR	carriage-return-char EMIT  linefeed-char EMIT ;
+;   : CR	[ carriage-return-char ] LITERAL EMIT  [ linefeed-char ] LITERAL EMIT ;
 
 		$COLON	2,'CR',CR,_FLINK
 		DW	DoLIT,CRR,EMIT,DoLIT,LFF,EMIT,EXIT
@@ -956,7 +965,7 @@ SAMEQ1: 	MOV	SI,DX
 ;		>R		\ wid  R: ca1 u
 ;		BEGIN @ 	\ ca2  R: ca1 u
 ;		   DUP 0= IF R> R> 2DROP EXIT THEN	\ not found
-;		   DUP COUNT [ =MASK ] LITERAL AND R@ = \ ca2 ca2+char f
+;		   DUP COUNT [ =mask ] LITERAL AND R@ = \ ca2 ca2+char f
 ;		      IF   R> R@ SWAP DUP >R		\ ca2 ca2+char ca1 u
 ;			   same?			\ ca2 flag
 ;		    \ ELSE DROP -1	\ unnecessary since ca2+char is not 0.
@@ -964,8 +973,8 @@ SAMEQ1: 	MOV	SI,DX
 ;		WHILE cell-		\ pointer to next word in wordlist
 ;		REPEAT
 ;		R> R> 2DROP DUP name>xt SWAP		\ xt ca2
-;		C@ DUP [ =COMP ] LITERAL AND 0= SWAP
-;		[ =IMED ] LITERAL AND 0= 2* 1+ ;
+;		C@ DUP [ =comp ] LITERAL AND 0= SWAP
+;		[ =immed ] LITERAL AND 0= 2* 1+ ;
 ;
 ;		  $COLON  17,'(search-wordlist)',ParenSearch_Wordlist,_SLINK
 ;		  DW	  ROT,ToR,SWAP,DUPP,ZBranch,PSRCH6
@@ -1028,7 +1037,7 @@ PSRCH4: 	POP	SI
 ;		CALL instruction and leaves the next cell address after the
 ;		CALL instruction. Otherwise leaves the original xt1 and zero.
 ;
-;   : ?call	DUP @ call-code =
+;   : ?call	DUP @ [ call-code ] LITERAL =
 ;		IF   CELL+ DUP @ SWAP CELL+ DUP ROT + EXIT THEN
 ;			\ Direct Threaded Code 8086 relative call
 ;		0 ;
@@ -1043,8 +1052,8 @@ QCALL1		DW	Zero,EXIT
 ;		CREATE . Return xt2 of current definition.
 ;
 ;   : xt,	xhere ALIGNED DUP TOxhere SWAP
-;		call-code code, 	\ Direct Threaded Code
-;		xhere CELL+ - code, ;	\ 8086 relative call
+;		[ call-code ] LITERAL code, 	\ Direct Threaded Code
+;		xhere CELL+ - code, ;		\ 8086 relative call
 
 		$COLON	3,'xt,',xtComma,_SLINK
 		DW	XHere,ALIGNED,DUPP,TOXHere,SWAP
@@ -1292,8 +1301,8 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 ;   ALIGNED	( addr -- a-addr )		\ CORE
 ;		Align address to the cell boundary.
 ;
-;   : ALIGNED	DUP 0 cell-size UM/MOD DROP DUP
-;		IF cell-size SWAP - THEN + ;	\ slow, very portable
+;   : ALIGNED	DUP 0 [ cell-size ] LITERAL UM/MOD DROP DUP
+;		IF [ cell-size ] LITERAL SWAP - THEN + ; \ slow, very portable
 ;
 ;		  $COLON  7,'ALIGNED',ALIGNED,_FLINK
 ;		  DW	  DUPP,Zero,DoLIT,CELLL
@@ -1310,8 +1319,8 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 ;   CELLS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 cells.
 ;
-;   : CELLS	cell-size * ;	\ slow, very portable
-;   : CELLS	2* ;		\ fast, must be redefined for each system
+;   : CELLS	[ cell-size ] LITERAL * ;	\ slow, very portable
+;   : CELLS	2* ;				\ fast, must be redefined for each system
 
 		$COLON	5,'CELLS',CELLS,_FLINK
 		DW	TwoStar,EXIT
@@ -1319,8 +1328,8 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 ;   CHARS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 characters.
 ;
-;   : CHARS	char-size * ;	\ slow, very portable
-;   : CHARS	;		\ fast, must be redefined for each system
+;   : CHARS	[ char-size ] LITERAL * ;	\ slow, very portable
+;   : CHARS	;				\ fast, must be redefined for each system
 
 		$COLON	5,'CHARS',CHARS,_FLINK
 		DW	EXIT
@@ -1351,7 +1360,7 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 ;   DEPTH	( -- +n )			\ CORE
 ;		Return the depth of the data stack.
 ;
-;   : DEPTH	sp@ sp0 SWAP - cell-size / ;
+;   : DEPTH	sp@ sp0 SWAP - [ cell-size ] LITERAL / ;
 
 		$COLON	5,'DEPTH',DEPTH,_FLINK
 		DW	SPFetch,SPZero,SWAP,Minus
@@ -1565,6 +1574,11 @@ MOVE1:		STD
 ;		Start of initial value table of system variables.
 
 		$CONST	7,'sysVar0',SysVar0,UZERO,_SLINK
+
+;   sysVar00	( -- a-addr )
+;		Start of backup copy of original value table of system variables.
+
+		$CONST	8,'sysVar00',SysVar00,UZERO0,_SLINK
 
 ;   sysVar0End	( -- a-addr )
 ;		End of initial value table of system variables.
@@ -1936,7 +1950,7 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 ;   cell-	( a-addr1 -- a-addr2 )
 ;		Return previous aligned cell address.
 ;
-;   : cell-	-(cell-size) + ;
+;   : cell-	[ cell-size NEGATE ] LITERAL + ;
 
 		$COLON	5,'cell-',CellMinus,_SLINK
 		DW	DoLIT,0-CELLL,Plus,EXIT
@@ -1960,7 +1974,7 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 ;   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
 ;		Run-time funtion of DO.
 ;
-;   : doDO	>R max-negative + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
+;   : doDO	>R [ max-negative ] LITERAL + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
 
 		$COLON	COMPO+4,'doDO',DoDO,_SLINK
 		DW	ToR,DoLIT,MaxNegative,Plus,RFrom
@@ -1978,7 +1992,8 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 ;   : head,	PARSE-WORD DUP 0=
 ;		IF errWord 2! -16 THROW THEN
 ;				\ attempt to use zero-length string as a name
-;		DUP =mask > IF -19 THROW THEN	\ definition name too long
+;		DUP [ =mask ] LITERAL > IF -19 THROW THEN
+;				\ definition name too long
 ;		2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
 ;		IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
 ;		npVar @ OVER CHARS CHAR+ - 
@@ -2046,8 +2061,8 @@ INTERP4 	DW	DoLIT,-14,THROW
 ;		      2DROP EXIT THEN
 ;		    DUP CELL+ @ ['] EXIT = IF   \ if second word is EXIT
 ;		      @ DUP ['] doLIT XOR  \ make sure it is not literal value
-;		      IF SWAP THEN THEN
-;		THEN THEN DROP COMPILE, ;
+;		      IF SWAP THEN  THEN
+;		THEN DROP COMPILE, ;
 
 		$COLON	12,'optiCOMPILE,',OptiCOMPILEComma,_SLINK
 		DW	DUPP,QCall,DoLIT,DoLIST,Equals,ZBranch,OPTC2
@@ -2083,7 +2098,7 @@ SINGLEO2	DW	EXIT
 ;		single cell number in compilation state.
 ;
 ;   : singleOnly,
-;		singleOnly LITERAL ;
+;		singleOnly POSTPONE LITERAL ;
 
 		$COLON	11,'singleOnly,',SingleOnlyComma,_SLINK
 		DW	SingleOnly,LITERAL,EXIT
@@ -2136,7 +2151,7 @@ DOUBLEA6	DW	One,EXIT
 ;		compilation state.
 ;
 ;   : doubleAlso,
-;		(doubleAlso) 1- IF SWAP LITERAL THEN LITERAL ;
+;		(doubleAlso) 1- IF SWAP POSTPONE LITERAL THEN POSTPONE LITERAL ;
 
 		$COLON	11,'doubleAlso,',DoubleAlsoComma,_SLINK
 		DW	ParenDoubleAlso,OneMinus,ZBranch,DOUBC1
@@ -2388,7 +2403,7 @@ SEARCH1 	DW	EXIT
 ;		Prepare the output string to be TYPE'd.
 ;		||xhere>WORD/#-work-area|
 ;
-;   : #>	2DROP hld @ xhere size-of-PAD + OVER - 1chars/ ;
+;   : #>	2DROP hld @ xhere [ size-of-PAD ] LITERAL + OVER - 1chars/ ;
 
 		$COLON	2,'#>',NumberSignGreater,_FLINK
 		DW	TwoDROP,HLD,Fetch,XHere,DoLIT,PADSize*CHARR,Plus
@@ -2432,7 +2447,7 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 ;   ,		( x -- )			\ CORE
 ;		Reserve one cell in RAM or ROM data space and store x in it.
 ;
-;   : , 	HERE ! cell-size hereVar +! ;
+;   : , 	HERE ! [ cell-size ] LITERAL hereVar +! ;
 
 		$COLON	1,',',Comma,_FLINK
 		DW	HERE,Store
@@ -2515,12 +2530,16 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 
 ;   2DROP	( x1 x2 -- )			\ CORE
 ;		Drop cell pair x1 x2 from the stack.
+;
+;   : 2DROP	DROP DROP ;
 
 		$COLON	5,'2DROP',TwoDROP,_FLINK
 		DW	DROP,DROP,EXIT
 
 ;   2DUP	( x1 x2 -- x1 x2 x1 x2 )	\ CORE
 ;		Duplicate cell pair x1 x2.
+;
+;   : 2DUP	DUP DUP ;
 
 		$COLON	4,'2DUP',TwoDUP,_FLINK
 		DW	OVER,OVER,EXIT
@@ -2593,7 +2612,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 ;		Initiate the numeric output conversion process.
 ;		||xhere>WORD/#-work-area|
 ;
-;   : <#	xhere size-of-PAD + hld ! ;
+;   : <#	xhere [ size-of-PAD ] LITERAL + hld ! ;
 
 		$COLON	2,'<#',LessNumberSign,_FLINK
 		DW	XHere,DoLIT,PADSize*CHARR,Plus,HLD,Store,EXIT
@@ -2601,7 +2620,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 ;   =		( x1 x2 -- flag )		\ CORE
 ;		Return true if top two are equal.
 ;
-;   : = 	XORR 0= ;
+;   : = 	XOR 0= ;
 
 		$COLON	1,'=',Equals,_FLINK
 		DW	XORR,ZeroEquals,EXIT
@@ -2614,7 +2633,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 		$COLON	1,'>',GreaterThan,_FLINK
 		DW	SWAP,LessThan,EXIT
 
-;   >IN 	( -- a-addr )
+;   >IN 	( -- a-addr )			\ CORE
 ;		Hold the character pointer while parsing input stream.
 
 		$VAR	3,'>IN',ToIN,_FLINK
@@ -2673,16 +2692,17 @@ QDUP1		DW	EXIT
 ;   : ACCEPT	>R 0
 ;		BEGIN  DUP R@ < 		\ ca n2 f  R: n1
 ;		WHILE  KEY DUP BL <
-;		       IF   DUP  cr# = IF ROT 2DROP R> DROP EXIT THEN
-;			    DUP  tab# =
+;		       IF   DUP  [ cr# ] LITERAL = IF ROT 2DROP R> DROP EXIT THEN
+;			    DUP  [ tab# ] LITERAL =
 ;			    IF	 DROP 2DUP + BL DUP EMIT SWAP C! 1+
-;			    ELSE DUP  bsp# =
-;				 SWAP del# = OR
-;				 IF DROP DUP
-;					\ discard the last char if not 1st char
-;				 IF 1- bsp# EMIT BL EMIT bsp# EMIT THEN THEN
+;			    ELSE DUP  [ bsp# ] LITERAL =
+;				 SWAP [ del# ] LITERAL = OR
+;				 IF DUP	\ discard the last char if not 1st char
+;				   IF 1- [ bsp# ] LITERAL EMIT 
+;                                     BL EMIT [ bsp# ] LITERAL EMIT THEN 
+;                                THEN
 ;			    THEN
-;		       ELSE >R 2DUP CHARS + R> DUP EMIT SWAP C! 1+  THEN
+;		       ELSE >R 2DUP CHARS + R> DUP EMIT SWAP C! 1+
 ;		       THEN
 ;		REPEAT SWAP  R> 2DROP ;
 
@@ -2756,7 +2776,7 @@ AGAIN1		DW	DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 ;   CELL+	( a-addr1 -- a-addr2 )		\ CORE
 ;		Return next aligned cell address.
 ;
-;   : CELL+	cell-size + ;
+;   : CELL+	[ cell-size ] LITERAL + ;
 
 		$COLON	5,'CELL+',CELLPlus,_FLINK
 		DW	DoLIT,CELLL,Plus,EXIT
@@ -2764,7 +2784,7 @@ AGAIN1		DW	DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 ;   CHAR+	( c-addr1 -- c-addr2 )		\ CORE
 ;		Returns next character-aligned address.
 ;
-;   : CHAR+	char-size + ;
+;   : CHAR+	[ char-size ] LITERAL + ;
 
 		$COLON	5,'CHAR+',CHARPlus,_FLINK
 		DW	DoLIT,CHARR,Plus,EXIT
@@ -2955,7 +2975,7 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 ;   KEY 	( -- char )			\ CORE
 ;		Receive a character. Do not display char.
 ;
-;   : KEY	EKEY max-char AND ;
+;   : KEY	EKEY [ max-char ] LITERAL AND ;
 
 		$COLON	3,'KEY',KEY,_FLINK
 		DW	EKEY,DoLIT,MaxChar,ANDD,EXIT
@@ -3056,7 +3076,7 @@ QUIT5		DW	SPZero,SPStore,Branch,QUIT1
 ;
 ;   : REFILL	SOURCE-ID IF 0 EXIT THEN
 ;		npVar @ [ size-of-PAD CHARS 2* ] LITERAL - DUP
-;		size-of-PAD ACCEPT sourceVar 2!
+;		[ size-of-PAD ] LITERAL ACCEPT sourceVar 2!
 ;		0 >IN ! -1 ;
 
 		$COLON	6,'REFILL',REFILL,_FLINK
@@ -3187,7 +3207,7 @@ ULES1		DW	Minus,ZeroLess,EXIT
 ;   UM* 	( u1 u2 -- ud ) 		\ CORE
 ;		Unsigned multiply. Return double-cell product.
 ;
-;   : UM*	0 SWAP cell-size-in-bits 0 DO
+;   : UM*	0 SWAP [ cell-size-in-bits ] LITERAL 0 DO
 ;		   DUP um+ >R >R DUP um+ R> +
 ;		   R> IF >R OVER um+ R> + THEN	   \ if carry
 ;		LOOP ROT DROP ;
@@ -3207,12 +3227,10 @@ UMST2		DW	DoLOOP,UMST1
 ;
 ;   : UM/MOD	DUP 0= IF -10 THROW THEN	\ divide by zero
 ;		2DUP U< IF
-;		   NEGATE cell-size-in-bits 0
+;		   NEGATE [ cell-size-in-bits ] LITERAL 0
 ;		   DO	>R DUP um+ >R >R DUP um+ R> + DUP
 ;			R> R@ SWAP >R um+ R> OR
-;			IF >R DROP 1+ R> THEN
-;			ELSE DROP THEN
-;			R>
+;			IF  >R DROP 1+ R>  ELSE  DROP  THEN
 ;		   LOOP DROP SWAP EXIT
 ;		ELSE -11 THROW		\ result out of range
 ;		THEN ;
@@ -3235,7 +3253,7 @@ UMM4		DW	DoLIT,-11,THROW
 ;		An UNLOOP is required for each nesting level before the
 ;		definition may be EXITed.
 ;
-;   : UNLOOP	R> R> R> 2DROP >R ;
+;   : UNLOOP	R> R> R> 2DROP >R ; COMPILE-ONLY
 
 		$COLON	COMPO+6,'UNLOOP',UNLOOP,_FLINK
 		DW	RFrom,RFrom,RFrom,TwoDROP,ToR,EXIT
@@ -3275,7 +3293,7 @@ UMM4		DW	DoLIT,-11,THROW
 ;   (		( "ccc<)>" -- )                 \ CORE
 ;		Ignore following string up to next ) . A comment.
 ;
-;   : ( 	[CHAR] ) PARSE 2DROP ;
+;   : ( 	[CHAR] ) PARSE 2DROP ; IMMEDIATE
 
 		$COLON	IMMED+1,'(',Paren,_FLINK
 		DW	DoLIT,')',PARSE,TwoDROP,EXIT
@@ -3359,7 +3377,7 @@ TBODY1		DW	DoLIT,-31,THROW
 ;		Run-time ( i*x x1 -- | i*x ) ( R: j*x -- | j*x )
 ;		Conditional abort with an error message.
 ;
-;   : ABORT"    S" POSTPONE ROT
+;   : ABORT"    POSTPONE S" POSTPONE ROT
 ;		POSTPONE IF POSTPONE abort"msg POSTPONE 2!
 ;		-2 POSTPONE LITERAL POSTPONE THROW
 ;		POSTPONE ELSE POSTPONE 2DROP POSTPONE THEN
@@ -3398,7 +3416,7 @@ ABS1		DW	EXIT
 ;		control stack.
 ;
 ;   : BEGIN	xhere 0 bal+		\ dest type is 0
-;		; COMPILE-ONLY IMMDEDIATE
+;		; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+5,'BEGIN',BEGIN,_FLINK
 		DW	XHere,Zero,BalPlus,EXIT
@@ -3406,7 +3424,7 @@ ABS1		DW	EXIT
 ;   C,		( char -- )			\ CORE
 ;		Compile a character into data space.
 ;
-;   : C,	HERE C! char-size hereVar +! ;
+;   : C,	HERE C! [ char-size ] LITERAL hereVar +! ;
 
 		$COLON	2,'C,',CComma,_FLINK
 		DW	HERE,CStore,DoLIT,CHARR,HereVar,PlusStore,EXIT
@@ -3453,7 +3471,7 @@ DOES2		DW	DoLIT,Pipe,COMPILEComma
 ;		Put the location of new unresolved forward reference orig2
 ;		onto control-flow stack.
 ;
-;   : ELSE	POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMDEDIATE
+;   : ELSE	POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+4,'ELSE',ELSEE,_FLINK
 		DW	AHEAD,TwoSWAP,THENN,EXIT
@@ -3516,7 +3534,7 @@ FIND1		DW	TwoDROP,Zero,EXIT
 ;   IMMEDIATE	( -- )				\ CORE
 ;		Make the most recent definition an immediate word.
 ;
-;   : IMMEDIATE   lastName [ =imed ] LITERAL OVER @ OR SWAP ! ;
+;   : IMMEDIATE   lastName [ =immed ] LITERAL OVER @ OR SWAP ! ;
 
 		$COLON	9,'IMMEDIATE',IMMEDIATE,_FLINK
 		DW	LastName,DoLIT,IMMED,OVER,Fetch,ORR,SWAP,Store,EXIT
@@ -3641,7 +3659,7 @@ RECUR1		DW	Bal,OneMinus,TwoStar,OnePlus,PICK
 ;		Terminate a BEGIN-WHILE-REPEAT indefinite loop. Resolve
 ;		backward reference dest and forward reference orig.
 ;
-;   : REPEAT	AGAIN THEN ; COMPILE-ONLY IMMEDIATE
+;   : REPEAT	POSTPONE AGAIN  POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+6,'REPEAT',REPEATT,_FLINK
 		DW	AGAIN,THENN,EXIT
@@ -3651,7 +3669,7 @@ RECUR1		DW	Bal,OneMinus,TwoStar,OnePlus,PICK
 ;		Put 0 into the most significant bits vacated by the shift.
 ;
 ;   : RSHIFT	?DUP IF
-;			0 SWAP	cell-size-in-bits SWAP -
+;			0 SWAP	[ cell-size-in-bits ] LITERAL SWAP -
 ;			0 DO  2DUP D+  LOOP
 ;			NIP
 ;		     THEN ;
@@ -3667,7 +3685,7 @@ RSHIFT2 	DW	EXIT
 ;		Run-time ( -- c-addr2 u )
 ;		Compile a string literal. Return the string on execution.
 ;
-;   : SLITERAL	DUP LITERAL POSTPONE doS"
+;   : SLITERAL	DUP POSTPONE LITERAL POSTPONE doS"
 ;		CHARS xhere 2DUP + ALIGNED TOxhere
 ;		SWAP MOVE ; COMPILE-ONLY IMMEDIATE
 
