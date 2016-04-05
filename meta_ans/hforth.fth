@@ -1,5 +1,9 @@
-\ $Id$
-\ $Log$
+\ $Id: hforth.fth,v 1.1 1999/10/31 17:30:31 crook Exp $
+\ $Log: hforth.fth,v $
+\ Revision 1.1  1999/10/31 17:30:31  crook
+\ Work in progresss towards an ANS cross-compiler wordset that can
+\ cross-compile hForth for the ARM.
+\
 \ Revision 1.18  1998/11/25 21:48:57  crook
 \ check-point before starting on STC modifications.
 \
@@ -82,7 +86,7 @@
 
 \ This is derived from 1.17 of hfsarom.asm
 \ which in turn is derived from Wonyong's v0.9.9
-\ $Id$
+\ $Id: hforth.fth,v 1.1 1999/10/31 17:30:31 crook Exp $
 
 \ The following values of TARGET are supported:
 \ EBSA110 - EBSA-110, SA-110 StrongARM Evaluation Board
