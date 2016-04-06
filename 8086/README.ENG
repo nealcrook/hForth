@@ -1,30 +1,8 @@
-*** Warning **** Warning **** Warning **** Warning **** Warning ***
-
-Be careful about MSDOS.F and EXE files which contains MSDOS.F.
-Computer (especially those controlled by Forth) will faithfully
-execute whatever commands you give it. You may loose your invaluable
-data in your hard disks. MSDOS.F has been used for a while and seems
-ok, however, it is not fully tested yet. There might be some bugs
-that hForth words do not comply the behaviors described by ANS Forth
-Standard. And you can do regrettable things with standard Forth
-words.
-
-*** Warning **** Warning **** Warning **** Warning **** Warning ***
-
-
-                                        wykoh@pado.krict.re.kr
-                                        Inorganic Materials Division
-                                        KRICT
-                                        P.O.Box 107, Yusong
-                                        Taejon, 305-600
-                                        South Korea
-                                        82-42-861-4245 (FAX)
-
-                                        Feb. 25, 1996
+                                                June 2, 1997
 
 Dear hForth beta-testers:
 
-This is beta release of hForth v0.9.7 which is designed for small
+This is beta release of hForth v0.9.9 which is designed for small
 embedded system. Following the great Forth tradition hForth is free
 software. You can use it for whatever purpose commercial or
 non-commercial. Please spread it as widely as you can.
@@ -98,45 +76,51 @@ bugs.
 
 The files on this package are:
 
-HF86ROM.ASM     TASM source of hForth 8086 ROM model for IBM-PC.
-HF86RAM.ASM     TASM source of hForth 8086 RAM model for IBM-PC.
-HF86EXE.ASM     TASM source of hForth 8086 EXE model for IBM-PC.
-HF86ROM.COM     Executable object of hForth 8086 ROM model.
-HF86RAM.COM     Executable object of hForth 8086 RAM model.
-HF86EXE.EXE     Executable object of hForth 8086 EXE model.
-SAVE.EXE        HF86EXE.EXE with OPTIONAL.F, ASM8086.F, COREEXT.F,
-                MSDOS.F and MULTI.F loaded.
-SAVE2.EXE       SAVE.EXE with HIOMULT2.F loaded.
-HTURTLE.EXE     Turtle Graphics interpreter. Word names in Korean.
-ETURTLE.EXE     Turtle Graphics interpreter. Word names in English.
-OPTIONAL.F      Forth source code of Optional wordset words.
-ASM8086.F       Forth source code of 8086 assembler.
-ASMTEST.F       Test code to check 8086 assembler.
-COREEXT.F       Additional definitions for complete CORE EXT words except
-                obsolescent ones and [COMPILE].
-MULTI.F         Forth source code of Bill Muench's multitasker.
-MULDEMO.F       Simple example for hForth multitasker.
-MSDOS.F         BLOCK and FILE wordset words for MS-DOS.
-DOSEXEC.F       Words to call DOS programs from hForth.
-SAVE.F          Source to generate SAVE.EXE.
-DOUBLE.F        Complete DOUBLE and DOUBLE EXT word definitions.
-HIOMULTI.F      Showing English and Korean characters on graphics screen
-                using multitasker.
-HIOMULT2.F      HIOMULTI.F with better looking Korean screen fonts.
-CLOCK.F         On screen clock for SAVE2.EXE using multitasker.
-STACK.F         Graphic representation of datastack for Forth learners.
-HTURTLE.F       Turtle Graphics words with Korean names.
-ETURTLE.F       Turtle Graphics words with English names.
-SIO.F           Serial communication words. Example of direct hardware control.
-LOG.F           Capture screen display to a textfile, HFORTH.LOG.
-MEMORY.F        MEMORY ALLOCATION word definitions.
-                Adaptation of Gordon Chlarlton's MEMORY.FTH to hForth.
-MEMORY.FTH      Original Gordon Charlton's MEMORY ALLOCATION word definitions.
-DEBUGGER.ANS    Joerg Plewe's ANS Forth debugger. (KEY? was changed to EKEY?)
-ENG.FNT         English fonts for HIOMULT2.F.
-HAN.FNT         Korean fonts for HIOMULT2.F.
-WHATSNEW.ENG    Changes from v0.9.5
-README.ENG      This file.
+HF86ROM.ASM  MASM source of hForth 8086 ROM model for IBM-PC.
+HF86RAM.ASM  MASM source of hForth 8086 RAM model for IBM-PC.
+HF86EXE.ASM  MASM source of hForth 8086 EXE model for IBM-PC.
+HF86ROM.COM  Executable object of hForth 8086 ROM model.
+HF86RAM.COM  Executable object of hForth 8086 RAM model.
+HF86EXE.EXE  Executable object of hForth 8086 EXE model.
+SAVE.EXE     HF86EXE.EXE with OPTIONAL.F, ASM8086.F, COREEXT.F,
+	     MSDOS.F and MULTI.F loaded.
+SAVE1.EXE    SAVE.EXE with HIOMULTI.F loaded.
+SAVE2.EXE    SAVE.EXE with HIOMULT2.F loaded.
+HTURTLE.EXE  Turtle Graphics interpreter. Word names in Korean.
+ETURTLE.EXE  Turtle Graphics interpreter. Word names in English.
+OPTIONAL.F   Forth source code of Optional wordset words.
+ASM8086.F    Forth source code of 8086 assembler.
+ASMTEST.F    Test code to check 8086 assembler.
+COREEXT.F    Additional definitions for complete CORE EXT words except
+	     obsolescent ones and [COMPILE].
+MULTI.F      Forth source code of Bill Muench's multitasker.
+MULDEMO.F    Simple example for hForth multitasker.
+MSDOS.F      BLOCK and FILE wordset words for MS-DOS.
+DOSEXEC.F    Words to call DOS programs from hForth.
+SAVE.F	     Source to generate SAVE.EXE.
+DOUBLE.F     Complete DOUBLE and DOUBLE EXT word definitions.
+HIOMULTI.F   Showing English and Korean characters on graphics screen
+	     using multitasker.
+HIOMULT2.F   HIOMULTI.F with better looking Korean screen fonts.
+ENG.FNT      English fonts for HIOMULT2.F.
+HAN.FNT      Korean fonts for HIOMULT2.F.
+CLOCK.F      On screen clock using multitasker. Needs HIOMULT2.F.
+STACK.F      Graphic representation of datastack for Forth learners.
+	     Needs HIOMULT2.F.
+TURTLE.F     Turtle Graphics words.
+HTURTLE.GLO  Glossary of Korean Turtle Graphics words.
+SIO.F	     Serial communication words. Example of direct hardware
+	     control.
+LOG.F	     Capture screen display to a textfile, HFORTH.LOG.
+DISCP.F      Words for Dijkstra guarded command control structures
+	     by M. Edward Borasky
+MEMORY.F     MEMORY ALLOCATION word definitions.
+	     Adaptation of Gordon Chlarlton's MEMORY.FTH to hForth.
+MEMORY.FTH   Original Gordon Charlton's MEMORY ALLOCATION word definitions.
+DEBUGGER.ANS Joerg Plewe's ANS Forth debugger. (KEY? was changed to EKEY?)
+WHATSNEW.ENG Changes from v0.9.7
+HFORTH.HTM   My article on hForth published on Forth Dimensions
+README.ENG   This file.
 Other README.* files are in Korean.
 
 You can make the executable objects as below:
@@ -154,17 +138,17 @@ SAVE.EXE was prepared as below after starting HF86EXE.EXE:
     << OPTIONAL.F
     << ASM8086.F
     << MSDOS.F
-    BL PARSE SAVE.F INCLUDED
+    BL PARSE SAVE.F INCLUDED		\ or INCLUDE SAVE.F
 
 SAVE2.EXE which displays English and Korean alphabets on graphics
 screen was prepared as below after starting SAVE.EXE:
 
-    BL PARSE HIOMULT2.F INCLUDED
+    BL PARSE HIOMULT2.F INCLUDED	\ or INCLUDE HIOMULT2.F
     SAVE-SYSTEM-AS  SAVE2.EXE
 
-You can load Forth source files using Standard word INCLUDED instead
-of '<<'. Do not use '<<' after you load MSDOS.F. MSDOS.F was not
-fully tested. Please report any bug to me.
+You can load Forth source files using Standard word INCLUDED or
+non-Standard word INCLUDE instead of '<<'. Do not use '<<' after you
+load MSDOS.F. Please report any bug to me.
 
 You can easily build application program simply changing "'init-i/o"
 and "'boot". When the executable starts 'init-i/o is called first
@@ -176,25 +160,25 @@ displays greeting message, copy command line argument to PAD, and
 start Forth interpreter. You can build simple program which displays
 command line argument on graphics screen as below:
 
-    C:\HF097>SAVE2
+    C:\HF>SAVE2
 
-    hForth 8086 EXE Model v0.9.7 by Wonyong Koh, 1995
+    hForth 8086 EXE Model v0.9.9 by Wonyong Koh, 1997
     ALL noncommercial and commercial uses are granted.
     Please send comment, bug report and suggestions to:
-      wykoh@pado.krict.re.kr or 82-42-861-4245 (FAX)
+      wykoh@pado.krict.re.kr
     ·‰e‰Á ¹A´e‰Á §¡Íw·i Ða·¡ÉI wykoh¡ ¥¡ º¯³¯¡µ¡.
 
     HEX
     : SAMPLE
-        CS@ 10 -  \ PSP segment
-        80 2DUP LC@ 1+ 0 DO 2DUP LC@ PAD I + C! CHAR+ LOOP 2DROP
-        HGRAPHIC
-        PAD COUNT TYPE CR CR
-        ." Press any key." KEY BYE ;
+    CS@ 10 -  \ PSP segment
+    80 2DUP LC@ 1+ 0 DO 2DUP LC@ PAD I + C! CHAR+ LOOP 2DROP
+    HGRAPHIC
+    PAD COUNT TYPE CR CR
+    ." Press any key." KEY BYE ;
     ' SAMPLE TO 'boot
     SAVE-SYSTEM-AS BYE.EXE
     BYE
-    C:\HF096>BYE 11 22 33
+    C:\HF>BYE 11 22 33
 
 HIOMULTI.F and HIOMULT2.F are real examples of multitasker.
 Scrolling costs virtually nothing since screen is updated when Forth
@@ -209,14 +193,12 @@ You can easily call text editor (for example, Q editor), edit Forth
 source, exit the editor, load the source and debug without leaving
 hForth. Please consult beginning of LOG.F and DOSEXEC.F for usage.
 
-ETURTLE.F is an implementation of Turtle Graphics with English word
-names. (HTURTLE.F is an implementation of Turtle Graphics with Korean
-word names.) I am sorry that some files are written in only Korean,
-especially HIOMULT?.F. I will try to provide English version if
-there is enough interests.
+TURTLE.F is an implementation of Turtle Graphics. I am sorry that
+some files are written in only Korean, especially HIOMULT?.F. I will
+try to provide English version if there is enough interests.
 
-I applied all the best ideas and tricks I know to hForth. Most of
-them came from other people while I added a few of my own. I
+I applied all the best ideas and tricks thatI know to hForth. Most
+of them came from other people while I added a few of my own. I
 believe some are worth to mention here. hForth text interpreter uses
 vector table which tells what to do with a parsed word after search
 it in Forth dictionary. The key part of text interpreter is:
@@ -226,9 +208,9 @@ it in Forth dictionary. The key part of text interpreter is:
 
 So what the interpreter does is summarized in 'doWord table as:
 
-                        +------------------+--------------------+
-                        |compilation state |interpretation state|
-                        |(STATE returns -1)|(STATE returns 0)   |
+	    +------------------+--------------------+
+	    |compilation state |interpretation state|
+	    |(STATE returns -1)|(STATE returns 0)   |
     +-------------------+------------------+--------------------+
     | nonimmediate word |   optiCOMPILE,   |    EXECUTE         |
     |(top-of-stack = -1)|                  |                    |
@@ -252,13 +234,13 @@ this vector table as below:
 optiCOMPILE, is used in place of Standard word COMPILE, which
 removes one level of EXIT if possible as shown below:
 
-    : TEST1 ;           SEE TEST1
+    : TEST1 ;	    SEE TEST1
     call-doLIST EXIT ok
-    : TEST2   TEST1 ;   SEE TEST2
+    : TEST2   TEST1 ;	SEE TEST2
     call-doLIST EXIT ok
-    : TEST3   DUP ;     SEE TEST3
+    : TEST3   DUP ; SEE TEST3
     call-doLIST DUP EXIT ok
-    : TEST4   TEST3 ;   SEE TEST4
+    : TEST4   TEST3 ;	SEE TEST4
     call-doLIST DUP EXIT ok
 
 There is no penalty to use empty definition CHARS or use CELLS
@@ -278,17 +260,17 @@ two words, implementation-dependent 'doCompiles>' and
 implementation-independent 'compile>'.
 
     : doCompiles>
-        \ verify the last word is ready for special compilation action
-        \ attach special compilation action to the word
-        ;
+    \ verify the last word is ready for special compilation action
+    \ attach special compilation action to the word
+    ;
 
     \  compiles>  ( xt -- )
-    \           Assign xt as special compilation action of the last CREATEd
-    \           word. It is the user's responsibility to match the special
-    \           compilation action and the execution action.
-    \       Example: '2CONSTANT' can be defined as following:
-    \       :NONAME   EXECUTE POSTPONE 2LITERAL ;
-    \       : 2CONSTANT   CREATE SWAP , , compiles> DOES> DUP @ SWAP CELL+ @ ;
+    \	    Assign xt as special compilation action of the last CREATEd
+    \	    word. It is the user's responsibility to match the special
+    \	    compilation action and the execution action.
+    \	    Example: '2CONSTANT' can be defined as following:
+    \	    :NONAME   EXECUTE POSTPONE 2LITERAL ;
+    \	    : 2CONSTANT   CREATE SWAP , , compiles> DOES> DUP @ SWAP CELL+ @ ;
     : compiles> POSTPONE LITERAL POSTPONE doCompiles> ; IMMEDIATE
 
 These words are used for example to define 2CONSTANT:
@@ -298,6 +280,10 @@ These words are used for example to define 2CONSTANT:
 
 I beleive that this solution is general enough to be applied to
 other Forth systems.
+
+Control-flow stack is fully implemented on data stack. One
+control-flow stack item is represented by two data stack item. Control
+structure mismatch is rigorously verified.
 
 I gave up the pin-hole optimization tried in version 0.9.6. It had
 some bugs and building one in assembly source seems to be too much
@@ -319,5 +305,13 @@ language. Please let me know if you know the name hForth is used
 already by someone else.
 
 Sincerely,
+
 Wonyong Koh, Ph.D.
 wykoh@pado.krict.re.kr
+
+Advanced Materials Division
+KRICT
+P.O.Box 107, Yusong
+Taejon, 305-600
+South Korea
+82-42-861-4245 (FAX)

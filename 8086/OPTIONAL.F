@@ -1,9 +1,17 @@
 \
 \ OPTIONAL.F
-\ Optional wordset words for hForth
+\ Optional wordset words for 8086 hForth
 \
 \ by Wonyong Koh
 \
+\ 1997. 2. 28.
+\	Facelift to be used with other CPUs.
+\ 1996. 12. 6.
+\	Fix 'compiles>' for colon-sys.
+\ 1996. 11. 29.
+\	Remove PICK which was added in assembly source.
+\	Revise CASE, ENDCASE, OF, ENDOF, RETRY for control-flow stack.
+\	Revise '.xt' due to the removal of 'do."' and change of 'doS"'.
 \ 1995. 12. 26.
 \	Revise xt>name.
 \ 1995. 11. 25.
@@ -30,7 +38,7 @@
 \ 1995. 6. 3.
 \	Fix 'xtSEE' for RAM and EXE model.
 \
-\ Dictionary structures of hForth 8086 ROM, RAM and EXE models are all
+\ Dictionary structures of hForth ROM, RAM and EXE models are all
 \ different.
 \  o  WORDLIST allocate empty wordlist dynamically in RAM and EXE model. Thus,
 \     there is no limit on maximum number of wordlist for RAM and EXE model.
@@ -126,8 +134,8 @@ DECIMAL
 \		is -1, set the search order to the implementation-defined
 \		minimum search order.
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : SET-ORDER
       DUP -1 =
@@ -139,10 +147,10 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
       DUP #order !
       ?DUP IF 0 DO I CELLS #order CELL+ + ! LOOP THEN ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0= OR
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0= OR
 [IF]
   : SET-ORDER
       DUP -1 =
@@ -164,20 +172,20 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0= OR
 \		structure of a wordlist
 \		//lastWord/next_wordlist/wordlist_name//
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : WORDLIST
       FORTH-WORDLIST			\ the first wordlist
       BEGIN CELL+ DUP @ WHILE @ REPEAT
-      DUP CELL+ CELL+ DUP @ IF          \ pre-allocated wordlist is available?
-          -49 THROW THEN                \ search-order overflow
-      DUP ROT ! ;                       \ attach a wordlist to wordlist link
+      DUP CELL+ CELL+ DUP @ IF		\ pre-allocated wordlist is available?
+	  -49 THROW THEN		\ search-order overflow
+      DUP ROT ! ;			\ attach a wordlist to wordlist link
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0= OR
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0= OR
 [IF]
   : WORDLIST
       FORTH-WORDLIST			\ the first wordlist
@@ -247,8 +255,8 @@ FORTH-WORDLIST SET-CURRENT
 \ **********************
 
 NONSTANDARD-WORDLIST SET-CURRENT
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
     : xhere   HERE ;
     : code,   , ;
@@ -285,8 +293,8 @@ FORTH-WORDLIST SET-CURRENT
 \		restore on execution all dictionary allocations and search
 \		order pointers to the state they had just prior to the
 \		definition of name.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : MARKER
       ROMB @ ROMT @ RAMB @ RAMT @
@@ -308,8 +316,8 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
 		  CELL+ @ ?DUP 0=     \ repeat to next wordlist
 	    UNTIL ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
   : MARKER
       HERE
@@ -330,8 +338,8 @@ CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
 		  CELL+ @ ?DUP 0=     \ repeat to next wordlist
 	    UNTIL ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : MARKER
       HERE xhere
@@ -356,18 +364,18 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 \   PAD 	( -- a-addr )			\ CORE EXT
 \		Return the address of a temporary buffer. See REFILL
 \		|PAD|TIB|RAMTop
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : PAD   npVar @ [ BL PARSE /PAD ENVIRONMENT? DROP CHARS 3 * NEGATE ] LITERAL + ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
   : PAD   memTop [ BL PARSE /PAD ENVIRONMENT? DROP CHARS 2* NEGATE ] LITERAL + ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : PAD   memTop [ BL PARSE /PAD ENVIRONMENT? DROP CHARS 2* NEGATE ] LITERAL + ;
 [THEN]
@@ -386,18 +394,21 @@ HEX
 \		Run-time: ( -- )
 \		Mark the start of CASE ... OF ... ENDOF ... ENDCASE structure.
 \		On run-time, continue execution.
-: CASE ( C: -- 0 )
-    4000 bal +!  0 ; COMPILE-ONLY IMMEDIATE
+: CASE ( C: -- case-mark )
+    0 3 	\ case type is 3
+    bal+ ; COMPILE-ONLY IMMEDIATE
 
 \   ENDCASE	( C: case-sys -- )		\ CORE EXT
 \		Run-time: ( x -- )
 \		Mark the end of CASE ... OF ... ENDOF ... ENDCASE structure.
 \		On run-time, discard the case selector x and continue execution.
-: ENDCASE ( C: 0 orig1 orig2 -- )
-    -4000 bal +!  POSTPONE DROP
-    BEGIN  ?DUP
-    WHILE  POSTPONE THEN  -1000 bal +!
-    REPEAT ; COMPILE-ONLY IMMEDIATE
+: ENDCASE ( C: case-mark of-orig ... of-orig -- )
+    POSTPONE DROP
+    BEGIN  DUP 2 =	\ of-orig type is 2
+    WHILE  1- POSTPONE THEN
+    REPEAT
+    3 - IF -22 THROW THEN	\ control structure mismatch
+    DROP bal- ; COMPILE-ONLY IMMEDIATE
 
 \   OF		( C: -- of-sys )		\ CORE EXT
 \		Run-time: ( x1 x2 -- |x1 )
@@ -405,20 +416,18 @@ HEX
 \		On run-time if two values on the stack are not equal, discard
 \		the top value and continue execution following the next ENDOF.
 \		Otherwise discard both values and continue execution in line.
-: OF ( C: -- orig )
-    2000 bal +!  POSTPONE OVER	POSTPONE =  POSTPONE IF  POSTPONE DROP
+: OF ( C: -- of-orig )
+    POSTPONE OVER  POSTPONE =  POSTPONE IF  POSTPONE DROP
+    1+		\ change orig type 1 to of-sys type 2
     ; COMPILE-ONLY IMMEDIATE
 
 \   ENDOF	( C: case-sys1 of-sys -- case-sys2 )	\ CORE EXT
 \		Run-time: ( -- )
 \		Mark the end of OF ... ENDOF part of CASE structre.
 \		On run-time, continue execution following ENDCASE .
-: ENDOF ( C: orig1 -- orig2 )
-    -1000 bal +!  POSTPONE ELSE ; COMPILE-ONLY IMMEDIATE
-
-\   PICK	( x_u ... x1 x0 u -- x_u ... x1 x0 x_u )	\ CORE EXT
-\		Remove u and copy the uth stack item to top of the stack.
-: PICK	 1+ CELLS sp@ + @ ;
+: ENDOF ( C: of-orig1 -- of-orig2 )
+    1-	POSTPONE ELSE  1+	\ of-orig type is 2; orig type is 1
+    ; COMPILE-ONLY IMMEDIATE
 
 \   UNUSED	( -- u )				\ CORE EXT
 \		Return available data space in address units.
@@ -459,12 +468,12 @@ FORTH-WORDLIST SET-CURRENT
 : DUMP	?DUP
 	IF   BASE @ >R HEX
 	     1- 16 / 1+
-	     0 DO CR DUP DUP 4 U.R SPACE
-		  16 0 DO DUP C@ 3 U.R CHAR+ LOOP
-		  SWAP SPACE SPACE
+	     0 DO CR DUP DUP 0 <# # # # # #> TYPE SPACE SPACE
+		  16 0 DO DUP C@ 0 <# # # #> TYPE SPACE CHAR+ LOOP
+		  SPACE SWAP
 		  16 0 DO   DUP C@ 127 AND DUP 0 BL WITHIN
 			    OVER 127 = OR
-			    IF DROP [CHAR] _ THEN
+			    IF DROP [CHAR] . THEN
 			    EMIT CHAR+
 		       LOOP DROP
 		  enough? IF LEAVE THEN
@@ -474,8 +483,8 @@ FORTH-WORDLIST SET-CURRENT
 
 NONSTANDARD-WORDLIST SET-CURRENT
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   \   xDUMP	  ( code-addr u -- )
   \		  Display the contents of u consecutive address units
@@ -484,8 +493,8 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
   : xDUMP ?DUP
 	  IF   BASE @ >R HEX
 	       1- 16 / 1+
-	       0 DO CR DUP 4 U.R SPACE
-		    8 0 DO DUP code@ 5 U.R CELL+ LOOP
+	       0 DO CR DUP 0 <# # # # # #> TYPE SPACE SPACE
+		    8 0 DO DUP code@ 0 <# # # # # #> TYPE SPACE  CELL+ LOOP
 		    enough? IF LEAVE THEN
 	       LOOP
 	       R> BASE !
@@ -495,8 +504,8 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 \   xt>name	( xt -- c-addr | 0 )
 \		Remove xt from the stack and return the name address if xt
 \		is execution token of valid word; otherwise return 0.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : xt>name
       DUP ALIGNED OVER XOR IF DROP 0 EXIT THEN	\ xt should be aligned
@@ -511,8 +520,8 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
       UNTIL			\ continue to next wordlist
       R> DROP 0 ;		\ not found
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
   : xt>name
       DUP ALIGNED OVER XOR IF DROP 0 EXIT THEN	\ xt should be aligned
@@ -520,8 +529,8 @@ CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
       DUP ALIGNED OVER XOR IF 2DROP 0 EXIT THEN
       SWAP OVER name>xt = AND ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : xt>name
       DUP ALIGNED OVER XOR IF DROP 0 EXIT THEN	\ xt should be aligned
@@ -533,42 +542,47 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 \   .xt 	( a-addr1 xt -- a-addr2 )
 \		Display name of a xt if xt is valid and display string
 \		constant and adjust a-addr1 to the end of string if xt is
-\		not POSTPONEd 'do."' or 'doS"' ; otherwise display the xt
-\		as a number.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+\		not POSTPONEd 'doS"' ; otherwise display the xt as a number.
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0= OR
 [IF]
-  : .xt   DUP xt>name ?DUP
-	  IF .name DUP >R DUP ['] do." = SWAP ['] doS" = OR
+  : .xt
+      DUP
+      IF DUP xt>name ?DUP
+	  IF .name DUP >R ['] doS" =
 	     IF DUP cell- @ ['] doLIT XOR
-		IF CELL+ COUNT 2DUP TYPE + ALIGNED
+		IF DUP CELL+ SWAP cell- @ 2DUP TYPE + ALIGNED
 		   cell- [CHAR] " EMIT SPACE       THEN THEN
 	     R> DUP  ['] branch = OVER ['] 0branch = OR
 		OVER ['] doLOOP = OR SWAP ['] do+LOOP = OR
 	     IF DUP cell- @ ['] doLIT XOR
 		IF CELL+ DUP @ OVER CELL+ - .	   THEN THEN
 	     EXIT
-	  THEN	U. ;
+	  THEN
+      THEN U. ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
-  : .xt   DUP xt>name ?DUP
+  : .xt
+      DUP
+      IF DUP xt>name ?DUP
 	  IF .name
 	     DUP  ['] branch = OVER ['] 0branch = OR
 	     OVER ['] doLOOP = OR SWAP ['] do+LOOP = OR
 	     IF DUP cell- code@ ['] doLIT XOR
 		IF CELL+ DUP code@ OVER CELL+ - .  THEN THEN
 	     EXIT
-	  THEN	U. ;
+	  THEN
+      THEN U. ;
 [THEN]
 
 \   xtSEE	( xt -- )
 \		Display human-readable representation of xt.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : xtSEE   >R lastName
 	    BEGIN  DUP COUNT 31 AND + ALIGNED CELL+ CELL+ \ na na'
@@ -583,8 +597,8 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
 	    WHILE CELL+ 2DUP U> 0=
 	    UNTIL THEN 2DROP  R> BASE ! ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
   \ Following definition is less dependent on dictionary structure although
   \ slower. It only assumes xt of a word is larger than xt of previously
@@ -609,8 +623,8 @@ CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
 	    WHILE CELL+ 2DUP U> 0=
 	    UNTIL THEN 2DROP  R> BASE ! ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   \ Following definition is less dependent on dictionary structure although
   \ slower. It only assumes xt of a word is larger than xt of previously
@@ -680,21 +694,21 @@ NONSTANDARD-WORDLIST SET-CURRENT
 \		to preserve the memory image. Use non-volatile RAM or
 \		DEBUG.EXE to store the image in MS-DOS.
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : SAVE-SYSTEM
       var0 sysVar0 [ sysVar0End sysVar0 - ] LITERAL MOVE ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
   : SAVE-SYSTEM
       #order DUP @ #order0 SWAP 1+ CELLS MOVE ;
 [THEN]
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
 
   \ **********************
@@ -719,12 +733,16 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
 [THEN]
 
 \   RETRY	( -- )
-\		Compile unconditional jump to the start of then current
-\		definition.
-: RETRY   lastXT ?call DROP POSTPONE branch COMPILE, ; IMMEDIATE COMPILE-ONLY
+\		Compile unconditional jump to the start of the current
+\		definition. Described by Dr. Astle in Forth Dimensions
+\		17(4), 19-21 (1995).
+: RETRY   bal 1- 2* PICK 1+ IF -22 THROW THEN
+		     \ control structure mismatch; colon-sys type is -1
+	  bal 1- 2* 1+ PICK	  \ xt of current definition
+	  ?call DROP POSTPONE branch COMPILE, ; IMMEDIATE COMPILE-ONLY
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   DECIMAL
   \ Structure of CREATEd word:
@@ -733,14 +751,14 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
       lastName DUP C@ 128 ( =seman) <
       IF -12 THROW THEN 	\ argument type mismatch
       name>xt cell- cell- code! ;
-  \  compiles>	( xt -- )
+  \  compiles>	( xt colon-sys -- colon-sys )
   \		Assign xt as special compilation action of the last CREATEd
   \		word. It is the user's responsibility to match the special
   \		compilation action and the execution action.
   \	    Example: '2CONSTANT' can be defined as following:
-  \         :NONAME   EXECUTE POSTPONE 2LITERAL ;
+  \	    :NONAME   EXECUTE POSTPONE 2LITERAL ;
   \	    : 2CONSTANT   CREATE SWAP , , compiles> DOES> DUP @ SWAP CELL+ @ ;
-  : compiles> POSTPONE LITERAL POSTPONE doCompiles> ; IMMEDIATE
+  : compiles>	ROT POSTPONE LITERAL POSTPONE doCompiles> ; IMMEDIATE
 [THEN]
 
 FORTH-WORDLIST SET-CURRENT

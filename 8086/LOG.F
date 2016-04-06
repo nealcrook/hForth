@@ -7,15 +7,18 @@
 \
 \ Usage:
 \   LOGON  ( -- )
-\       ÑÁ¡e Â‰b·i HFORTH.LOGµA ˆi¢Ÿ¡Ðs“¡”a. Â‰b ˆaŸ¡Ç±¯©Ð—ˆt 'emit·i
-\       ¤aŽ… ÒµA“e (µŸi —i´á, HIOMULT?.F· TEXTa HGRAPHIC·i ¯¡Ç¥ Ò)
-\       LOGON·¡œa‰¡ ”a¯¡ ¯¡Åa´¡ ˆi¢Ÿ¡ˆa ‰­¢–S“¡”a.
-\       Start to save screen output in HFORTH.LOG.
-\       Please reissue 'LOGON' after changing "'emit" vector.
-\        (for example, after TEXT or HGRAPHIC of HIOMULT?.F)
+\	ÑÁ¡e Â‰b·i HFORTH.LOGµA ˆi¢Ÿ¡Ðs“¡”a. Â‰b ˆaŸ¡Ç±¯©Ð—ˆt 'emit·¡
+\	¤aŽå ÒµA“e (µŸi —i´á, HIOMULT?.F· TEXTa HGRAPHIC·i ¯¡Ç¥ Òa
+\	Í¡¯a ¯¡¯aÉQ·¡ '?'·i ¥¡µa ¸i¡µ·i ´iŸ¥ ‰w¶) LOGON·¡œa‰¡ ”a¯¡ ¯¡Åa´¡
+\	ˆi¢Ÿ¡ˆa ‰­¢–S“¡”a.
+\	Start to save screen output in HFORTH.LOG.
+\	Please reissue 'LOGON' after changing "'emit" vector.
+\	 (for example, after TEXT or HGRAPHIC of HIOMULT?.F)
 \   LOGOFF  ( -- )
-\       HFORTH.LOGŸi ”h‰¡ ÑÁ¡e ˆi¢Ÿ¡Ÿi  ñÂ““¡”a.
-\       Close HFORTH.LOG and stop saving screen output.
+\	HFORTH.LOGŸi ”h‰¡ ÑÁ¡e ˆi¢Ÿ¡Ÿi  ñÂ““¡”a.
+\	Close HFORTH.LOG and stop saving screen output.
+
+MARKER ~LOG
 
 BASE @
 GET-ORDER  GET-CURRENT
@@ -40,18 +43,18 @@ NONSTANDARD-WORDLIST SET-CURRENT
     logfid CLOSE-FILE DROP
     S" HFORTH.LOG" W/O OPEN-FILE
     ?DUP IF
-        DUP 2 <>    \ file not found?
-        IF THROW THEN
-        2DROP S" HFORTH.LOG" W/O CREATE-FILE THROW TO logfid
+	DUP [ 2 iorOffset + ] LITERAL <>	\ file not found?
+	IF THROW THEN
+	2DROP S" HFORTH.LOG" W/O CREATE-FILE THROW TO logfid
     ELSE
-        TO logfid
-        logfid FILE-SIZE THROW logfid REPOSITION-FILE THROW
+	TO logfid
+	logfid FILE-SIZE THROW logfid REPOSITION-FILE THROW
     THEN
     CR ." All characters on screen will be saved in HFORTH.LOG until 'emit is revectored."
-    CR ." ÑÁ¡eµA ¥¡·¡“e ‹i¸a—i·e ¡¡– 'emit·i ¤aŽ‹¡ ¸åŒa»¡ HFORTH.LOGµA ˆi¢Ÿ¡–S“¡”a." CR
+    CR ." ÑÁ¡eµA ¥¡·¡“e ‹i¸a—i·e ¡¡– 'emit·¡ ¤aŽá‹¡ ¸åŒa»¡ HFORTH.LOGµA ˆi¢Ÿ¡–S“¡”a." CR
     'emit ['] LogEMIT <> IF
-        'emit TO old'emit
-        ['] LogEMIT TO 'emit
+	'emit TO old'emit
+	['] LogEMIT TO 'emit
     THEN ;
 
 : LOGOFF

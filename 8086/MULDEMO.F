@@ -29,9 +29,9 @@ TASK2 SLEEP
 TASK3 SLEEP
 
 BASE !
-.( Try 'TASK1 AWAKE  TASK2 AWAKE' and wait for a while.)
-.( Try 'TASK2 SLEEP' and wait for a while and try 'TASK1 SLEEP'.)
-.( You will get the idea.)
+CR .( Try 'TASK1 AWAKE  TASK2 AWAKE' and wait for a while.)
+CR .( Try 'TASK2 SLEEP' and wait for a while and try 'TASK1 SLEEP'.)
+CR .( You will get the idea.)
 
 CHAR " PARSE FILE" ENVIRONMENT?
 [IF]

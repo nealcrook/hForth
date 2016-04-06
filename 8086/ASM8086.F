@@ -23,6 +23,10 @@
 
 \ Further modifications by Wonyong Koh
 \
+\ 1996. 11. 29.
+\	Revise ';CODE' for control-flow stack.
+\ 1996. 4. 15.
+\	';CODE' is fixed. END-CODE is changed.
 \ 1995. 11. 27.
 \	';CODE' is redefined following the change of 'DOES>' and 'doCREATE'.
 \
@@ -37,11 +41,15 @@
 \   However, I did not bother and simply put 'ROM' and 'RAM' in
 \   'ASM8086.F' since '1MI' won't be used in any other places.
 
+CHAR " PARSE CPU" ENVIRONMENT? DROP
+CHAR " PARSE 8086" COMPARE
+[IF] CR .( This assembler is for 8086 only.) ABORT [THEN]
+
 BASE @
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF] RAM/ROM@ [THEN]
-GET-CURRENT  GET-ORDER
+GET-ORDER  GET-CURRENT
 
 WORDLIST WORDLIST-NAME ASSEMBLER-WORDLIST
 
@@ -53,28 +61,28 @@ HEX
 
 \ ----------------------------------------------------- System dependant words
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
-  : codeB!      C! ;
-  : codeB,      xhere DUP 1+ TOxhere C! ;
-  : code2B,     xhere DUP CELL+ TOxhere ! ;
-  : code4B,     SWAP code2B, code2B, ;
+  : codeB!	C! ;
+  : codeB,	xhere DUP 1+ TOxhere C! ;
+  : code2B,	xhere DUP CELL+ TOxhere ! ;
+  : code4B,	SWAP code2B, code2B, ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
-  : codeB!      C! ;
-  : codeB,      HERE DUP 1+    TO HERE C! ;
-  : code2B,     HERE DUP CELL+ TO HERE ! ;
-  : code4B,     SWAP code2B, code2B, ;
+  : codeB!	C! ;
+  : codeB,	HERE DUP 1+    TO HERE C! ;
+  : code2B,	HERE DUP CELL+ TO HERE ! ;
+  : code4B,	SWAP code2B, code2B, ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
-  : codeB,       xhere DUP 1+    TO xhere codeB! ;
-  : code2B,      xhere DUP CELL+ TO xhere code! ;
-  : code4B,      SWAP code2B, code2B, ;
+  : codeB,	 xhere DUP 1+	 TO xhere codeB! ;
+  : code2B,	 xhere DUP CELL+ TO xhere code! ;
+  : code4B,	 SWAP code2B, code2B, ;
 [THEN]
 
 \ ----------------------------------------------------------------- Predicates
@@ -99,8 +107,8 @@ DECIMAL 16  CONSTANT  MXL#  HEX
 \ Associate stacks can be "popped" from the middle, or wherever
 \ the key is found.
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   RAM
 [THEN]
@@ -141,7 +149,7 @@ CREATE BWDS
     DUP L? 0= huh? ( should be unknown)
     xhere  OVER CELLS BWDS + ! ( now known)
     BEGIN  DUP LPOP ( a -1 | n 0)  WHILE
-        xhere OVER - 1-  SWAP OVER  ?FAR  codeB!  ( resolve ref)
+	xhere OVER - 1-  SWAP OVER  ?FAR  codeB!  ( resolve ref)
     REPEAT
     2DROP ;
 
@@ -184,8 +192,8 @@ OCTAL
 
 \ ----------------------------------------------------------------- Mode tests
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   ROM
 [THEN]
@@ -227,22 +235,22 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
     RMID  SWAP RLOW OR	300 OP, ;
 
 : ,/C, ( n 16-bit? )
-    IF  code2B,  ELSE  codeB,  THEN ;
+    IF	code2B,  ELSE  codeB,  THEN ;
 
 \ ---------------------------------------------------------- Address compilers
 
 \ compiles memory->register operand.
 : MEM, ( a/o mode register-mode)
     RMID  OVER ) =  IF
-        6 OP,  DROP  code2B,                    ( direct )
+	6 OP,  DROP  code2B,			( direct )
     ELSE
 	OVER RLOW OR  ( reg:r/m field) ROT ROT	( field addr mode)
 	( mode) [BP] =	OVER 0= AND  IF 	( 0 [BP] exception..)
-            SWAP  100 OP, codeB,                ( ...requires offset)
+	    SWAP  100 OP, codeB,		( ...requires offset)
 	ELSE  SWAP OVER BIG?  IF
-            200 OP,  ( 2-byte offset) code2B,
+	    200 OP,  ( 2-byte offset) code2B,
 	ELSE  OVER  IF
-            100 OP,  ( 1-byte offset) codeB,
+	    100 OP,  ( 1-byte offset) codeB,
 	ELSE
 	    OP,  ( zero offset)
 	THEN THEN THEN
@@ -279,12 +287,12 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
 \ jump to a one-byte displacement.
 : 3MI
     CREATE  C,
-    DOES>   C@  codeB, ( a ) xhere - 1-  DUP ?FAR  codeB, ;
+    DOES>   C@	codeB, ( a ) xhere - 1-  DUP ?FAR  codeB, ;
 
 \ LDS LEA LES opcodes.
 : 4MI
     CREATE  C,
-    DOES>   C@  codeB, ( mem reg) OVER REG? ?MAD  MEM, ;
+    DOES>   C@	codeB, ( mem reg) OVER REG? ?MAD  MEM, ;
 
 \ string opcodes.
 : 5MI
@@ -302,7 +310,7 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
     DOES>   C@	OVER ?ACC  ROT
 	    DUP # =  OVER DX =	OR INVERT ?MAD
 	    # =  IF
-                SWAP W,  codeB,
+		SWAP W,  codeB,
 	    ELSE
 		10 OR  SWAP W,
 	    THEN ;
@@ -334,17 +342,17 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
     DOES>   >R	( ... mode)  DUP REG? FAR= @ AND ?MAD  R>
 	    OVER  # =  ( [d]addr # ^opcode) IF
 		NIP  FAR= @ IF
-                    1+ C@  codeB,  code4B,
+		    1+ C@  codeB,  code4B,
 		ELSE
 		    C@ SWAP xhere - 2 - SWAP OVER
 		    BIG? INVERT OVER 1 AND ( JMP?)  AND  IF
-                        2 OP, codeB,
+			2 OP, codeB,
 		    ELSE
-                        codeB, 1- code2B,
+			codeB, 1- code2B,
 		    THEN
 		THEN
 	    ELSE ( r/mem ^opcode)
-                377 codeB,
+		377 codeB,
 		1+ C@  FAR= @ INVERT 10 AND  XOR  R/M,
 	    THEN
 	    0 FAR= ! ;
@@ -358,7 +366,7 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
 		C@  OVER CS =  OVER 1 AND ( POP) AND  ?MAD
 		RLOW SWAP  RMID OP,
 	    ELSE
-                COUNT SWAP C@  codeB,  MEM,
+		COUNT SWAP C@  codeB,  MEM,
 	    THEN THEN ;
 
 \ Note: BIG # AL is not detected as an error.
@@ -397,8 +405,8 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
 : 14MI
     CREATE  C,
     DOES>   C@	FAR= @ 10 AND  OR  0 FAR= !	( [offset] opcode)
-            DUP  codeB,
-            1 AND 0= IF  code2B,  THEN ;        (  offset  +RET  )
+	    DUP  codeB,
+	    1 AND 0= IF  code2B,  THEN ;	(  offset  +RET  )
 
 
 \ Segment override prefices.
@@ -441,23 +449,23 @@ HEX
 
 : MOV, ( source destination )
     DUP SEG? IF
-        8E codeB, R/M,                                          ( mem->seg)
+	8E codeB, R/M,						( mem->seg)
     ELSE DUP REG? IF
 	2DUP >ACC? IF
-            A0 SWAP W, DROP  code2B,                            ( mem->acc)
+	    A0 SWAP W, DROP  code2B,				( mem->acc)
 	ELSE OVER SEG? IF
-            SWAP 8C codeB, RR,                                  ( seg->reg)
+	    SWAP 8C codeB, RR,					( seg->reg)
 	ELSE OVER # = IF
 	    NIP DUP R16? SWAP RLOW OVER 8 AND OR B0 OP, ,/C,	( #  ->reg)
 	ELSE
 	    8A OVER W, R/M,					( mem->reg)
 	THEN THEN THEN
     ELSE ROT DUP SEG? IF
-        8C codeB, MEM,                                          ( seg->mem)
+	8C codeB, MEM,						( seg->mem)
     ELSE DUP # = IF
 	DROP C6 WORD, 0 MEM,  WORD= @ ,/C,			( #  ->mem)
     ELSE 2DUP >ACC? IF
-        A2 SWAP W,  DROP  code2B,                               ( acc->mem)
+	A2 SWAP W,  DROP  code2B,				( acc->mem)
     ELSE
 	88 OVER W,  R/M,					( reg->mem)
     THEN THEN THEN THEN THEN
@@ -466,7 +474,7 @@ HEX
 \ ----------------------------------------------- Special opcodes INT and XCHG
 
 : INT,	( n )
-    DUP 3 =  IF  DROP  CC codeB,  EXIT  THEN
+    DUP 3 =  IF  DROP  CC codeB,  EXIT	THEN
     CD codeB,  codeB, ;
 
 : XCHG, ( mem reg)
@@ -538,24 +546,24 @@ EA E9 11MI JMP,
     0 FAR= !  WORD ;
 
 : END-CODE
-    linkLast PREVIOUS ;
+    PREVIOUS  notNONAME? IF  linkLast  0 TO notNONAME?	THEN ;
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0= OR
 [IF]
   : NEXT, ( a macro)
-      AD    codeB,      \ LODSW
-      E0FF  code2B, ;   \ JMP AX
+      AD    codeB,	\ LODSW
+      E0FF  code2B, ;	\ JMP AX
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : NEXT, ( a macro)
-      2E    codeB,      \ CS:
-      AD    codeB,      \ LODSW
-      E0FF  code2B, ;   \ JMP AX
+      2E    codeB,	\ CS:
+      AD    codeB,	\ LODSW
+      E0FF  code2B, ;	\ JMP AX
 [THEN]
 
 \ ----------------------------------------------------------------------------
@@ -577,28 +585,30 @@ FORTH-WORDLIST SET-CURRENT	\ add the following word in FORTH-WORDLIST
 \		name Execution:( i*x --- j*x )
 \		Execute the machine code sequence that was generated
 \		following CODE.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : CODE ( "<spaces>name" -- )    \ TOOLS EXT
+      -1 TO notNONAME?
       xhere ALIGNED DUP TOxhere   \ align code address
       head,			  \ register a word in dictionary
       ALSO ASSEMBLER
       INIT-ASM ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
   : CODE ( "<spaces>name" -- )    \ TOOLS EXT
-      head,			  \ register a word in dictionary
-      xhere TO lastXT
+      -1 TO notNONAME?
+      ALIGN  head,		  \ register a word in dictionary
       ALSO ASSEMBLER
       INIT-ASM ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : CODE ( "<spaces>name" -- )
+      -1 TO notNONAME?
       xhere ALIGNED		  \ align code address and reserve
       CELL+ DUP TO xhere	  \ one cell for 'xt>name' pointer
       head,			  \ register a word in dictionary
@@ -630,16 +640,41 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 \		name Execution:( i*x --- j*x )
 \		Perform the machine code sequence that was generated
 \		following ;CODE.
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+[IF]
 : ;CODE
-    bal @ IF -22 THROW THEN
-    POSTPONE pipe POSTPONE [
+    bal 1- IF -22 THROW THEN	    \ control structure mismatch
+    NIP 1+ IF -22 THROW THEN	    \ colon-sys type is -1
+    bal- POSTPONE [
+    xhere 2 CELLS - TOxhere
     ALSO ASSEMBLER INIT-ASM
     ; COMPILE-ONLY IMMEDIATE
-
-SET-ORDER  SET-CURRENT
+[THEN]
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
+[IF]
+: ;CODE
+    bal 1- IF -22 THROW THEN	    \ control structure mismatch
+    NIP 1+ IF -22 THROW THEN	    \ colon-sys type is -1
+    bal- POSTPONE [
+    HERE 2 CELLS - TO HERE
+    ALSO ASSEMBLER INIT-ASM
+    ; COMPILE-ONLY IMMEDIATE
+[THEN]
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
+[IF]
+: ;CODE
+    bal 1- IF -22 THROW THEN	    \ control structure mismatch
+    NIP 1+ IF -22 THROW THEN	    \ colon-sys type is -1
+    bal- POSTPONE [
+    xhere 2 CELLS - TO xhere
+    ALSO ASSEMBLER INIT-ASM
+    ; COMPILE-ONLY IMMEDIATE
+[THEN]
 
 \ Define some useful non-Standard CODE definitions
-GET-CURRENT GET-ORDER
 NONSTANDARD-WORDLIST SET-CURRENT
 
 CODE PC@  ( portAddr -- char )
@@ -724,10 +759,13 @@ CODE CS@  ( -- code_segment_addr )
   NEXT,
 END-CODE
 
-SET-ORDER  SET-CURRENT
+envQList SET-CURRENT
+-1 CONSTANT ASM8086
 
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+SET-CURRENT  SET-ORDER
+
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF] RAM/ROM! [THEN]
 BASE !
 

@@ -18,9 +18,9 @@
 
 HEX
 
-  3 CONSTANT IRQ        \ normally COM1 and COM3 use IRQ4,
+  3 CONSTANT IRQ	\ normally COM1 and COM3 use IRQ4,
 			\	   COM2 and COM4 use IRQ3
-2F8 CONSTANT COMBASE    \ base address, 3F8 for COM1, 2F8 for COM2
+2F8 CONSTANT COMBASE	\ base address, 3F8 for COM1, 2F8 for COM2
 			\		3E8 for COM3, 2E8 for COM4
 
 : BINARY   2 BASE ! ;
@@ -72,12 +72,12 @@ COMBASE 1 + CONSTANT DLH	\ divisor latch high
 
 : BPS ( n -- )			\ set speed
     LCR PC@ SWAP
-    0FF LCR PC!                 \ set Divisor-Latch Access-Bit
+    0FF LCR PC! 		\ set Divisor-Latch Access-Bit
     [ DECIMAL ] 115200.
-    [ HEX ] ROT UM/MOD NIP      \ calculate divisor
+    [ HEX ] ROT UM/MOD NIP	\ calculate divisor
     DUP 0FF AND  DLL PC!
-        8 RSHIFT DLH PC!
-    LCR PC! ;                   \ restore original LCR
+	8 RSHIFT DLH PC!
+    LCR PC! ;			\ restore original LCR
 
 : DROP-RTS
     1 MSR PC! ;
@@ -99,22 +99,22 @@ BINARY
 
 : ENABLE-IRQ
     CTRL8259_1 PC@
-    [ 1 IRQ LSHIFT INVERT ] LITERAL AND         \ clear mask bit
+    [ 1 IRQ LSHIFT INVERT ] LITERAL AND 	\ clear mask bit
     CTRL8259_1 PC!
 
-    LCR PC@  01111111 AND  LCR PC!              \ clear divisor latch addr.
+    LCR PC@  01111111 AND  LCR PC!		\ clear divisor latch addr.
 
-    00001111 IER PC!                    \ interrupts when data received
+    00001111 IER PC!			\ interrupts when data received
     CLEAR-UART
-    MCR PC@  00001000 OR  MCR PC!       \ allow modem to generate interrupts
+    MCR PC@  00001000 OR  MCR PC!	\ allow modem to generate interrupts
     ENABLE ;
 
 : DISABLE-IRQ
     CTRL8259_1 PC@
-    [ 1 IRQ LSHIFT ] LITERAL OR         \ set mask bit
+    [ 1 IRQ LSHIFT ] LITERAL OR 	\ set mask bit
     CTRL8259_1 PC!
 
-    00000000 IER PC!                    \ no interrupt allowed
+    00000000 IER PC!			\ no interrupt allowed
 
     MCR PC@  11110111 AND  MCR PC! ;
 
@@ -162,7 +162,7 @@ CODE TxServ
     1 L# JNZ,
     IER # DX MOV,
     01 # AL MOV,
-    DX AL OUT,                  \ Disable TXR empty irpt
+    DX AL OUT,			\ Disable TXR empty irpt
     RET,
 1 L:
     TxTail ) BX MOV,
@@ -204,34 +204,34 @@ CREATE IrptTable
 ' ModemServ , ' TxServ , ' RxServ , ' LineServ ,
 
 CODE IrptServ
-    STI,                        \ Enable irpt
+    STI,			\ Enable irpt
     AX PUSH,
     BX PUSH,
     DX PUSH,
     DS PUSH,
-    CHAR " PARSE systemID" ENVIRONMENT? DROP
-    CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-    CHAR " PARSE systemID" ENVIRONMENT? DROP
-    CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+    CHAR " PARSE model" ENVIRONMENT? DROP
+    CHAR " PARSE ROM Model" COMPARE 0=
+    CHAR " PARSE model" ENVIRONMENT? DROP
+    CHAR " PARSE RAM Model" COMPARE 0= OR
     [IF]
        DS AX MOV,
        AX DS MOV,
     [THEN]
-    CHAR " PARSE systemID" ENVIRONMENT? DROP
-    CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+    CHAR " PARSE model" ENVIRONMENT? DROP
+    CHAR " PARSE EXE Model" COMPARE 0=
     [IF]
       CS:
-      0 ) AX MOV,               \ CS:0 contains data segment address
+      0 ) AX MOV,		\ CS:0 contains data segment address
       AX DS MOV,
     [THEN]
-    IIR # DX MOV,               \ identify irpt
+    IIR # DX MOV,		\ identify irpt
     DX AL IN,
     01 # AL TEST,
     1 L# JNZ,
     AX BX MOV,
     0006 # BX AND,
     IrptTable [BX] CALL,
-1 L:                            \ do end of interrupt
+1 L:				\ do end of interrupt
     EOI # AL MOV,
     CTRL8259_0 # AL OUT,
     IER # DX MOV,
@@ -252,26 +252,26 @@ CREATE OLD-VECTOR 2 CELLS ALLOT
 CODE ATTACH-IRPT ( -- )
     BX PUSH,
     DS PUSH,
-    IRQ 8 + 3500 OR # AX MOV,           \ AL = irpt number, AH = 35h
-    21 INT,                             \ DOS get interrupt vector service
-    BX OLD-VECTOR ) MOV,                \ save old vector
+    IRQ 8 + 3500 OR # AX MOV,		\ AL = irpt number, AH = 35h
+    21 INT,				\ DOS get interrupt vector service
+    BX OLD-VECTOR ) MOV,		\ save old vector
     ES OLD-VECTOR CELL+ ) MOV,
-    IRQ 8 + 2500 OR # AX MOV,           \ AL = irpt number, AH = 25h
+    IRQ 8 + 2500 OR # AX MOV,		\ AL = irpt number, AH = 25h
     CS@ # DX MOV,
-    DX DS MOV,                          \ irpt service roution in CS:IrptServ
+    DX DS MOV,				\ irpt service roution in CS:IrptServ
     ' IrptServ # DX MOV,
-    21 INT,                             \ DOS set irpt vector
+    21 INT,				\ DOS set irpt vector
     DS POP,
     BX POP,
     NEXT,
 END-CODE
 
-CODE DETACH-IRPT ( -- )                 \ restore old vector
+CODE DETACH-IRPT ( -- ) 		\ restore old vector
     BX PUSH,
     DS PUSH,
-    IRQ 8 + 2500 OR # AX MOV,           \ AL = irpt number, AH = 25h
+    IRQ 8 + 2500 OR # AX MOV,		\ AL = irpt number, AH = 25h
     OLD-VECTOR ) DX MOV,
-    OLD-VECTOR CELL+ ) DS MOV,          \ DOS set irpt vector
+    OLD-VECTOR CELL+ ) DS MOV,		\ DOS set irpt vector
     21 INT,
     DS POP,
     BX POP,
@@ -283,10 +283,10 @@ END-CODE
 
 : SER-IN ( -- x )
     #Rx @ 0= IF    0 EXIT
-             ELSE  RxTail @ RxBuffer + C@
-                   RxTail @ 1+ [ RxBufSize 1 - ] LITERAL AND RxTail !
-                   -1 #Rx +!
-             THEN ;
+	     ELSE  RxTail @ RxBuffer + C@
+		   RxTail @ 1+ [ RxBufSize 1 - ] LITERAL AND RxTail !
+		   -1 #Rx +!
+	     THEN ;
 
 VARIABLE TIMEOUT
 : SER-OUT ( x -- error_code )
@@ -305,8 +305,8 @@ DECIMAL
     ENABLE-IRQ
     CLEAR-BUFFER
     BEGIN
-       SER-IN? IF  SER-IN EMIT  THEN
+       SER-IN? IF  SER-IN EMIT	THEN
        EKEY?   IF  KEY DUP 27 = IF DROP DISABLE-IRQ DETACH-IRPT EXIT THEN
-                       SER-OUT
-               THEN
+		       SER-OUT
+	       THEN
     AGAIN ;

@@ -6,31 +6,31 @@
 \
 \ Usage:
 \   HAT  ( user_size ds_size rs_size "<spaces>name" -- )
-\        Run-time: ( -- tid )
-\       Create a new task.
+\	 Run-time: ( -- tid )
+\	Create a new task.
 \   BUILD  ( tid -- )
-\       Initialize and link new task into PAUSE chain.
+\	Initialize and link new task into PAUSE chain.
 \   ACTIVATE  ( tid -- )
-\       Activate the task identified by tid. ACTIVATE must be used
-\       only in definition. The code following ACTIVATE must not
-\       EXIT. In other words it must be infinite loop like QUIT.
-\   .TASKS  ( tid -- )
-\       Activate the task identified by tid. ACTIVATE must be used
-\       only in definition. The code following ACTIVATE must not
-\       EXIT. In other words it must be infinite loop like QUIT.
+\	Activate the task identified by tid. ACTIVATE must be used
+\	only in definition. The code following ACTIVATE must not
+\	EXIT. In other words it must be infinite loop like QUIT.
+\   .TASKS  ( -- )
+\	Display tasks list in status-follower chain.
 \   SLEEP  ( tid -- )
-\       Sleep another task.
+\	Sleep another task.
 \   AWAKE  ( tid -- )
-\       Awake another task.
+\	Awake another task.
 \   PAUSE  ( -- )
-\       Stop current task and transfer control to the task of which
-\       'status' USER variable is stored in 'follower' USER variable
-\       of current task.
+\	Stop current task and transfer control to the task of which
+\	'status' USER variable is stored in 'follower' USER variable
+\	of current task.
 \   STOP  ( -- )
-\       Sleep current task.
+\	Sleep current task.
 \
+\ 1997. 2. 28.
+\	Facelift to be used with other CPUs.
 \ 1995. 11. 3.
-\       Fix ACTIVATE. sp@ should return a value not larger than sp0.
+\	Fix ACTIVATE. sp@ should return a value not larger than sp0.
 
 BASE @ HEX
 GET-CURRENT
@@ -57,7 +57,7 @@ NONSTANDARD-WORDLIST SET-CURRENT
 \ CHAR " PARSE systemID" ENVIRONMENT? DROP
 \ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 \ [IF]
-\   : PAUSE     rp@ sp@ stackTop !  follower @ code@ >R ; COMPILE-ONLY
+\   : PAUSE	rp@ sp@ stackTop !  follower @ code@ >R ; COMPILE-ONLY
 \ [THEN]
 
 \   wake	( -- )
@@ -74,22 +74,22 @@ NONSTANDARD-WORDLIST SET-CURRENT
 \ CHAR " PARSE systemID" ENVIRONMENT? DROP
 \ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0= OR
 \ [IF]
-\   : wake      R> CELL+ code@ userP !  \ userP points 'follower' of current task
+\   : wake	R> CELL+ code@ userP !	\ userP points 'follower' of current task
 \		stackTop @ sp!		\ set data stack
 \		rp! ; COMPILE-ONLY	\ set return stack
 \ [THEN]
 
 \   STOP	( -- )
 \		Sleep current task.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0= OR
 [IF]
   : STOP   ['] branch status ! PAUSE ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : STOP   ['] branch status @ code! PAUSE ;
 [THEN]
@@ -102,30 +102,30 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 
 \   SLEEP	( tid -- )
 \		Sleep another task.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0= OR
 [IF]
   : SLEEP   status 's  ['] branch  SWAP ! ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : SLEEP   status 's @  ['] branch  SWAP code! ;
 [THEN]
 
 \   AWAKE	( tid -- )
 \		Awake another task.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0= OR
 [IF]
   : AWAKE   status 's  ['] wake  SWAP ! ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : AWAKE   status 's @  ['] wake  SWAP code! ;
 [THEN]
@@ -133,8 +133,8 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 \   HAT 	( user_size ds_size rs_size "<spaces>name" -- )
 \		Run-time: ( -- tid )
 \		Create a new task.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
 [IF]
   : HAT
       RAM/ROM@ >R RAM
@@ -154,8 +154,8 @@ CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
       lastName R> taskName 's ! \ store task name in new task's 'taskName'
       R> RAM/ROM! ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0=
 [IF]
   : HAT
       CREATE HERE >R		\ user_size ds_size rs_size  R: tid
@@ -173,8 +173,8 @@ CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
       R@ !	( store userP pointer)
       lastName R> taskName 's ! ; \ store task name in new task's 'taskName'
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : HAT
       CREATE HERE >R		\ user_size ds_size rs_size  R: tid
@@ -200,10 +200,10 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 
 \   BUILD	( tid -- )
 \		Initialize and link new task into PAUSE chain.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0= OR
 [IF]
   : BUILD
       DUP SLEEP 		\ sleep new task
@@ -211,8 +211,8 @@ CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
       follower 's !             \ store it in new task's 'follower'
       status 's follower ! ;    \ store new 'status' in current 'follower'
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : BUILD
       DUP SLEEP 		\ sleep new task
@@ -227,20 +227,18 @@ CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 \		EXIT. In other words it must be infinite loop like QUIT.
 : ACTIVATE
     DUP @ CELL+ 2@ cell-	\ top of stack is in BX register
-    SWAP                        \ tid sp0 rp0
+    SWAP			\ tid sp0 rp0
     R> OVER !			\ save entry at rp
     OVER !			\ save rp at sp
     OVER stackTop 's !          \ save sp in stackTop
     AWAKE ; COMPILE-ONLY
 
-\   .TASKS	( tid -- )
-\		Activate the task identified by tid. ACTIVATE must be used
-\		only in definition. The code following ACTIVATE must not
-\		EXIT. In other words it must be infinite loop like QUIT.
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
+\   .TASKS  ( -- )
+\	Display tasks list in status-follower chain.
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE ROM Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE RAM Model" COMPARE 0= OR
 [IF]
   : .TASKS
       follower			\ current task's follower
@@ -251,15 +249,15 @@ CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
       DUP follower =
       UNTIL DROP CR ;
 [THEN]
-CHAR " PARSE systemID" ENVIRONMENT? DROP
-CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
+CHAR " PARSE model" ENVIRONMENT? DROP
+CHAR " PARSE EXE Model" COMPARE 0=
 [IF]
   : .TASKS
-      follower                          \ current task's follower
+      follower				\ current task's follower
       BEGIN
 	CR DUP [ taskName follower - ] LITERAL + @ .name
-        DUP @ cell- code@ ['] wake = IF ." awaked " ELSE  ." sleeping " THEN
-        @ code@ CELL+ CELL+ code@       \ next task's follower
+	DUP @ cell- code@ ['] wake = IF ." awaked " ELSE  ." sleeping " THEN
+	@ code@ CELL+ CELL+ code@	\ next task's follower
       DUP follower =
       UNTIL DROP CR ;
 [THEN]

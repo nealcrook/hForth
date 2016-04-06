@@ -1,61 +1,116 @@
-All CORE EXT words except obsolescent ones and [COMPILE] (for which
-POSTPONE must be used in new ANS Standard program) are provided in
-OPTIONAL.F and COREEXT.F. Complete DOUBLE and DOUBLE EXT words are
-provided in DOUBLE.F. Gordon Chlarlton's MEMORY.FTH is adapted to
-provide MEMORY ALLOCATION words. Many useful programs were added
-including more complete Turtle Graphics and serial communication
-program.
+ASM sources are greatly polished. More explanations are added as
+comments. Split environmental variable 'systemID' into 'CPU' and
+'Model'. Most hForth source files can be used with other CPUs
+without modification by using conditional compilation (see
+COREEXT.F and DOUBLE.F for example). Thanks Neal Crook for comments
+and many valuable suggestions. Now all ASM sources can be assembled
+by TASM 1.0 and MASM 6.11. Many typographical errors are corrected.
 
-The usage of user-callable words are described in the beginning of
-some sources such as LOG.F, DOSEXEC.F, etc.
+Control structure words are all revised. Control-flow stack is
+implemented on data stack. Control-flow stack item is represented by
+two data stack items as below:
 
-In-line compilation of CONSTANT, VARIABLE and CREATEd words as
-literal values can increase execution speed especially for
-native-code Forth compilers. To provide special compilation action
-for this default compilation behavior, I devised a solution.
-CONSTANT, VARIABLE and CREATEd words have a mark and execution token
-of special compilation action. If Forth compiler sees the mark, it
-pushes the execution token of the words and execute the special
-compilation action. (CORE word POSTPONE must also find this action
-and compile the special compilation action accordingly.) Special
-compilation action can be added to a new data structure using only
-two words, implementation-dependent 'doCompiles>' and
-implementation-independent 'compile>'.
+Control-flow stack item     Representation (parameter and type)
+-----------------------    -------------------------------------
+     dest                    control-flow destination      0
+     orig                    control-flow origin           1
+     of-sys                  OF origin                     2
+     case-sys                x (any value)                 3
+     do-sys                  ?DO origin           DO destination
+     colon-sys               xt of current definition     -1
 
-    : doCompiles>
-        \ verify the last word is ready for special compilation action
-        \ attach special compilation action to the word
-        ;
+hForth can detect a nonsense clause such as "BEGIN IF AGAIN THEN"
+easily. CS-ROLL and CS-PICK can be applied to the list of dests and
+origs only. This can be verified by checking whether the ORed type
+is 1. I can not think of a control-structure-mismatch that current
+hForth cannot catch.
 
-    \  compiles>  ( xt -- )
-    \           Assign xt as special compilation action of the last CREATEd
-    \           word. It is the user's responsibility to match the special
-    \           compilation action and the execution action.
-    \       Example: '2CONSTANT' can be defined as following:
-    \       :NONAME   EXECUTE POSTPONE 2LITERAL ;
-    \       : 2CONSTANT   CREATE SWAP , , compiles> DOES> DUP @ SWAP CELL+ @ ;
-    : compiles> POSTPONE LITERAL POSTPONE doCompiles> ; IMMEDIATE
+Some bugs are fixed including RESTORE-INPUT.
 
-These words are used for example to define 2CONSTANT:
 
-    :NONAME   EXECUTE POSTPONE 2LITERAL ;
-    : 2CONSTANT   CREATE SWAP , , compiles> DOES> DUP @ SWAP CELL+ @ ;
+Changes from 0.9.7
 
-I beleive that this solution is general enough to be applied to
-other Forth systems.
-
-I gave up the pin-hole optimization tried in version 0.9.6. It had
-some bugs and building one in assembly source seems to be too much
-work. I might try again when hForth metacompiler is available.
+1997. 5. 26.
+      MSDOS.F: Fix RESTORE-INPUT to restore BLK correctly.
+1997. 2. 28.
+      Facelift to be used with other CPUs.
+1997. 2. 19.
+      Split environmental variable systemID into CPU and Model.
+1997. 2. 6.
+      Add Neal Crook's microdebugger and comments on assembly definitions.
+1997. 1. 25.
+      Add $THROWMSG macro and revise accordingly.
+1997. 1. 18.
+      Remove 'NullString' from assembly source.
+1996. 12. 18.
+      Revise 'head,'.
+1996. 12. 14.
+      DOSEXEC.F: Revise (DOSEXEC) in MSDOS.F.
+1996. 12. 6.
+      OPTIONAL.F: Fix 'compiles>' for colon-sys.
+1996. 11. 29.
+      OPTIONAL.F: Remove PICK which was added in assembly source.
+      OPTIONAL.F: Revise CASE, ENDCASE, OF, ENDOF, RETRY for
+		control-flow stack.
+      OPTIONAL.F: Revise '.xt' due to the removal of 'do."' and change
+		of 'doS"'.
+1996. 12. 3.
+      Revise PICK to catch stack underflow.
+1996. 11. 29.
+      Implement control-flow stack on data stack. Control-flow stack
+	      item consists of two data stack items, one for value
+	      and one for the type of control-flow stack item.
+      control-flow stack item	data stack representation
+	      dest	      control-flow_destination	      0
+	      orig	      control-flow_origin	      1
+	      of-sys	      OF_origin 		      2
+	      case-sys	      x (any value)		      3
+	      do-sys	      ?DO_origin	 DO_destination
+	      colon-sys       xt_of_current_definition	     -1
+      Add PICK.
+      'bal' is now the depth of control-flow stack.
+      Drop 'lastXT'.
+      Introduce 'notNONAME?'
+      Add 'bal+' and 'bal-'. Drop  'orig+', 'orig-', 'dest+', 'dest-',
+	      'dosys+', and 'dosys-'.
+      Revise ':NONAME', ':', ';', 'linkLast', 'head,', RECURSE, 'DOES>',
+	      CONSTANT, CREATE, VALUE, VARIABLE, and QUIT.
+	      This change makes RECURSE work properly in ':NONAME ... ;'
+	      and '... DOES> ... ;'.
+      Revise 'rake', AGAIN, AHEAD, IF, THEN, +LOOP, BEGIN, DO, ELSE, LOOP,
+	      UNTIL, and WHILE.
+      Revise SLITERAL, '."', 'doS"' to allow a string larger than
+	      max char size.
+      Revise $INSTR and remove 'do."'.
+      Revise 'pack"'.
+      ASM8086.F: Revise ';CODE' for control-flow stack.
+      COREEXT.F: Provide CODE definition of ROLL.
+      COREEXT.F: Revise '?DO' for control-flow stack.
+      COREEXT.F: Revise 'C"' to catch exception -24 'parsed string overflow'.
+1996. 8. 17.
+      HF86EXE.ASM: Revise MAX-UD.
+1996. 8. 10.
+      HF86EXE.ASM: Replace 'COMPILE,' with 'code,' in the definition of
+		'compileCREATE'.
+1996. 7. 19.
+      DOUBLE.F: Fix 'M+'. Thanks M. Edward Borasky.
+1996. 6. 19.
+      Fix '/STRING'.
+1996. 4. 15.
+      ASM8086.F: ';CODE' is fixed. END-CODE is changed.
+1996. 3. 1.
+      MSDOS.F: Shift value of 'ior' of FILE words to system THROW code area,
+		i.e. -4096..-256 .
+      MSDOS.F: Remove subtle bug in 'SAVE-SYSTEM-AS'.
 
 Changes from 0.9.6
 
 1996. 2. 10.
       Revise FM/MOD and SM/REM to catch result-out-of-range error in
-              '80000. 2 FM/MOD'.
+	      '80000. 2 FM/MOD'.
 1996. 1. 19.
       Rename 'x,' to 'code,'; 'x@' to 'code@'; 'x!' to 'code!';
-              'xb@' to 'codeB@' and 'xb!' to 'codeB!'.
+	      'xb@' to 'codeB@' and 'xb!' to 'codeB!'.
 1996. 1. 7
       Rename non-Standard 'parse-word' to PARSE-WORD.
 1995. 12. 2
@@ -75,8 +130,8 @@ Changes from 0.9.5
     Make 'lastXT' VALUE word.
 1995. 11. 24.
     For RAM model only
-        Replace 'xhere' with HERE.
-        Revise doVALUE, VALUE, TO, and all $VALUE macros.
+	Replace 'xhere' with HERE.
+	Revise doVALUE, VALUE, TO, and all $VALUE macros.
 1995. 11. 23.
     Revise doCREATE, CREATE, pipe, DOES>, and >BODY.
     'pipe' is no longer processor-dependent.

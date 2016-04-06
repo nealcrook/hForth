@@ -11,22 +11,22 @@
 \
 \ HF86EXE.EXEŸi ¯¡¸bÐe Ò ”a·q ®…¬á¡ ·¡ Ïa¡‹aœ‘·i µ©Ÿ© ® ·¶·s“¡”a.
 \
-\       << OPTIONAL.F
-\       << ASM8086.F
-\       << COREEXT.F
-\       << MSDOS.F
-\       BL PARSE MULTI.F    INCLUDED
-\       BL PARSE HIOMULTI.F INCLUDED
+\	<< OPTIONAL.F
+\	<< ASM8086.F
+\	<< COREEXT.F
+\	<< MSDOS.F
+\	BL PARSE MULTI.F    INCLUDED
+\	BL PARSE HIOMULTI.F INCLUDED
 \
 \ 1996. 2. 9.
 \ Wonyong Koh
 \
 \ Usage:
 \   TEXT  ( -- )
-\       Set text screen and redirect i/o vectors to DOS functions.
+\	Set text screen and redirect i/o vectors to DOS functions.
 \   HGRAPHIC  ( -- )
-\       Set graphics screen and redirect i/o vectors to handle Korean
-\       character input and graphics screen output.
+\	Set graphics screen and redirect i/o vectors to handle Korean
+\	character input and graphics screen output.
 
 CHAR " PARSE FILE" ENVIRONMENT? 0= [IF] 0 [THEN]
 0= [IF]
@@ -742,10 +742,10 @@ MARKER ~TEMP
 : MAX-X*  ( y -- MAX_X*y )   CELLS MAX-X*Table + @ ;
 
 HEX
-: SHOW-LINE  ( y -- )		\ ˆa¬wÑÁ¡e·  … ¶á º‰·i ‹aœÏ¢ ÑÁ¡eµA Îa¯¡
+: SHOW-LINE  ( y -- )		\ ˆa¬wÑÁ¡e· y º‰·i ‹aœÏ¢ ÑÁ¡eµA Îa¯¡
     >R 1 MAX-X* 0				\ max-x 0  R: y
     BEGIN
-       DUP R@ OVER >VSCR-ADDR DUP C@            \ max-x x x 0 c_addr char
+       DUP R@ OVER >VSCR-ADDR DUP C@		\ max-x x x 0 c_addr char
        DUP 80 < IF NIP EFONT!
        ELSE 8 LSHIFT
 	    SWAP CHAR+ C@ OR HFONT! CHAR+ THEN
@@ -808,11 +808,11 @@ VARIABLE ‹i®A·³b¬wÈ
 VARIABLE ‹i®AÉ·
 VARIABLE £¡µÅ¬÷¸a
 CREATE ‹i®A·³b¬wÈ‹¡´â  8 CELLS ALLOT
-CREATE £¡µÅ¬÷¸a‹¡´â      8 CELLS ALLOT
+CREATE £¡µÅ¬÷¸a‹¡´â	 8 CELLS ALLOT
 VARIABLE ¼·³b¬wÈ
 VARIABLE ¼£¡µÅ¬÷¸a
 : ´|¸a‹¡´â  ( -- )
-    £¡µÅ¬÷¸a @  ¼£¡µÅ¬÷¸a @ 7 AND CELLS £¡µÅ¬÷¸a‹¡´â + !
+    £¡µÅ¬÷¸a @	¼£¡µÅ¬÷¸a @ 7 AND CELLS £¡µÅ¬÷¸a‹¡´â + !
     1 ¼£¡µÅ¬÷¸a +! ;
 : ¬wÈ‹¡´â  ( ¬wÈ -- )
     ¼·³b¬wÈ @ 7 AND CELLS ‹i®A·³b¬wÈ‹¡´â + !
@@ -822,18 +822,18 @@ DECIMAL
 : |  ( "<spaces>name" -- )   ' , ;
 : Äe ;
 : µ¡É¡ aÈa:  ( width -- )
-        CREATE , ;
+	CREATE , ;
 : ;µ¡É¡ aÈa
-        DOES>
-        TUCK @                          \ º­¡ ¹·ŸA Äe®
-        ‹i®A·³b¬wÈ @
-        DUP ¬wÈ‹¡´â ´|¸a‹¡´â         \ Ðe‹i‹i¸a·¡¡e
-        * + 2* CELLS + CELL+
-        DUP >R
-        @ EXECUTE
-        R> CELL+
-        @ EXECUTE
-        ‹i®A·³b¬wÈ ! ;
+	DOES>
+	TUCK @				\ º­¡ ¹·ŸA Äe®
+	‹i®A·³b¬wÈ @
+	DUP ¬wÈ‹¡´â ´|¸a‹¡´â	      \ Ðe‹i‹i¸a·¡¡e
+	* + 2* CELLS + CELL+
+	DUP >R
+	@ EXECUTE
+	R> CELL+
+	@ EXECUTE
+	‹i®A·³b¬wÈ ! ;
 
 0 CONSTANT >0 IMMEDIATE
 1 CONSTANT >1 IMMEDIATE
@@ -843,27 +843,27 @@ DECIMAL
 
 HEX
 \ ¤e—¡ˆa ÑÁ¡e µ¡Ÿe½¢{µA ·¶·a¡e ”a·qÐ—µA¬á ·³b¤h·q
-: ¤e—¡¶áÃ¡¹¡¸÷  ( -- )   VIR_X @ 1+ MAX-X = ( -1|0) NEGATE VIR_X+! ;
-: £¡µÅ¬÷¸a¥¡µa   ( -- )   VIR_X @  VIR_Y @  £¡µÅ¬÷¸a @  HFONT! ;
-: ‹a·  ( -- )   VIR_X @ VIR_Y @  BL  EFONT! ;
+: ¤e—¡¶áÃ¡¹¡¸÷	( -- )	 VIR_X @ 1+ MAX-X = ( -1|0) NEGATE VIR_X+! ;
+: £¡µÅ¬÷¸a¥¡µa	 ( -- )   VIR_X @  VIR_Y @  £¡µÅ¬÷¸a @	HFONT! ;
+: ‹a·	( -- )	 VIR_X @ VIR_Y @  BL  EFONT! ;
 : À¶‘!  ( -- )   À¶‘¸a  £¡µÅ¬÷¸a !  1 ¬wÈ‹¡´â  ´|¸a‹¡´â ;
-: £¡µÅ¬÷¸aÁ¡¬÷  ( -- Á¡¬÷ )   £¡µÅ¬÷¸a @  Á¡¬÷¥¥  AND 0A RSHIFT ;
-: £¡µÅ¬÷¸aº—¬÷  ( -- º—¬÷ )   £¡µÅ¬÷¸a @  º—¬÷¥¥  AND 05 RSHIFT ;
-: £¡µÅ¬÷¸a¤hÃ±  ( -- ¤hÃ± )   £¡µÅ¬÷¸a @  ¤hÃ±¥¥  AND ;
+: £¡µÅ¬÷¸aÁ¡¬÷	( -- Á¡¬÷ )   £¡µÅ¬÷¸a @  Á¡¬÷¥¥  AND 0A RSHIFT ;
+: £¡µÅ¬÷¸aº—¬÷	( -- º—¬÷ )   £¡µÅ¬÷¸a @  º—¬÷¥¥  AND 05 RSHIFT ;
+: £¡µÅ¬÷¸a¤hÃ±	( -- ¤hÃ± )   £¡µÅ¬÷¸a @  ¤hÃ±¥¥  AND ;
 : ·³b‰­¢  ( -- 0 )   £¡µÅ¬÷¸a¥¡µa 0 ;
-: {¸a¤aŽ¡  ( ˆt »¡¶‘¥¥ -- )   £¡µÅ¬÷¸a @  AND  OR  £¡µÅ¬÷¸a ! ;
+: {¸a¤aŽ¡  ( ˆt »¡¶‘¥¥ -- )   £¡µÅ¬÷¸a @  AND	OR  £¡µÅ¬÷¸a ! ;
 : Á¡¬÷¤aŽ¡  ( Á¡¬÷ -- )   0A LSHIFT  Á¡¬÷»¡¶‘¥¥ {¸a¤aŽ¡ ;
 : º—¬÷¤aŽ¡  ( º—¬÷ -- )   05 LSHIFT  º—¬÷»¡¶‘¥¥ {¸a¤aŽ¡ ;
-: ¤hÃ±¤aŽ¡  ( ¤hÃ± -- )              ¤hÃ±»¡¶‘¥¥ {¸a¤aŽ¡ ;
-: Á¡¬÷!   ( Á¡¬÷ -- 0 )   ¤e—¡¶áÃ¡¹¡¸÷  Á¡¬÷¤aŽ¡ ·³b‰­¢ ;
-: º—¬÷!   ( º—¬÷ -- 0 )                 º—¬÷¤aŽ¡ ·³b‰­¢ ;
+: ¤hÃ±¤aŽ¡  ( ¤hÃ± -- ) 	     ¤hÃ±»¡¶‘¥¥ {¸a¤aŽ¡ ;
+: Á¡¬÷!   ( Á¡¬÷ -- 0 )   ¤e—¡¶áÃ¡¹¡¸÷	Á¡¬÷¤aŽ¡ ·³b‰­¢ ;
+: º—¬÷!   ( º—¬÷ -- 0 ) 		º—¬÷¤aŽ¡ ·³b‰­¢ ;
 
-: µÅ¬÷   (    0 -- 16§¡Ëa¸a )   DROP      £¡µÅ¬÷¸a @  À¶‘! ;
-: µÅ+ch  ( char -- 16§¡Ëa¸a )   ‹i®AÉ· !  £¡µÅ¬÷¸a @  À¶‘! ;
-: µÅ+Á¡  ( Á¡¬÷ -- 16§¡Ëa¸a )   £¡µÅ¬÷¸a @  À¶‘!  SWAP Á¡¬÷¤aŽ¡ ;
-: µÅ+º—  ( º—¬÷ -- 16§¡Ëa¸a )   £¡µÅ¬÷¸a @  À¶‘!  SWAP º—¬÷¤aŽ¡ ;
+: µÅ¬÷	 (    0 -- 16§¡Ëa¸a )	DROP	  £¡µÅ¬÷¸a @  À¶‘! ;
+: µÅ+ch  ( char -- 16§¡Ëa¸a )	‹i®AÉ· !  £¡µÅ¬÷¸a @  À¶‘! ;
+: µÅ+Á¡  ( Á¡¬÷ -- 16§¡Ëa¸a )	£¡µÅ¬÷¸a @  À¶‘!  SWAP Á¡¬÷¤aŽ¡ ;
+: µÅ+º—  ( º—¬÷ -- 16§¡Ëa¸a )	£¡µÅ¬÷¸a @  À¶‘!  SWAP º—¬÷¤aŽ¡ ;
 
-: –á¡  ( –õ®A -- 0 )
+: –á¡	( –õ®A -- 0 )
     DROP -2 ¼£¡µÅ¬÷¸a +!
     ¼£¡µÅ¬÷¸a @ 7 AND CELLS £¡µÅ¬÷¸a‹¡´â + @  £¡µÅ¬÷¸a !  ·³b‰­¢ ;
 : >–á  ( -- ´|¬wÈ )
@@ -871,105 +871,105 @@ HEX
     ¼·³b¬wÈ @ 7 AND CELLS ‹i®A·³b¬wÈ‹¡´â + @ ;
 
 CREATE Á¡¬÷>‰sÁ¡¬÷Îa  \ ‰sÁ¡¬÷·i  e—i® ·¶“e ˆA,”A,¤A,¬A,¸AµA ”Ð¬á“e 1,
-                      \ ´a“¡¡e 0
-\ *   À¶‘  ˆA   ŒA   A   ”A   ˜A   œA    A   ¤A   ¨A
+		      \ ´a“¡¡e 0
+\ *   À¶‘  ˆA	 ŒA   A   ”A	˜A   œA    A   ¤A   ¨A
   0 C, 0 C, 1 C, 0 C, 0 C, 1 C, 0 C, 0 C, 0 C, 1 C, 0 C,
-\ ¬A   °A   ´A   ¸A   ¼A   ÀA   ÄA   ÈA   ÌA   ÐA
+\ ¬A   °A   ´A	 ¸A   ¼A   ÀA	ÄA   ÈA   ÌA   ÐA
   1 C, 0 C, 0 C, 1 C, 0 C, 0 C, 0 C, 0 C, 0 C, 0 C,  ALIGN
 
 CREATE Á¡¬÷>¤hÃ±Îa  \ ¤hÃ±·¡ ´a“¥ Á¡¬÷ ˜A,¨A,¼AµA ”Ð¬á“e 0, ´a“¡¡e ¤hÃ±ˆt
-\ *   À¶‘  ˆA   ŒA   A   ”A   ˜A   œA    A    ¤A    ¨A
+\ *   À¶‘  ˆA	 ŒA   A   ”A	˜A   œA    A	¤A    ¨A
   0 C, 1 C, 2 C, 3 C, 5 C, 8 C, 0 C, 9 C, 11 C, 13 C, 0 C,
-\ ¬A    °A    ´A    ¸A    ¼A   ÀA    ÄA    ÈA    ÌA    ÐA
+\ ¬A	°A    ´A    ¸A	  ¼A   ÀA    ÄA    ÈA	 ÌA    ÐA
   15 C, 16 C, 17 C, 18 C, 0 C, 19 C, 1A C, 1B C, 1C C, 1D C,  ALIGN
 
 CREATE ¤hÃ±>Ñ»¤hÃ±Á¡¬÷Îa  \ ‰s¤hÃ±: ¶á8§¡Ëa“e Ñ»¤hÃ±ˆt, ´aœ8§¡Ëa“e Á¡¬÷ˆt
-                          \ Ñ»¤hÃ±: ¶á8§¡Ëa“e   À¶‘ˆt, ´aœ8§¡Ëa“e Á¡¬÷ˆt
-\  *   À¶‘  „B     „C     „D     „E     „F     „G     „H     „I
-   0 ,  0 , 0102 , 0103 , 020B , 0104 , 050E , 0514 , 0105 , 0107 ,
-\  „J     „K     „L     „M     „N     „O     „P     „Q     *    „S
+			  \ Ñ»¤hÃ±: ¶á8§¡Ëa“e	À¶‘ˆt, ´aœ8§¡Ëa“e Á¡¬÷ˆt
+\  *   À¶‘  „B     „C	   „D	  „E	 „F	„G     „H     „I
+   0 ,	0 , 0102 , 0103 , 020B , 0104 , 050E , 0514 , 0105 , 0107 ,
+\  „J	  „K	 „L	„M     „N     „O     „P     „Q	   *	„S
   0902 , 0908 , 0909 , 090B , 0912 , 0913 , 0914 , 0108 ,  0 , 0109 ,
-\  „T     „U     „V     „W     „X     „Y     „Z     „[     „\     „]
+\  „T	  „U	 „V	„W     „X     „Y     „Z     „[	   „\	  „]
   130B , 010B , 010C , 010D , 010E , 0110 , 0111 , 0112 , 0113 , 0114 ,
 
-CREATE œAÁ¡¬÷>‰s¤hÃ±Îa  \ œA‰Á ‰s¤hÃ±·i  e—i® ·¶“e Á¡¬÷·¡¡e ‰s¤hÃ±ˆt, ´a“¡¡e 0
-\ *   À¶‘   ˆA   ŒA   A   ”A   ˜A   œA    A    ¤A    ¨A
+CREATE œAÁ¡¬÷>‰s¤hÃ±Îa	\ œA‰Á ‰s¤hÃ±·i  e—i® ·¶“e Á¡¬÷·¡¡e ‰s¤hÃ±ˆt, ´a“¡¡e 0
+\ *   À¶‘   ˆA   ŒA   A   ”A	 ˜A   œA    A	 ¤A    ¨A
   0 C, 0 C, 0A C, 0 C, 0 C, 0 C, 0 C, 0 C, 0B C, 0C C, 0 C,
-\ ¬A    °A   ´A   ¸A   ¼A   ÀA   ÄA   ÈA    ÌA    ÐA
+\ ¬A	°A   ´A   ¸A   ¼A   ÀA	 ÄA   ÈA    ÌA	  ÐA
   0D C, 0 C, 0 C, 0 C, 0 C, 0 C, 0 C, 0E C, 0F C, 10 C,  ALIGN
 
 CREATE ‰s>Ñ»º—¬÷Îa  \ ‰sº—¬÷µA ”Ð ´|Ñ»º—¬÷ˆt, ‰sº—¬÷·¡ ´a“¡¡e 0
-\   *   *   À¶‘ „a   „   „¡   „Á   „á    *    *
+\   *	*   À¶‘ „a   „   „¡	„Á   „á    *	*
    0 C, 0 C, 0 C, 0 C, 0 C, 0 C, 0 C, 0 C, 0 C, 0 C,
-\ …A   …a   …    …¡   …Á    …á    *    *    †A    †a
+\ …A   …a   …	  …¡   …Á    …á    *	*    †A    †a
    0 C, 0 C, 0 C, 0 C, 0D C, 0D C, 0 C, 0 C, 0D C, 0 C,
-\ †   †¡    †Á    †á    *    *    ‡A   ‡a   ‡   ‡¡
+\ †   †¡    †Á    †á	 *    *    ‡A	‡a   ‡   ‡¡
   0 C, 14 C, 14 C, 14 C, 0 C, 0 C, 0 C, 0 C, 1B C, 0 C,
 
 : Á¡¬÷>‰sÁ¡¬÷? ( Á¡¬÷ -- Á¡¬÷ 0 | ‰sÁ¡¬÷ -1 )
     DUP £¡µÅ¬÷¸aÁ¡¬÷ = IF
-        DUP CHARS Á¡¬÷>‰sÁ¡¬÷Îa + C@ 1 = IF 1+ -1 EXIT THEN  THEN
+	DUP CHARS Á¡¬÷>‰sÁ¡¬÷Îa + C@ 1 = IF 1+ -1 EXIT THEN  THEN
     0 ;
 : ‰sÁ¡¬÷?  ( Á¡¬÷ -- 0 | 16§¡ËaÐe‹i¸a )
     Á¡¬÷>‰sÁ¡¬÷? IF   Á¡¬÷¤aŽ¡ ·³b‰­¢
-                 ELSE £¡µÅ¬÷¸a @ SWAP À¶‘!  Á¡¬÷¤aŽ¡ THEN ;
+		 ELSE £¡µÅ¬÷¸a @ SWAP À¶‘!  Á¡¬÷¤aŽ¡ THEN ;
 : Á¡¬÷>¤hÃ±?  ( Á¡¬÷ -- Á¡¬÷ 0 | ¤hÃ± -1 )
-        DUP CHARS  Á¡¬÷>¤hÃ±Îa + C@ DUP IF NIP -1 EXIT THEN ;
-: œAÁ¡¬÷>‰s¤hÃ±   ( Á¡¬÷ -- 0|‰s¤hÃ± )   CHARS  œAÁ¡¬÷>‰s¤hÃ±Îa + C@ ;
+	DUP CHARS  Á¡¬÷>¤hÃ±Îa + C@ DUP IF NIP -1 EXIT THEN ;
+: œAÁ¡¬÷>‰s¤hÃ±   ( Á¡¬÷ -- 0|‰s¤hÃ± )	 CHARS	œAÁ¡¬÷>‰s¤hÃ±Îa + C@ ;
 : ‰s>Ñ»º—¬÷   ( º—¬÷ -- 0|Ñ»º—¬÷ )   CHARS  ‰s>Ñ»º—¬÷Îa + C@ ;
 : ‰s>´|Ñ»¤hÃ± ( ¤hÃ± -- 0|Ñ»¤hÃ± )
-        CELLS  ¤hÃ±>Ñ»¤hÃ±Á¡¬÷Îa +  @  8 RSHIFT  DUP À¶‘¤hÃ± <>  AND ;
+	CELLS  ¤hÃ±>Ñ»¤hÃ±Á¡¬÷Îa +  @  8 RSHIFT  DUP À¶‘¤hÃ± <>  AND ;
 : ¤hÃ±>¤hÃ±Á¡¬÷  ( ¤hÃ± -- ¤hÃ± Á¡¬÷ )
-        CELLS ¤hÃ±>Ñ»¤hÃ±Á¡¬÷Îa + @  DUP 8 RSHIFT  SWAP 0FF AND ;
+	CELLS ¤hÃ±>Ñ»¤hÃ±Á¡¬÷Îa + @  DUP 8 RSHIFT  SWAP 0FF AND ;
 
 \ ”}­¡Ÿ¡ˆa ˜A, ¨A, ¼A·¡¡e µÅ¬÷, ´a“¡¡e ¤hÃ±µA ý‰¡ ‰­¢
 : ¤hÃ±?  ( Á¡¬÷ -- 0 | 16§¡ËaÐe‹i¸a )
-    Á¡¬÷>¤hÃ±?  IF   ¤hÃ±¤aŽ¡  ·³b‰­¢
-                ELSE £¡µÅ¬÷¸a @  SWAP  À¶‘!  Á¡¬÷¤aŽ¡  THEN ;
+    Á¡¬÷>¤hÃ±?	IF   ¤hÃ±¤aŽ¡  ·³b‰­¢
+		ELSE £¡µÅ¬÷¸a @  SWAP  À¶‘!  Á¡¬÷¤aŽ¡	THEN ;
 : >3?  ( -- 3|4 )   £¡µÅ¬÷¸aº—¬÷  ‰s>Ñ»º—¬÷ 0= ( -1|0) 4 + ;
 : >5?  ( -- 2|5 )   £¡µÅ¬÷¸a¤hÃ±  À¶‘¤hÃ± = ( -1|0) 3 * 5 + ;
 : >6?  ( -- 2|6 )   £¡µÅ¬÷¸a¤hÃ±  À¶‘¤hÃ± = ( -1|0) 2* 2* 6 + ;
 
-: Á¡¬÷>‰s¤hÃ±?  ( Á¡¬÷ -- Á¡¬÷ 0 | ‰s¤hÃ± -1 )
+: Á¡¬÷>‰s¤hÃ±?	( Á¡¬÷ -- Á¡¬÷ 0 | ‰s¤hÃ± -1 )
     £¡µÅ¬÷¸a¤hÃ±
     CASE
       ( „B) 02 OF DUP ( ¬A) 0B = IF DROP 04 -1 EXIT THEN  ENDOF
       ( „S) 13 OF DUP ( ¬A) 0B = IF DROP 14 -1 EXIT THEN  ENDOF
       ( „E) 05 OF DUP ( ¸A) 0E = IF DROP 06 -1 EXIT THEN
-                  DUP ( ÐA) 14 = IF DROP 07 -1 EXIT THEN  ENDOF
+		  DUP ( ÐA) 14 = IF DROP 07 -1 EXIT THEN  ENDOF
       ( „I) 09 OF DUP œAÁ¡¬÷>‰s¤hÃ± ?DUP IF NIP -1 EXIT THEN  ENDOF
     ENDCASE  0 ;
 
 : ‰s¤hÃ±?  ( Á¡¬÷ -- 0 | 16§¡ËaÐe‹i¸a )
-        Á¡¬÷>‰s¤hÃ±? IF  ¤hÃ±¤aŽ¡ ·³b‰­¢  ELSE  µÅ+Á¡  THEN ;
+	Á¡¬÷>‰s¤hÃ±? IF  ¤hÃ±¤aŽ¡ ·³b‰­¢  ELSE  µÅ+Á¡  THEN ;
 : Ñ»¤hÃ±  ( –õ®A -- 0 )
-        DROP  £¡µÅ¬÷¸a¤hÃ±  ‰s>´|Ñ»¤hÃ± ¤hÃ±¤aŽ¡  ·³b‰­¢ ;
+	DROP  £¡µÅ¬÷¸a¤hÃ±  ‰s>´|Ñ»¤hÃ± ¤hÃ±¤aŽ¡  ·³b‰­¢ ;
 
-: º—¬÷>‰sº—¬÷?  ( º—¬÷ -- º—¬÷ 0 | ‰sº—¬÷ -1 )
+: º—¬÷>‰sº—¬÷?	( º—¬÷ -- º—¬÷ 0 | ‰sº—¬÷ -1 )
     £¡µÅ¬÷¸aº—¬÷
     CASE
       ( ‡a) 1B OF DUP ( ‡¡) 1D = IF DROP 1C -1 EXIT THEN
-                  0 EXIT                                    ENDOF
+		  0 EXIT				    ENDOF
       ( …¡) 0D OF DUP ( „a) 03 = IF DROP 0E -1 EXIT THEN
-                  DUP ( „) 04 = IF DROP 0F -1 EXIT THEN
-                  DUP ( ‡¡) 1D = IF DROP 12 -1 EXIT THEN
-                  0 EXIT                                    ENDOF
+		  DUP ( „) 04 = IF DROP 0F -1 EXIT THEN
+		  DUP ( ‡¡) 1D = IF DROP 12 -1 EXIT THEN
+		  0 EXIT				    ENDOF
       ( †) 14 OF DUP ( „á) 07 = IF DROP 15 -1 EXIT THEN
-                  DUP ( …A) 0A = IF DROP 16 -1 EXIT THEN
-                  DUP ( ‡¡) 1D = IF DROP 17 -1 EXIT THEN
-                  0 EXIT                                    ENDOF
+		  DUP ( …A) 0A = IF DROP 16 -1 EXIT THEN
+		  DUP ( ‡¡) 1D = IF DROP 17 -1 EXIT THEN
+		  0 EXIT				    ENDOF
     ENDCASE  0 ;
 
 : ‰sº—¬÷?  ( º—¬÷ -- 0 | 16§¡ËaÐe‹i¸a )
-        º—¬÷>‰sº—¬÷? IF  º—¬÷¤aŽ¡ ·³b‰­¢  ELSE  µÅ+º—  THEN ;
+	º—¬÷>‰sº—¬÷? IF  º—¬÷¤aŽ¡ ·³b‰­¢  ELSE  µÅ+º—  THEN ;
 : Ñ»º—¬÷  ( –õ®A -- 0 )
-        DROP  £¡µÅ¬÷¸aº—¬÷  ‰s>Ñ»º—¬÷ º—¬÷¤aŽ¡  ·³b‰­¢ ;
+	DROP  £¡µÅ¬÷¸aº—¬÷  ‰s>Ñ»º—¬÷ º—¬÷¤aŽ¡	·³b‰­¢ ;
 
 \ £¡µÅ¬÷¸aµA¬á ¤hÃ±·i ¨… ‹i¸aŸi µÅ¬÷¸a¡ ¥¡‰¡
 \ ‹a ¤hÃ±·i £¡µÅ¬÷¸a· Á¡¬÷µA ý‰¡ º—¬÷·i £¡µÅ¬÷¸aµA ý·q
 : µÅ+Á¡º—  ( º—¬÷ -- 16§¡Ëa¸a )
-    £¡µÅ¬÷¸a¤hÃ± ¤hÃ±>¤hÃ±Á¡¬÷          \ º—¬÷ ¬¤hÃ± Á¡¬÷
-    SWAP ¤hÃ±¤aŽ¡ £¡µÅ¬÷¸a @            \ º—¬÷ Á¡¬÷ 16§¡ËaÐe‹i¸a
+    £¡µÅ¬÷¸a¤hÃ± ¤hÃ±>¤hÃ±Á¡¬÷		\ º—¬÷ ¬¤hÃ± Á¡¬÷
+    SWAP ¤hÃ±¤aŽ¡ £¡µÅ¬÷¸a @		\ º—¬÷ Á¡¬÷ 16§¡ËaÐe‹i¸a
     À¶‘!  SWAP Á¡¬÷¤aŽ¡ 2 ¬wÈ‹¡´â ´|¸a‹¡´â  SWAP º—¬÷¤aŽ¡ ;
 
 CREATE µw®A>Ðe‹i¸a
@@ -981,29 +981,29 @@ CREATE µw®A>Ðe‹i¸a
    40B , 313 , 30E , 312 , 413 , 311 ,
 
 CREATE µw¶õ®A>Ðe‹i¸a
-\  A>A   B>B   C>C   D>D   E>˜A  F>F   G>G   H>H   I>I   J>J
+\  A>A	 B>B   C>C   D>D   E>˜A  F>F   G>G   H>H   I>I	 J>J
    041 , 042 , 043 , 044 , 306 , 046 , 047 , 048 , 049 , 04A ,
-\  K>K   L>L   M>M   N>N   O>„Á  P>…  Q>¨A  R>ŒA  S>S   T>°A
+\  K>K	 L>L   M>M   N>N   O>„Á  P>…  Q>¨A  R>ŒA  S>S	 T>°A
    04B , 04C , 04D , 04E , 406 , 40C , 30A , 303 , 053 , 30C ,
-\  U>U   V>V   W>¼A  X>X   Y>Y   Z>Z
+\  U>U	 V>V   W>¼A  X>X   Y>Y	 Z>Z
    055 , 056 , 30F , 058 , 059 , 05A ,
 
 \ EKEY ¡ ¤h·e ˆtµA¬á ‹i®A· ¹·ŸAŸi '>‹i¸a-2¤é¯¢'¡ ñ‹±
 \ 2¤é¯¢µA¬á ‹i®A ¹·ŸA“e ”a¬õ ˆa»¡:
 \ Ðeµw¤aŽ‘(1), –õ®A(2), ”}­¡Ÿ¡(3), Ñ©­¡Ÿ¡(4), a á»¡(0)
 : >‹i®Aˆt‰Á¹·ŸA-2¤é¯¢  ( ‹i®Aˆt -- ‹i®Aˆt' ¹·ŸA )
-   0FF AND                                              \ special key “e ¢¯¡
-   DUP BL = ¶E½¢¶õ®A’‰Ÿ±? AND IF DROP 0 1 EXIT THEN     \ Ðeµw¤aŽ‘‹i®A·¡¡e 0 1
-   DUP –õ®A=  IF DROP 8 2 EXIT THEN                     \ –õ‹i®A·¡¡e
+   0FF AND						\ special key “e ¢¯¡
+   DUP BL = ¶E½¢¶õ®A’‰Ÿ±? AND IF DROP 0 1 EXIT THEN	\ Ðeµw¤aŽ‘‹i®A·¡¡e 0 1
+   DUP –õ®A=  IF DROP 8 2 EXIT THEN			\ –õ‹i®A·¡¡e
    DUP [CHAR] A [CHAR] Z 1+ WITHIN ‹i®A·³b¬wÈ @ AND IF \ Ðe‹i·³b·¡‰¡ A-Z ·¡¡e
-        [CHAR] A -  CELLS   µw¶õ®A>Ðe‹i¸a
-        [ µw®A>Ðe‹i¸a µw¶õ®A>Ðe‹i¸a - ] LITERAL CapsLock? AND
-        + + @  DUP 0FF AND SWAP 8 RSHIFT EXIT                   THEN
+	[CHAR] A -  CELLS   µw¶õ®A>Ðe‹i¸a
+	[ µw®A>Ðe‹i¸a µw¶õ®A>Ðe‹i¸a - ] LITERAL CapsLock? AND
+	+ + @  DUP 0FF AND SWAP 8 RSHIFT EXIT			THEN
    DUP [CHAR] a [CHAR] z 1+ WITHIN ‹i®A·³b¬wÈ @ AND IF \ Ðe‹i·³b·¡‰¡ a-z ·¡¡e
-        [CHAR] a -  CELLS   µw®A>Ðe‹i¸a
-        [ µw¶õ®A>Ðe‹i¸a µw®A>Ðe‹i¸a - ] LITERAL CapsLock? AND
-        + + @  DUP 0FF AND SWAP 8 RSHIFT EXIT                   THEN
-   0 ;                                  \ a á»¡
+	[CHAR] a -  CELLS   µw®A>Ðe‹i¸a
+	[ µw¶õ®A>Ðe‹i¸a µw®A>Ðe‹i¸a - ] LITERAL CapsLock? AND
+	+ + @  DUP 0FF AND SWAP 8 RSHIFT EXIT			THEN
+   0 ;					\ a á»¡
 
 \ 2¤é¯¢ ¸aÌe ¬wÈ
 \  0 : µw¢… ·³b
@@ -1014,7 +1014,7 @@ CREATE µw¶õ®A>Ðe‹i¸a
 \  5 : Á¡¬÷+º—¬÷+¤hÃ± ·³b
 \  6 : Á¡¬÷+º—¬÷+‰s¤hÃ± ·³b
 5 Äe µ¡É¡ aÈa: >‹i¸a-2¤é¯¢
-\ ·³b|   a á»¡?  | Ðeµw¤aŽ‘?  |   –õ®A?    |    ”}­¡Ÿ¡?    |   Ñ©­¡Ÿ¡?   |
+\ ·³b|   a á»¡?  | Ðeµw¤aŽ‘?	|   –õ®A?    |	  ”}­¡Ÿ¡?    |	 Ñ©­¡Ÿ¡?   |
 \ ¬wÈ----------------------------------------------------------------------
  ( 0) | ‹a·  | >0 | À¶‘! | >1 | ‹a· | >0  | ‹a·    | >0  | ‹a·    | >0
  ( 1) | ‹a·  | >1 | ‹a·  | >0 | ‹a· | >1  | Á¡¬÷!   | >2  | º—¬÷!   | >3
@@ -1029,63 +1029,63 @@ CREATE µw¶õ®A>Ðe‹i¸a
 \  3¤é¯¢ ¸aÌe ·³bµA Ï©¶aÐe { i—i
 \
 
-CREATE œA¤hÃ±>‰s¤hÃ±Îa  \ œA‰Á ‰s¤hÃ±·i  e—i® ·¶“e ¤hÃ±·¡¡e ‰s¤hÃ±ˆt, ´a“¡¡e 0
-\  *   À¶‘   „B    „C    „D    „E    „F    „G    „H    „I
+CREATE œA¤hÃ±>‰s¤hÃ±Îa	\ œA‰Á ‰s¤hÃ±·i  e—i® ·¶“e ¤hÃ±·¡¡e ‰s¤hÃ±ˆt, ´a“¡¡e 0
+\  *   À¶‘   „B    „C	  „D	„E    „F    „G	  „H	„I
    0 C,  0 C, 0A C,  0 C,  0 C,  0 C,  0 C,  0 C,  0 C,  0 C,
-\ „J    „K    „L    „M    „N    „O    „P    „Q     *    „S
+\ „J	„K    „L    „M	  „N	„O    „P    „Q	   *	„S
    0 C,  0 C,  0 C,  0 C,  0 C,  0 C,  0 C, 0B C,  0 C, 0C C,
-\ „T    „U    „V    „W    „X    „Y    „Z    „[    „\    „]
+\ „T	„U    „V    „W	  „X	„Y    „Z    „[	  „\	„]
    0 C, 0D C,  0 C,  0 C,  0 C,  0 C,  0 C, 0E C, 0F C, 10 C, ALIGN
 
-: ¤hÃ±!    ( ¤hÃ± -- 0 )          ¤hÃ±¤aŽ¡ ·³b‰­¢ ;
+: ¤hÃ±!    ( ¤hÃ± -- 0 )	  ¤hÃ±¤aŽ¡ ·³b‰­¢ ;
 : µÅ+¤hÃ±  ( ¤hÃ± -- 16§¡Ëa¸a )   £¡µÅ¬÷¸a @  À¶‘!  SWAP ¤hÃ±¤aŽ¡ ;
-: œA¤hÃ±>‰s¤hÃ±  ( ¤hÃ± -- 0|‰s¤hÃ± )   CHARS  œA¤hÃ±>‰s¤hÃ±Îa + C@ ;
-: ¤hÃ±>‰s¤hÃ±?  ( ¤hÃ± -- ¤hÃ± 0 | ‰s¤hÃ± -1 )
+: œA¤hÃ±>‰s¤hÃ±  ( ¤hÃ± -- 0|‰s¤hÃ± )	CHARS  œA¤hÃ±>‰s¤hÃ±Îa + C@ ;
+: ¤hÃ±>‰s¤hÃ±?	( ¤hÃ± -- ¤hÃ± 0 | ‰s¤hÃ± -1 )
     £¡µÅ¬÷¸a¤hÃ±
     CASE
       ( „B) 02 OF DUP ( „B) 02 = IF DROP 03 -1 EXIT THEN
-                      ( „U) 15 = IF DROP 04 -1 EXIT THEN  ENDOF
+		      ( „U) 15 = IF DROP 04 -1 EXIT THEN  ENDOF
       ( „S) 13 OF DUP ( „U) 15 = IF DROP 14 -1 EXIT THEN  ENDOF
       ( „U) 15 OF DUP ( „U) 15 = IF DROP 16 -1 EXIT THEN  ENDOF
       ( „E) 05 OF DUP ( „X) 18 = IF DROP 06 -1 EXIT THEN
-                  DUP ( „]) 1D = IF DROP 07 -1 EXIT THEN  ENDOF
+		  DUP ( „]) 1D = IF DROP 07 -1 EXIT THEN  ENDOF
       ( „I) 09 OF DUP œA¤hÃ±>‰s¤hÃ± ?DUP IF NIP -1 EXIT THEN  ENDOF
     ENDCASE  0 ;
 : ‰s¤hÃ±?  ( ¤hÃ± -- 0 | 16§¡ËaÐe‹i¸a )
-        ¤hÃ±>‰s¤hÃ±? IF  ¤hÃ±¤aŽ¡ ·³b‰­¢  ELSE  µÅ+¤hÃ±  THEN ;
+	¤hÃ±>‰s¤hÃ±? IF  ¤hÃ±¤aŽ¡ ·³b‰­¢  ELSE  µÅ+¤hÃ±  THEN ;
 
 CREATE 3¤é®A>Ðe‹i¸a
 \  !>„X  ">"   #>#   $>$   %>%   &>&   '>ÈA  (>(   )>)   *>*   +>+   ,>,
    518 , 022 , 023 , 024 , 025 , 026 , 312 , 028 , 029 , 02A , 02B , 02C ,
-\  ->-   .>.   />…¡  0>ÄA  1>„]  2>„V  3>„S  4>†a  5>‡A  6>„¡  7>…  8>‡
+\  ->-	 .>.   />…¡  0>ÄA  1>„]  2>„V  3>„S  4>†a  5>‡A  6>„¡  7>…  8>‡
    02D , 02E , 40D , 311 , 51D , 516 , 513 , 413 , 41A , 405 , 40C , 41C ,
-\  9>†  :>:   ;>¤A  <>2   =>=   >>3   ?>?   @>@   A>„H  B>!   C>„K  D>„J
+\  9>†  :>:   ;>¤A  <>2   =>=	 >>3   ?>?   @>@   A>„H  B>!   C>„K  D>„J
    414 , 03A , 309 , 032 , 03D , 033 , 03F , 040 , 508 , 021 , 50B , 50A ,
 \  E>„Z  F>„C  G>/   H>'   I>8   J>4   K>5   L>6   M>1   N>0   O>9   P>>
    51A , 503 , 02F , 027 , 038 , 034 , 035 , 036 , 031 , 030 , 039 , 03E ,
-\  Q>„\  R>„Á  S>„G  T>;   U>7   V>„P  W>„[  X>„T  Y>8   Z>„Y  [>[   \>\
+\  Q>„\  R>„Á  S>„G  T>;   U>7	 V>„P  W>„[  X>„T  Y>8	 Z>„Y  [>[   \>\
    51C , 406 , 507 , 03B , 037 , 510 , 51B , 514 , 038 , 519 , 05B , 05C ,
-\  ]>]   ^>^   _>_   `>`   a>„W  b>†  c>…A  d>‡¡  e>…a  f>„a  g>‡a  h>A
+\  ]>]	 ^>^   _>_   `>`   a>„W  b>†  c>…A  d>‡¡  e>…a  f>„a  g>‡a  h>A
    05D , 05E , 05F , 060 , 517 , 414 , 40A , 41D , 40B , 403 , 41B , 304 ,
 \  i> A  j>´A  k>ˆA  l>¸A  m>ÐA  n>¬A  o>ÀA  p>ÌA  q>„U  r>„  s>„E  t>„á
    308 , 30D , 302 , 30E , 314 , 30B , 310 , 313 , 515 , 404 , 505 , 407 ,
-\  u>”A  v>…¡  w>„I  x>„B  y>œA  z>„Q  {>{   |>|   }>}   ~>~
+\  u>”A  v>…¡  w>„I  x>„B  y>œA  z>„Q  {>{   |>|   }>}	 ~>~
    305 , 40D , 509 , 502 , 307 , 511 , 07B , 07C , 07D , 07E ,
 
 \ EKEY ¡ ¤h·e ˆtµA¬á ‹i®A· ¹·ŸAŸi '>‹i¸a-3¤é¯¢'·a¡ ñ‹±
 \ 3¤é¯¢µA¬á ‹i®A ¹·ŸA“e ”a¬õ ˆa»¡:
 \   Ðeµw¤aŽ‘(1), –õ®A(2), Á¡¬÷(3), º—¬÷(4), ¤hÃ±(5), a á»¡(0)
 : >‹i®Aˆt‰Á¹·ŸA-3¤é¯¢  ( ‹i®Aˆt -- ‹i®Aˆt' ¹·ŸA )
-   0FF AND                                              \ special key “e ¢¯¡
-   DUP BL = ¶E½¢¶õ®A’‰Ÿ±? AND IF DROP 0 1 EXIT THEN     \ Ðeµw¤aŽ‘‹i®A·¡¡e 0 1
-   DUP –õ®A=  IF DROP 8 2 EXIT THEN                     \ –õ‹i®A·¡¡e
-   DUP BL > 0= IF 0 EXIT THEN                           \ ¹A´á¢…¸aa §¥Äe·¡¡e
-   ‹i®A·³b¬wÈ @ 0= IF 0 EXIT THEN                     \ µw¢…·³b
+   0FF AND						\ special key “e ¢¯¡
+   DUP BL = ¶E½¢¶õ®A’‰Ÿ±? AND IF DROP 0 1 EXIT THEN	\ Ðeµw¤aŽ‘‹i®A·¡¡e 0 1
+   DUP –õ®A=  IF DROP 8 2 EXIT THEN			\ –õ‹i®A·¡¡e
+   DUP BL > 0= IF 0 EXIT THEN				\ ¹A´á¢…¸aa §¥Äe·¡¡e
+   ‹i®A·³b¬wÈ @ 0= IF 0 EXIT THEN			\ µw¢…·³b
    CapsLock? IF
        DUP [CHAR] A [CHAR] Z 1+ WITHIN IF
-           [ CHAR a CHAR A - ] LITERAL +
+	   [ CHAR a CHAR A - ] LITERAL +
        ELSE DUP [CHAR] a [CHAR] z 1+ WITHIN IF
-           [ CHAR A CHAR a - ] LITERAL +    THEN THEN THEN
+	   [ CHAR A CHAR a - ] LITERAL +    THEN THEN THEN
    [CHAR] ! - CELLS 3¤é®A>Ðe‹i¸a + @
    DUP 0FF AND SWAP 8 RSHIFT ;
 
@@ -1098,7 +1098,7 @@ CREATE 3¤é®A>Ðe‹i¸a
 \  5 : Á¡¬÷+º—¬÷+¤hÃ± ·³b
 \  6 : Á¡¬÷+º—¬÷+‰s¤hÃ± ·³b
 6 Äe µ¡É¡ aÈa: >‹i¸a-3¤é¯¢
-\ ·³b|   a á»¡?  | Ðeµw¤aŽ‘?  |   –õ®A?    |     Á¡¬÷?    |    º—¬÷?      |   ¤hÃ±?      |
+\ ·³b|   a á»¡?  | Ðeµw¤aŽ‘?	|   –õ®A?    |	   Á¡¬÷?    |	 º—¬÷?	    |	¤hÃ±?	   |
 \ ¬wÈ--------------------------------------------------------------------------------------
  ( 0) | ‹a·  | >0 | À¶‘! | >1 | ‹a· | >0  | ‹a·    | >0 | ‹a·    | >0  | ‹a·     | >0
  ( 1) | ‹a·  | >1 | ‹a·  | >0 | ‹a· | >1  | Á¡¬÷!   | >2 | º—¬÷!   | >3  | ¤hÃ±!    | >5
@@ -1111,7 +1111,7 @@ CREATE 3¤é®A>Ðe‹i¸a
 
 ' >‹i¸a-2¤é¯¢         VALUE '>‹i¸a
 ' >‹i®Aˆt‰Á¹·ŸA-2¤é¯¢ VALUE '>‹i®Aˆt‰Á¹·ŸA
-: >‹i¸a           '>‹i¸a         EXECUTE ;
+: >‹i¸a 	  '>‹i¸a         EXECUTE ;
 : >‹i®Aˆt‰Á¹·ŸA   '>‹i®Aˆt‰Á¹·ŸA EXECUTE ;
 
 NONSTANDARD-WORDLIST SET-CURRENT
@@ -1209,7 +1209,7 @@ DECIMAL
     0 HCHAR !
     0 ‹i®A·³b¬wÈ !
     0 ‹i®AÉ· !
-    À¶‘¸a £¡µÅ¬÷¸a !
+    À¶‘!
     0 VSCR0 !
     0 YY !  0 VIR_Y !
     0 XX !  0 VIR_X !
@@ -1225,7 +1225,7 @@ HEX
 : NEW-hi
     DOSCommand>PAD
     GET-MODE TO OldMode# HGRAPHIC hi
-    ." ·‰e‰Á ¹A´e‰Á §¡Íw·i Ða·¡ÉI wykoh¡ ¥¡ º¯³¯¡µ¡." CR
+    ." ·‰e‰Á ¹A´e‰Á §¡Íw·i ¶á ·¥Èá‘U º­¡a Ða·¡ÉI wykoh¡ ¥¡ º¯³¯¡µ¡." CR
     S" BLOCKS.BLK" MAPPED-TO-BLOCK  QUIT ;
 
 ' NEW-SET-I/O TO 'init-i/o
