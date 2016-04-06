@@ -1,17 +1,20 @@
 ***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***
 
-Žœá£¡ ´e· MSDOS.FµÁ ·¡ˆõ·i Í¡ÐqÐe ¯©Ð— Ìa·©—i·i ³i ˜“e
-¹¡¯±Ða¯³¯¡µ¡. ´a¢Ÿ¡ §¡¬w¯¢¸â·¥ ·©·¡œa•¡ ÄñÏAÈáµA‰A (ËbÓ¡ Í¡¯a
-¯¡¯aÉQµA‰A) ¯¡Ç¡¡e ¤a¡ ¯©Ð—Ðs“¡”a. Ða—a —¡¯aÇa· Šáº—Ðe ¸ažaŸi
-·°´á¤áŸ¡“e ·©·¡ ¬—‹© ® ·¶·s“¡”a. »¡‹qŒa»¡ ¹Aˆa ³a“e •·´e ¥i ¢…¹Aˆa
-´ô´ö‰¡ ¢…¹Aˆa ·¶”a‰¡ ´iŸ¡¯¥ ¦…•¡ ´ô»¡ e MSDOS.F· { i—i·¡
-µÅ¥bÐa”a‰¡“e ¸a¯¥Ði ® ´ô·s“¡”a. hForth· { i—i·¡ Îaº… Í¡¯aµA¬á
-¸÷·Ðe ”¡ Ð—•·Ða»¡ ´g·i ® ·¶·s“¡”a. ¢‰¥ µÅ¥bÐe Îaº… Í¡¯a { i·i
-°á•¡ ¬a¶w¸aˆa ÒÒAÐi ·©·¡ ¤i¬—Ði ® ·¶·s“¡”a.
+Žœá£¡ ´e· MSDOS.FµÁ ·¡ˆõ·i Í¡ÐqÐe SAVE.EXEµÁ SAVE2.EXEŸi ³i ˜“e 
+¹¡¯±Ða¯³¯¡µ¡. 0.9.2ÌeŒa»¡ hForth Žœá£¡µA —i´á ·¶”å ¯©Ð— Ìa·©—i·e 
+PC· ¡A¡¡Ÿ¡µA¬á e ¸b´óÐa‰¡ ·ª´á—i·¡“e ˆõ ¶AµA“e ¸á¸w ¸wÃ¡µA ´a¢ 
+µwÐ··i £¡Ã© ® ´ô´ö·s“¡”a. ‹aœáa ·¡ Žœá£¡µA Í¡Ðq–E MSDOS.FµA¬á 
+¸÷·Ðe Ìa·© { i—i·i ³a¡e Ða—a—¡¯aÇa· Ìa·©—i·i »¡¶ˆáa ·¡Ÿq·i 
+¤aŽ‰ ® ·¶·s“¡”a. ´a¢Ÿ¡ §¡¬w¯¢¸â·¥ ·©·¡œa•¡ ÄñÏAÈáµA‰A (ËbÓ¡ Í¡¯a 
+¯¡¯aÉQµA‰A) ¯¡Ç¡¡e ¤a¡ ¯©Ð—Ðs“¡”a. ‹aŸ¡‰¡ MSDOS.F“e ´a»¢ Â—¦…Ó¡ 
+¯¡Ðñ–A»¡ ´g´v·s“¡”a. MSDOS.F· { i—i·¡ Îaº… Í¡¯aµA¬á ¸÷·Ðe 
+Ð—•· e·i Ða”áœa•¡ ¬a¶w¸aˆa ÒÒAÐi ·©·¡ ¤i¬—Ði ® ·¶‰¡ MSDOS.F· 
+{ i—i·¡ Îaº… Í¡¯aµA¬á ¸÷·Ðe ”¡ Ð—•·Ða»¡ ´g·i ®•¡ ·¶·s“¡”a. 
+·¡ˆõ·e ´a»¢ ¥AÈaÌe·¡œa“e ˆõ·i ¡w¯±Ða¯³¯¡µ¡. 
 
 ***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***‰w‰¡***
 
-hForth 0.9.7Ìe·³“¡”a. hForth“e ¢ža Ïa¡‹aœ‘(free software)·³“¡”a.
+hForth 0.9.4Ìe·³“¡”a. hForth“e ¢ža Ïa¡‹aœ‘(free software)·³“¡”a. 
 ·¡ˆõ·i ˆ·¥¸â·a¡a ¬w´ó¸â·a¡a ´á˜å ¡¢¸âµA ¬a¶wÐ•¡ ¹½¯s“¡”a. ”e, 
 ·¡ Ïa¡‹aœ‘ e·i Ìi´a¬á“e ´e–A‰¡ (hForthŸi °á¬á  e—e Ïa¡‹aœ‘·i Ìa“e 
 ˆõ·e ¹Aˆa ¬w‰ÅÐa»¡ ´g‰¡ ˆá‹¡µA hForth Žœá£¡ˆa —i´á ·¶´á•¡ 
@@ -39,41 +42,27 @@ HF86EXE.ASM     IBM-PC ¶w hForth 8086 EXE ¡¡•I· TASM ¤aÈw¥¥.
 HF86ROM.COM     hForth 8086 ROM ¡¡•I· ¯©Ð— Ìa·©.
 HF86RAM.COM     hForth 8086 RAM ¡¡•I· ¯©Ð— Ìa·©.
 HF86EXE.EXE     hForth 8086 EXE ¡¡•I· ¯©Ð— Ìa·©.
-SAVE.EXE        OPTIONAL.FµÁ ASM8086.FµÁ COREEXT.FµÁ MSDOS.FµÁ
-                MULTI.FŸi ”áÐe HF86EXE.EXE
-SAVE2.EXE       HIOMULT2.FŸi ”áÐe SAVE.EXE
-HTURTLE.EXE     ¶Ÿ¡ i ˆá¦‚ ‹aŸ± É·µb‹¡.
-ETURTLE.EXE     µw¢… ˆá¦‚ ‹aŸ± É·µb‹¡.
+SAVE.EXE        OPTIONAL.FµÁ ASM8086.FµÁ MSDOS.FŸi ”áÐe HF86EXE.EXE
+SAVE2.EXE       MULTI.FµÁ HIOMULTI.FŸi ”áÐe SAVE.EXE
 OPTIONAL.F      ¬åÈ‚ { i(OPTIONAL wordset words)—i· Í¡¯a ¤aÈw¥¥.
 ASM8086.F       8086 ´á­Q§iœá Í¡¯a ¤aÈw¥¥.
 ASMTEST.F       8086 ´á­Q§iœáŸi ¯¡ÐñÐa‹¡ ¶áÐe Í¡¯a ¤aÈw¥¥.
-COREEXT.F       ANS Îaº… Í¡¯a Ïa¡‹aœ‘µA ³a»¡  i´a´¡ Ði j·e { i·i ¨…
-                (OPTIONAL.FµA ¨a»¥) ”aŸe ¡¡—e CORE EXT { i· Í¡¯a ¤aÈw¥¥.
 MULTI.F         Bill Muench· ”aº—¸b´ó‹¡(multitasker)· Í¡¯a ¤aÈw¥¥.
 MULDEMO.F       ”aº— ¸b´ó‹¡Ÿi ¯¡ÐñÐa‹¡ ¶áÐe ˆe”eÐe Í¡¯a ¤aÈw¥¥.
-MSDOS.F         DOS Ðq®Ÿi °á¬á ¸÷·Ðe FILE { i‰Á BLOCK { i—i.
-DOSEXEC.F       hForthµA¬á •¡¯a Ïa¡‹aœ‘·i ¦Ÿa“e { i· ¸÷·.
-SAVE.F          SAVE.EXEŸi  e—a“e Í¡¯a ¤aÈw¥¥.
-DOUBLE.F        µÅ¸åÐe DOUBLE‰Á DOUBLE EXT { i· ¸÷·.
 HIOMULTI.F      ”aº—¸b´ó‹¡Ÿi ³a“e Ðe‹i·³Â‰b Í¡¯a ¤aÈw¥¥.
 HIOMULT2.F      ‹i©·i ¤aŽ‰ ® ·¶“e Ðe‹i·³Â‰b Í¡¯a ¤aÈw¥¥.
-CLOCK.F         SAVE2.EXEµA¬á ³i ® ·¶“e ”aº— ¸b´ó‹¡ ¯¡‰
-STACK.F         SAVE2.EXEµA¬á ÑÁ¡eµA ”á£¡· ¶w·i ¥¡·¡“e Ïa¡‹aœ‘.
-HTURTLE.F       ¶Ÿ¡ i ˆá¦‚ ‹aŸ± É·µb‹¡ Í¡¯a ¤aÈw¥¥.
-ETURTLE.F       ˆá¦‚ ‹aŸ± É·µb‹¡ Í¡¯a µw¢… ¤aÈw¥¥.
-SIO.F           »¢i É·¯¥ Ïa¡‹aœ‘. Šˆ·e¡¡ ¹A´á· µ.
-LOG.F           ÑÁ¡e Â‰b·i HFORTH.LOGµA ˆi¢Ÿ¡Ða“e Ïa¡‹aœ‘.
-MEMORY.F        MEMORY ALLOCATION { i· ¸÷·. Gordon Chlarlton·
-                MEMORY.FTHŸi ‰¡Ã¥ ˆõ.
-MEMORY.FTH      Gordon Charlton· ¥¥œ Ìa·©.
-DEBUGGER.ANS    ANS Îaº… Í¡¯a { i¡  e—e Joerg Plewe· —¡¤áˆá
-ENG.FNT         HIOMULT2.FµA¬á ³a“e µw¢… ‹i©.
-HAN.FNT         HIOMULT2.FµA¬á ³a“e Ðe‹i ‹i©.
-README.KOR      ·¡ Ìa·©.
+MSDOS.F         DOS Ðq®Ÿi °á¬á ¸÷·Ðe FILE { i‰Á BLOCK { i—i.
+DOSEXEC.F       hForthµA¬á •¡¯a Ïa¡‹aœ‘·i ¦Ÿa“e { i· ¸÷·.
+ROLL.F          Îaº… { i ROLL· ¸÷·
+BLOCKS.BLK      BLOCK { i·¡ ¬a¶wÐa“e ˆi¢Ÿ¡ ¸w­¡.
+README.090      hForth 0.9.0 Žœá£¡· README.TXT.
+README.092      hForth 0.9.2 Žœá£¡· README.TXT.
+README.093      hForth 0.9.3 Žœá£¡· README.TXT.
+README.TXT      ·¡ Ìa·©.
 
 ˆb ¯©Ð— Ìa·©—i·e ´aœ ¤w¤ó·a¡  e—i´ö·s“¡”a.
 
->TASM /ml HF86ROM ™¡“e HF86RAM ™¡“e HF86EXE
+>TASM /ml HF86ROM
 >TLINK /t HF86ROM ™¡“e TLINK /t HF86RAM ™¡“e TLINK HF86EXE
 
 Žœá£¡ ´e· SAVE.EXE“e HF86EXE.EXEŸi ¯¡¸bÐe ”a·q ´aœÀáœñ Ð¬á 
@@ -98,8 +87,9 @@ SAVE.EXEŸi ¯¡¸bÐe ”a·q ´aœÀáœñ Ð¬á  aeÐe ˆõ·³“¡”a.
 
 ¤a¡ ¶áµA¬á ¥¡¯¥ ˆõÀáœñ ·¡¹A '<<'Ÿi ³a»¡ ´g‰¡ Îaº… Í¡¯a· FILE 
 { i·¥ INCLUDEDŸi °á¬á Í¡¯a ¤aÈw¥¥·i ·ª´á —i·© ® ·¶·s“¡”a. 
-MSDOS.FŸi µ©Ÿ¡¯¥ ÒµA“e '<<'Ÿi ³a»¡  a¯³¯¡µ¡. MSDOS.F“e Â—¦…Ó¡ 
-¯¡Ðñ–A»¡ ´g´v·s“¡”a. ¢…¹AŸi ¤i‰eÐa¡e ¹A‰A ´ia º¯³¯¡µ¡.
+MSDOS.FŸi µ©Ÿ¡¯¥ ÒµA“e '<<'Ÿi ³a»¡  a¯³¯¡µ¡. µ¬wÐa»¡ ¡µÐe ¢…¹Aˆa 
+¬—‹© ® ·¶·s“¡”a. MSDOS.F“e ´a»¢ Â—¦…Ó¡ ¯¡Ðñ–A»¡ ´g´v·s“¡”a. ¢…¹AŸi 
+¤i‰eÐa¡e ¹A‰A ´ia º¯³¯¡µ¡.
 
 ´…¯¡ Îaº… Í¡¯a· CORE { i—i·e ¡¡– ´á­Q§iŸ¡´á ¤aÈw¥¥µA 
 —i´á·¶·s“¡”a. µÅ¸åÐe TOOLS { i‰Á SEARCH ORDER { i‰Á SEARCH ORDER 
@@ -109,8 +99,8 @@ EXTENSION { i—i‰Á ”aŸe ³i¡¡·¶“e { i—i·e OPTIONAL.FµA
 'init-i/oµÁ 'bootŸi °á¬á ¸÷Ð»¥ ·©·i Ða“e ·w¶w Ïa¡‹aœ‘·i  e—i ® 
 ·¶·s“¡”a. SAVE-SYSTEM·¡a SAVE-SYSTEM-AS¡ ˆi¢Ÿ¡Ðe Ïa¡‹aœ‘·¡ Àá·q 
 ¯¡Åa»© ˜ 'init-i/oˆa ¯¡Åa»¡‰¡ a¬á 'bootˆa ¯¡Åa»³“¡”a. 'init-i/o“e 
-µ¶A ÀáŸ¡Ÿi Ða“e THROW•¡ ¬a¶wÐs“¡”a. µAœáˆa ¤i¬—Ð–”a¡e ·³Â‰b· 
-¤wÐ··i ¹A”¡ •©a ‘½´a´¡ e ‹i®AÌeµA¬á ·³b·i ¤h·i ® ·¶·i 
+™¡Ðe µ¶A ÀáŸ¡Ÿi Ða“e THROWˆa ¬a¶wÐs“¡”a. µAœáˆa ¤i¬—Ð–”a¡e 
+·³Â‰b· ¤wÐ··i ¹A”¡ •©a ‘½´a´¡ e ‹i®AÌeµA¬á ·³b·i ¤h·i ® ·¶·i 
 ˆõ·³“¡”a. HIOMULTI.FµÁ HIOMULT2.FµA¬á 'init-i/o“e ÉB¯aËa ÑÁ¡eµA 
 Â‰bÐa‰¡ µw¢… ´iÌa¥U ·³b e ¤h·i ˆõ·¥»¡ ‹aœÏ¢ ÑÁ¡eµA Â‰bÐa‰¡ Ðe‹i 
 ·³b•¡ ¤h·i ˆõ·¥»¡Ÿi ¸÷Ða“e NEW-SET-I/OŸi ˆaŸ¡Ç³“¡”a. HIOMULTI.FµÁ 
@@ -119,9 +109,9 @@ HIOMULT2.FµA¬á 'boot“e ·¥¬a i·i ¥¡·¡‰¡ •¡¯a ¡wwÐ—µA¬á Ïa¡‹aœ‘·i
 ‹aœÏ¢ ÑÁ¡eµA ¥¡·¡“e Ïa¡‹aœ‘·i HIOMULT2.F· NEW-hiŸi ‰¡Áa¬á 
 ´aœÀáœñ  e—i‰¡ ¯¡Åa ¥¡¯³¯¡µ¡.
 
-    C:\HF097>SAVE2
+    C:\HF094>SAVE2
 
-    hForth 8086 EXE Model v0.9.7 by Wonyong Koh, 1995
+    hForth 8086 EXE Model v0.9.4 by Wonyong Koh, 1995
     ALL noncommercial and commercial uses are granted.
     Please send comment, bug report and suggestions to:
       wykoh@pado.krict.re.kr or 82-42-861-4245 (FAX)
@@ -137,24 +127,42 @@ HIOMULT2.FµA¬á 'boot“e ·¥¬a i·i ¥¡·¡‰¡ •¡¯a ¡wwÐ—µA¬á Ïa¡‹aœ‘·i
     ' SAMPLE TO 'boot
     SAVE-SYSTEM-AS BYE.EXE
     BYE
-    C:\HF096>BYE 11 22 33
+    C:\HF094>BYE 11 22 33
 
-HIOMULTI.FµÁ HIOMULT2.FµA¬á ”aº—¸b´ó‹¡Ÿi ¯©¹A ¢…¹AµA ´á˜ý‰A
-¸â¶wÐa“e»¡ ¥© ® ·¶·s“¡”a. Í¡¯a É·µb‹¡ˆa ‹i®A ·³b·i ‹¡”aŸ¡“e •·´eµA
-ÑÁ¡e·¡ ¶á¡  iŸ¡‹¡ ˜¢…µA ‹aœÏ¢ ÑÁ¡e Â‰b·¡ ÉB¯aËa ÑÁ¡e Â‰b¥¡”a
-­¢•¡ˆa ˜é´á»¡»¡ ´g¯s“¡”a.
+‹±ÀeÑ·“±· ¹A´eµA ˜aœa ‹i©·i ¤aŽ‰ ® ·¶“e HIOMULT2.FŸi 
+º…§¡Ð–·s“¡”a. ®ó‰A ŠÐi ® ·¶“e 11008 ¤a·¡Ëa Ça‹¡µÁ 11520 ¤a·¡Ëa 
+Ça‹¡· 8¤éX4¤éX4¤é Ðe‹i ‹i©·i ³i ® ·¶·s“¡”a. ‹i©·i ¤aŽa¡e 
+´aœÀáœñ Ðs“¡”a.
 
-LOG.FµA —i´á ·¶“e LOGON, LOGOFF { i·i °á¬á ÑÁ¡e Â‰b·i ÉB¯aËa Ìa·©
-HFORTH.LOGµA ˆi¢Ÿ¡Ði ® ·¶·s“¡”a. ‹i®AÌeµA  e—e { i—i·i ˆi¢Ÿ¡
-Ð¬á aº—µA ®ó‰A Í¡¯a ¤aÈw¥¥·i  e—i ® ·¶·s“¡”a. DOSEXEC.F· { i·i
-°á¬á •¡¯a ¯©Ð— Ìa·©·i hForthµA¬á ¦Ÿi ® ·¶·s“¡”a. hForthŸi ¨a¹a
-aˆa»¡ ´g‰¡ Q Editora U EditorŸi ¦‰œá Í¡¯a ¤aÈw¥¥·i Íe»³Ða‰¡
-Íe»³‹¡Ÿi ¨a¹a aµÁ¬á Í¡¯a ¤aÈw¥¥·i µ©Ÿ¡‰¡ { i—i·i ¯¡ÐñÐi ®
-·¶·s“¡”a. ·¡œý‰A Ði ˜“e Í¡¯a ¤aÈw¥¥·  … ´|µA 'MARKER { i·¡Ÿq'·i
-ý´á¬á ”áÐe { i—i·i ®ó‰A »¡¶‰ ® ·¶‰A Ða“e ˆõ·¡ ¹½·i ˆõ·³“¡”a.
-LOG.FµÁ DOSEXEC.F Ìa·© ´|¦¦…· { i ¬a¶w ¬é¡w·i Àq¹¡Ða¯³¯¡µ¡.
+    BL PARSE ENG.FNT ENGFONT-LOAD
+    BL PARSE HAN.FNT HANFONT-LOAD
 
-ˆá¦‚ ‹aŸ±(Turtle Graphics) É·µb‹¡“e ·¡¹A ³i eÐe ¬wÈˆa –A´ö·s“¡”a.
+HIOMULT?.FµA ÑÁ¡e·i »¡¶“e Îaº… { i PAGEµÁ ‹i¤e—¡· ¸aŸ¡Ÿi ¤aŽ“e 
+Îaº… { i AT-XYŸi ”áÐ–·s“¡”a.
+
+OPTIONAL.FµA¬á NAME-WORDLISTŸi WORDLIST-NAME·a¡ ·¡Ÿq·i 
+¤aŽ´ö·s“¡”a. Ñw¶w¬a¡¡ ¬—ˆbÐ•¡ ¡w¬a¡ ¬—ˆbÐ•¡ WORDLIST-NAME·¡ 
+VARIABLE·¡a CONSTANTµÁ ”á ¸i ´á¶‰Ÿ³“¡”a. ‹aŸ¡‰¡ xtSEEµÁ MARKERµA¬á 
+<Ÿi U<¡ ¤aŽ´ö·s“¡”a. º­¡Ÿi §¡ŠaÐi ˜“e Ðw¬w U<Ÿi °á´¡ Ðs“¡”a.
+
+Îaº… { i TUCK‰Á ¡y ˆa»¡ ³i¡¡·¶“e §¡Îaº… { i—i· ´á­Q§iŸ¡´á ¸÷·Ÿi 
+ASM8086.FµA ”áÐ–·s“¡”a.
+
+MS-DOS.FµA¬á S"Ÿi Îaº…µA  xÂ´á ”a¯¡ ¸÷·Ð–·s“¡”a. Ìa·© { i S"“e 
+Àx·e { i·i S" e·¡ ¬a¶wÐa“e ˆi¢Ÿ¡ ¸aŸ¡¡ µ«‰a¬á ¥¡‰ÅÐs“¡”a. 
+(µ¡ÐÐa»¡  a¯³¯¡µ¡. ³¡´u { i S"“e É·µb  “¯¡µA¬á ³i ® ´ô·s“¡”a.)
+{ i·i ·³bÓaŸqµA¬á Àx‹¡ e Ða“e 'BL PARSE'µÁ· Àa·¡Ÿi ´aœŸi ¯¡Åa 
+¥¡¡e ´a¯© ® ·¶·i ˆõ·³“¡”a.
+
+    BL PARSE ABCD
+    1234 . TYPE
+    S" ABCD"
+    1234 . TYPE
+
+‰i‰Á¸â·a¡ 'BL PARSE { i'¡ { i·i Àx“e ˆõ·¡ 'S" { i"'¡ { i·i 
+Àx“e ˆõ¥¡”a ¹¡‹q ¨aŸs“¡”a. ‹aŸ¡‰¡ 'BL PARSE { i'¡ Àx·e { i·e 
+SOURCEˆa –A•©a º“e ‹i¯©·¡ ¤aŽá»¡ ´g“e •·´eµA e ·AÒaÐa»¡ e 'S" 
+{ i"'¡ Àx·e { i·e ”a·q S"Ÿi ³i ˜Œa»¡ ·AÒaÐs“¡”a.
 
 hForth“e 1990 ‘eµA Bill MuenchµÁ Dr. C. H. Ting·¡ ¤iÎaÐe 
 eForthŸi¤aÈw·a¡  e—i´á¬á ¥¥œ· eForth· Ëb»·—i·i ‹a”¡ 
@@ -177,16 +185,19 @@ eForthŸi¤aÈw·a¡  e—i´á¬á ¥¥œ· eForth· Ëb»·—i·i ‹a”¡
 
 ´a»¢•¡ ¬é¡w·¡ á¢a ¦¹¢Ðs“¡”a. { i—i·i ”áÐa“e •A ¤a¨a ¬a¶w 
 ¬é¡w¬áŸi º…§¡Ði ‰aŸi·¡ ´ô´ö·s“¡”a. ‹aœ•¡ Ìa·© { i—i·i ”áÐ¬á ¹Aˆa 
-¬—ˆbÐ–”å ¡¡¯sµA  g·¡ ˆaŒaµÁ¹v·s“¡”a. ·¡¹A TURTLE.Fˆa µÅ¬÷–A¡e 
- ae–I ˆõ·³“¡”a. ‹aŸ¡‰¡ a¬á ¬a¶w ¬é¡w¬áŸi º…§¡Ða‰V·s“¡”a. 
+¬—ˆbÐ–”å ¡¡¯sµA  g·¡ ˆaŒaµÁ¹v·s“¡”a. ·¡¹A Ðe‹i Â‰b ‹aœÏ¢ ÑÁ¡eµA 
+¡‰¡(LOGO)· ˆá¦‚ ‹aŸ±(Turtle Graphics)·i ý·a¡e ‰ÒBÐ–”å ”¡ XT 
+ÄñÏAÈá¡ ¶Ÿ¡ i·i °á¬á Ïa¡‹aœ£··i ¤¶‰ ® ·¶“e Í¡¯a ¯¡¯aÉQ·¡ 
+µÅ¬÷–I ˆõ·³“¡”a. ‹aŸ¡‰¡ a¬á ¬a¶w ¬é¡w¬áŸi º…§¡Ða‰V·s“¡”a. 
 ”s”sÐa¯¡”áœa•¡ Àq‰¡ ‹¡”aa º¯³¯¡µ¡. 
 
 µaœá ¦…· ·‰e, ¹A´e, §¡Íw·i —ia º¯³¯¡µ¡. •¡¶‘·i º¯© ® ·¶”a¡e 
 ”á¶‚ ¹½¯s“¡”a.
 
-1996. 2. 25.
+1995. 10. 28.
 
 ‰¡¶¥¶w
 Ða·¡ÉI: wykoh
 ·¥Èá‘U: wykoh@pado.krict.re.kr
 
+

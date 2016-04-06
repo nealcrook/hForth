@@ -1,9 +1,5 @@
 \ ASSEMBLER TEST PROGRAM
 
-CHAR " PARSE CPU" ENVIRONMENT? DROP
-CHAR " PARSE 8086" COMPARE
-[IF] CR .( This assembler is for 8086 only.) ABORT [THEN]
-
 BASE @
 GET-ORDER
 MARKER ~ASMTEST
@@ -16,10 +12,10 @@ VARIABLE TEST-POINTER
 : INIT-TEST   ( -- )
     xhere TEST-POINTER ! ;
 
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE ROM Model" COMPARE 0=
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE RAM Model" COMPARE 0= OR
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 ROM Model" COMPARE 0=
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 RAM Model" COMPARE 0= OR
 [IF]
   : ZZ	 (  N1 ... NN -- )
       xhere
@@ -34,13 +30,13 @@ CHAR " PARSE RAM Model" COMPARE 0= OR
       DROP
       INIT-TEST ;
 [THEN]
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE EXE Model" COMPARE 0=
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 [IF]
   : ZZ	 (  N1 ... NN -- )
       xhere
       BEGIN ( n ... n addr)
-	 1-  DUP  codeB@
+         1-  DUP  codeB@
 	 ROT <> IF
 	     TEST-POINTER @ 10 DUMP
 	     -1 ABORT" failed"

@@ -2,13 +2,11 @@
 \ MSDOS.F
 \ FILES and BLOCK words for MS-DOS
 \
-\ by Wonyong Koh
-\
 \ MSDOS.F can be loaded as below:
 \
 \	<< OPTIONAL.F
 \	<< ASM8086.F
-\	<< COREEXT.F
+\       << COREEXT.F
 \	<< MSDOS.F
 \
 \ Then other files such as MULTI.F, HIOMULTI.F, etc. can be loaded as below:
@@ -26,25 +24,15 @@
 \ There is only one block buffer and only one file is assigned as BLOCK
 \ in current implementation.
 \
-\ 1996. 3. 1.
-\	DOS error code is offsetted by -512 to give 'ior'.
-\ 1997. 5. 26.
-\		Fix RESTORE-INPUT to restore BLK correctly.
+\ 1995. 8. 29.
+\ Wonyong Koh
 
-CHAR " PARSE CPU" ENVIRONMENT? DROP
-CHAR " PARSE 8086" COMPARE
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 RAM Model" COMPARE
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 EXE Model" COMPARE AND
 [IF]
-    CR .( BLOCK and FILE words for MS-DOS are for 8086 RAM and EXE models only.)
-    ABORT
-[THEN]
-
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE RAM Model" COMPARE
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE EXE Model" COMPARE AND
-[IF]
-    CR .( BLOCK and FILE words for MS-DOS are for 8086 RAM and EXE models only.)
-    ABORT
+    CR .( BLOCK and FILE words for MS-DOS are available for RAM and EXE models only.) ABORT
 [THEN]
 
 BASE @
@@ -55,20 +43,14 @@ WORDLIST WORDLIST-NAME DOS-WORDLIST
 DOS-WORDLIST SET-CURRENT
 GET-ORDER DOS-WORDLIST SWAP 1+ SET-ORDER
 
-DECIMAL
--512 CONSTANT iorOffset
-VARIABLE MaxHandle	\ contains maximum DOS file handle
-0 MaxHandle !		\ to be used to calculate UNUSED data space.
+VARIABLE MaxHandle      \ contains maximum DOS file handle
+0 MaxHandle !           \ to be used to calculate UNUSED data space.
 
-1024 CHARS CONSTANT 1K
-0 VALUE updated 		\ true if block is updated
-CREATE block-buffer 1K ALLOT	\ the only block buffer
-50 VALUE def#blocks		\ default # of blocks for a new mapped file
--1 VALUE block-fid		\ BLOCK file id
+DECIMAL 1024 CHARS CONSTANT 1K
+0 VALUE updated 			\ true if block is updated
+CREATE block-buffer 1K ALLOT		\ the only block buffer
+-1 VALUE block-fid			\ BLOCK file id
 -1 VALUE current-block#
-NONSTANDARD-WORDLIST SET-CURRENT
-50 VALUE #blocks		\ maximum # of blocks
-DOS-WORDLIST SET-CURRENT
 
 VARIABLE error-class	     0 error-class !
 VARIABLE recommanded-action  0 recommanded-action !
@@ -79,6 +61,7 @@ VARIABLE error-locus	     0 error-locus !
 : ?dupR>Drop4NipExit   ?DUP IF R> R> 2DROP NIP NIP NIP NIP EXIT THEN ;
 
 HEX
+
 CODE get-ior  ( -- ior )
     59 # AH MOV,
     BX BX XOR,
@@ -87,7 +70,6 @@ CODE get-ior  ( -- ior )
     BL recommanded-action ) MOV,
     CH error-locus ) MOV,
     AX BX MOV,
-    iorOffset # BX ADD,
     NEXT,
 END-CODE
 
@@ -166,13 +148,13 @@ PAD BL PARSE /PAD ENVIRONMENT? DROP CHARS - CONSTANT S"buffer
 \		Returns file input buffer address
 \		Each text file has its own input buffer
 \		  below buffer for S" below PAD.
-\		In MS-DOS, a program can open up to 20 files.
-\		  Thus fileid(=DOS handle) is normally 5 to 20.
+\               In MS-DOS, a program can open up to 20 files.
+\                 Thus fileid(=DOS handle) is normally 5 to 20.
 \		DOS handle 0 : standard input (CON)
 \			   1 : standard output (CON)
 \			   2 : standard output for error message (CON)
 \			   3 : standard serial interface (AUX)
-\			   4 : standard printer (PRN)
+\                          4 : standard printer (PRN)
 \		<-/fileid6buffer/fileid5buffer/S"buffer/PAD/TIB||memTop
 : input-buffer	( -- c_addr )
     SOURCE-ID
@@ -184,12 +166,12 @@ PAD BL PARSE /PAD ENVIRONMENT? DROP CHARS - CONSTANT S"buffer
     SOURCE DROP ;
 
 FORTH-WORDLIST SET-CURRENT
-\   UNUSED	( -- u )				\ CORE EXT
-\		Return available data space in address units.
+\   UNUSED      ( -- u )                                \ CORE EXT
+\               Return available data space in address units.
 : UNUSED
     S"buffer
     MaxHandle @ 5 - [ BL PARSE /PAD ENVIRONMENT? DROP CHARS ] LITERAL * -
-    HERE - ;	\ Available data space is HERE to assigned buffer addr
+    HERE - ;    \ Available data space is HERE to assigned buffer addr
 DOS-WORDLIST SET-CURRENT
 
 CODE (file-status)  ( asciiz -- x ior )
@@ -242,7 +224,7 @@ CODE CLOSE-FILE
     ' get-ior # JMP,
 END-CODE
 
-\   OPEN-FILE	( c_addr u fam -- fileid ior )		\ FILE
+\   OPEN-FILE   ( c_addr u fam -- fileid ior )          \ FILE
 \		Open a file with the name and file access method.
 : OPEN-FILE
     >R asciiz R> (open-file)
@@ -358,40 +340,9 @@ END-CODE
 \   S"          Interpretation: ( 'ccc<">' -- c_addr u )        \ FILE
 \		Compilation:	( 'ccc<">' -- )
 \		Run-time:	( -- c_addr u )
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE RAM Model" COMPARE 0=
-[IF]
-  : S"
-      STATE @ IF POSTPONE S" EXIT THEN          \ CORE word S"
-      S"buffer DUP [CHAR] " PARSE DUP >R        \ S"buf S"buf c_addr u  R: u
-      ROT SWAP CHARS MOVE R>
-      ; IMMEDIATE
-[THEN]
-\ Define non-IMMEDIATE S" using special compilation action mechanism
-\ Structure of words with special compilation action, CREATEd words and S",
-\ for default compilation behavior
-\	|compile_xt|name_ptr| execution_code |
-\ Structure of dictionary in data segment
-\	| xt | link | name |
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE EXE Model" COMPARE 0=
-[IF]
-  :NONAME
-      DROP		\ drop execution xt left for special compilation action
-      POSTPONE S" ;
-  code, 			\ store compilation xt
-  ' S" xt>name DUP code,        \ store name pointer
-  :NONAME
-      [CHAR] " PARSE DUP >R     \ c_addr u  R: u
-      CHARS S"buffer SWAP MOVE
-      S"buffer R> ;
-  SWAP				\ execution_S"_xt S"_name_addr
-  DUP C@			\ get flags
-  60 INVERT AND 		\ clear IMMEDIATE and COMPILE-ONLY flags
-  80 OR 			\ set special compilation action flag
-  OVER C!			\ store flags
-  cell- cell- ! 		\ store new execution xt
-[THEN]
+: S"   STATE @ IF POSTPONE S" EXIT THEN         \ old S"
+       S"buffer DUP [CHAR] " PARSE DUP >R       \ S"buf S"buf c_addr u  R: u
+       ROT SWAP CHARS MOVE R> ; IMMEDIATE
 
 \   SOURCE-ID	( -- 0|-1|fileid )			\ FILE
 \		Returns input source identifier: 0 for user input device,
@@ -475,7 +426,7 @@ CODE FLUSH-FILE
     ' get-ior # JMP,
 END-CODE
 
-\   RENAME-FILE ( c_addr1 u1 c_addr2 u2 -- ior )	\ FILE
+\   RENAME-FILE ( c_addr1 u1 c_addr2 u2 -- ior )        \ FILE
 \		Rename the file named bye c_addr1 u1 to the name c_addr2 u2.
 : RENAME-FILE
     \ another asciiz buffer after PAD
@@ -513,7 +464,6 @@ END-CODE
     SAVE-BUFFERS
     TO current-block#  block-buffer ;
 
-DECIMAL
 \   BLOCK	( u -- a_addr ) 			\ BLOCK
 \		a_addr is the address of the first character of the block
 \		buffer assigned to mass-storage block u.
@@ -536,8 +486,7 @@ DECIMAL
     DUP BUFFER DROP
     1K UM* block-fid REPOSITION-FILE THROW
     block-buffer 1K block-fid READ-FILE THROW
-       1K = 0= IF ." Unexpected end of BLOCK file."
-		  -33 THROW  THEN	\ block read exception
+       1K = 0= ABORT" Unexpected end of BLOCK file."
     block-buffer ;
 
 \   SAVE-INPUT	( -- xn ... x1 n )			\ CORE EXT
@@ -552,7 +501,7 @@ DECIMAL
 \		described by x1 through xn. flag is true if the input
 \		source specification cannot be so restored.
 : RESTORE-INPUT
-    DUP 5 = IF DROP  DUP IF BLOCK THEN
+    DUP 5 = IF DROP  DUP IF DUP BLOCK DROP THEN
 	       BLK ! TO SOURCE-ID >IN ! sourceVar 2!
 	       FALSE EXIT
     THEN  0 DO DROP LOOP  TRUE ;
@@ -589,9 +538,7 @@ DECIMAL
     interpret
     R> DUP BEGIN ?DUP WHILE 1- R> ROT ROT REPEAT
     RESTORE-INPUT
-    IF ." Input source specification was not properly restored."
-	-37 THROW	\ file I/O exception
-    THEN ;
+    ABORT" Input source specification was not properly restored." ;
 
 \   SOURCE	( -- c_addr u ) 			\ CORE
 \
@@ -602,9 +549,7 @@ DECIMAL
 \   UPDATE	( -- )					\ BLOCK
 \		Mark the current block buffer as modified.
 : UPDATE
-    current-block# -1 = IF
-	." There is no current block buffer."
-	-35 THROW  THEN 	\ invalid block number
+    current-block# -1 = ABORT" There is no current block buffer."
     TRUE TO updated ;
 
 \   SCR 	( -- a_addr )				\ BLOCK EXT
@@ -653,9 +598,7 @@ DECIMAL
     REPEAT 2DROP  R> DROP
     R> DUP BEGIN ?DUP WHILE 1- R> ROT ROT REPEAT
     RESTORE-INPUT
-    IF ." Input source specification was not properly restored."
-	-37 THROW	\ file I/O exception
-    THEN ;
+    ABORT" Input source specification was not properly restored." ;
 
 \   INCLUDED	( i*x c_addr u -- j*x ) 		\ FILE
 \		Open the named file and do INCLUDE-FILE .
@@ -723,7 +666,7 @@ DECIMAL
 \		and discared.
 : [ELSE]  ( -- )
    1 BEGIN					\ level
-     BEGIN  PARSE-WORD	DUP  WHILE		\ level c-addr len
+     BEGIN  PARSE-WORD  DUP  WHILE              \ level c-addr len
        2DUP  S" [IF]"  COMPARE 0= IF            \ level c-addr len
 	 2DROP 1+				\ level'
        ELSE					\ level c-addr len
@@ -827,7 +770,7 @@ FORTH-WORDLIST SET-CURRENT
 DECIMAL
 : QUIT
     BEGIN
-      rp0 rp!  0 BLK !	0 TO SOURCE-ID	0 TO bal  POSTPONE [
+      rp0 rp!  0 BLK !	0 TO SOURCE-ID	POSTPONE [
       BEGIN CR REFILL DROP SPACE		\ REFILL returns always true
 	    ['] interpret CATCH ?DUP 0=
       WHILE STATE @ 0= IF .prompt THEN
@@ -836,9 +779,7 @@ DECIMAL
       DUP -2 = IF SPACE abort"msg 2@ TYPE    ELSE       \ ABORT"
       SPACE errWord 2@ TYPE
       SPACE [CHAR] ? EMIT SPACE
-      DUP [ 1 iorOffset + ] LITERAL
-	  [ 40 iorOffset + ] LITERAL
-		 WITHIN IF iorOffset - CELLS DOSErrorMsgTbl +
+      DUP 1 40 WITHIN IF CELLS DOSErrorMsgTbl +
 			 @ COUNT TYPE	     ELSE	\ DOS error
       DUP -1 -58 WITHIN IF ." Exeption # " . ELSE       \ undefined exeption
       CELLS THROWMsgTbl + @ COUNT TYPE	     THEN THEN THEN THEN
@@ -847,39 +788,39 @@ DECIMAL
 
 : BYE	block-fid FLUSH-FILE  BYE ;
 
+DOS-WORDLIST SET-CURRENT
+
+: .blockerror  ( c_addr u -- )
+    -1 TO block-fid
+    ." Cannot map BLOCK to " TYPE [CHAR] . EMIT ;
+
 NONSTANDARD-WORDLIST SET-CURRENT
 
 : MAPPED-TO-BLOCK  ( c_addr u -- )
     -1 TO block-fid
     2DUP R/W OPEN-FILE	?DUP IF
       NIP	\ drop invalid fileid
-      DUP [ 2 iorOffset + ] LITERAL
-      <> IF	\ not 'file not found error', cannot map block to BLOCKS.BLK
-	-1 TO block-fid
-	." Cannot map BLOCK to " ROT ROT TYPE [CHAR] . EMIT
-	THROW THEN
-      DROP  ." Create " 2DUP TYPE ."  for BLOCK"
-      2DUP R/W CREATE-FILE THROW
+      2 <> IF	\ not 'file not found error', cannot map block to BLOCKS.BLK
+	.blockerror EXIT THEN
+      2DUP R/W CREATE-FILE IF DROP .blockerror EXIT THEN
       HERE 1K BL FILL
-      def#blocks 0 DO DUP HERE 1K ROT WRITE-FILE THROW	LOOP
-      DUP FLUSH-FILE THROW
-    THEN
-    DUP FILE-SIZE THROW
-    1K UM/MOD TO #blocks DROP	\ store file-size/1K in #blocks
-    TO block-fid 2DROP ;
+      30 0 DO DUP HERE 1K ROT WRITE-FILE
+	      IF DROP UNLOOP .blockerror EXIT THEN  LOOP
+      DUP FLUSH-FILE  IF DROP .blockerror EXIT THEN
+    THEN  TO block-fid 2DROP ;
 
 BL PARSE BLOCKS.BLK MAPPED-TO-BLOCK
 \ new boot word, jump into new QUIT
 
 HEX
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE RAM Model" COMPARE 0=
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 RAM Model" COMPARE 0=
 [IF]
   : DOSCommand>PAD
       80 PAD OVER C@ 1+ CHARS MOVE ;
 [THEN]
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE EXE Model" COMPARE 0=
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 [IF]
   : DOSCommand>PAD
       CS@ 10 -	\ PSP segment
@@ -887,30 +828,29 @@ CHAR " PARSE EXE Model" COMPARE 0=
 [THEN]
 
 : newboot ( -- )
-    0 MaxHandle !	\ to be used to calculate UNUSED data space.
+    0 MaxHandle !       \ to be used to calculate UNUSED data space.
     DOSCommand>PAD
-    hi	S" BLOCKS.BLK" MAPPED-TO-BLOCK  QUIT ;
+    hi  S" BLOCKS.BLK" MAPPED-TO-BLOCK  QUIT ;
 
 ' newboot TO 'boot
 
-CHAR " PARSE model" ENVIRONMENT? DROP
-CHAR " PARSE EXE Model" COMPARE 0=
+CHAR " PARSE systemID" ENVIRONMENT? DROP
+CHAR " PARSE hForth 8086 EXE Model" COMPARE 0=
 [IF]
   DOS-WORDLIST SET-CURRENT
   HEX
   CREATE EXEHead
       5A4D ,		\ file ID for .EXE file
       0 , 0 ,		\ * file size (remainder and # of 512B pages)
-      0 , 20 ,		\ no relocatable item, head is 20h paragraphs (512B)
-      2000 ,		\ 128 KB needs to be allocated
-      0FFFF ,		\ max paragraphs to allocate
+      1 , 20 ,		\ One relocatable item, head is 20h paragraphs (512B)
+      0 , 0FFFF ,	\ min and max paragraphs to allocate
       0 , 0 ,		\ stack relative segment and initial stack pointer
       0 ,		\ checksum
-      06 , 0 ,		\ initial relative CS:IP
+      0C , 0 ,		\ initial relative CS:IP
       1C ,		\ offset in bytes of the relocation pointer table
       0 ,		\ overlay number, 0 for main program
-      0 , 0 ,		\ Total is 32 bytes.
-
+      0 , 0 ,		\ only relocatable item in 0:0 position
+			\ Total is 32 bytes.
   \   xWrite-file  ( code_space_addr u fileid -- ior )
   \		  Write u characters from c_addr u to the file.
   CODE xWrite-file
@@ -934,18 +874,19 @@ CHAR " PARSE EXE Model" COMPARE 0=
   : SYSTEM-SAVED  ( c-addr u -- )
       W/O CREATE-FILE THROW ( fileid ) >R
       #order DUP @ #order0 SWAP 1+ CELLS MOVE	\ adjust default search order
-      HERE 0F + 4 RSHIFT	\ data_paragraphs
-      1000			\ data_paragraphs code_paragraphs
-      + 0 20 UM/MOD OVER IF 1+ THEN	\ add 1 if partial page
-      1+				\ one head page
-				\ mod16 #pages
-      EXEHead 4 + !		\ mod16
-      4 LSHIFT	EXEHead 2 + !
+      HERE 0 10 UM/MOD          \ remainder data_paragraphs
+      \ xhere 0 10 UM/MOD NIP 1+
+      xhere 4 RSHIFT 1+         \ remainder data_paragraphs code_paragraphs
+      + OVER IF 1+ THEN 0 20 UM/MOD 1+ OVER IF 1+ THEN
+                \ remainder mod16 #pages ( including head and partial pages)
+      EXEHead 4 + !		\ remainder mod16
+      10 * +  EXEHead 2 + !
       HERE 200 0 FILL  EXEHead HERE 20 MOVE
       HERE 200 R@ WRITE-FILE THROW
-      0    8000 R@ xWrite-file THROW
-      8000 8000 R@ xWrite-file THROW
-      0 HERE 0F + 0FFF0 AND R@ WRITE-FILE THROW
+      xhere 4 RSHIFT 1+         \ code_paragraphs
+      DUP 0 code!  xhere 2 code!  HERE 4 code!
+      10 * 0 SWAP R@ xWrite-file THROW
+      0 HERE R@ WRITE-FILE THROW
       R> CLOSE-FILE THROW ;
 
   : SAVE-SYSTEM-AS  ( 'name' -- )

@@ -27,23 +27,34 @@ CREATE BLANKS SWIDTH CHARS ALLOT  BLANKS SWIDTH CHARS BL FILL
 NONSTANDARD-WORDLIST SET-CURRENT
 
 0 60 CELLS 60 CELLS HAT 붳！ⅰ래늸  붳！ⅰ래늸 BUILD
-\ 0 60 CELLS 60 CELLS HAT StackDisplayer  StackDisplayer BUILD
+\ 0 60 CELLS 60 CELLS HAT ShowStack  ShowStack BUILD
+
+: TEST
+	BEGIN
+          10 0 DO LOOP
+          0 IF
+            0 IF HEX THEN
+\            10 0 ?DO LOOP
+	    BASE !
+	  THEN
+	AGAIN
+;
 
 :NONAME 붳！ⅰ래늸 ACTIVATE
 	BEGIN
 	  똰쨆런 @ 0 DO PAUSE LOOP
 	  GRAPHIC? SCREEN-UPDATED? AND			IF
 	    BASE @ DUP 10 <> IF HEX THEN
-	    MAX-X 8 - 0 S" 떬래:" xySTR!
+            MAX-X 8 - 0 S" 떬래:" xySTR!
 	    SystemTask			\ system task's userP
 	    @ CELL+ @
 	    SystemTask stackTop 's @    \ sp0 sp@
 	    4 CELLS +			\ PAUSE pushes 4
 	    2DUP - 2/ ( 1 CELLS / ) DUP
 	    MAX-X 3 - 0 ROT 3 #!R
-	    10 MIN
-	    DUP 1+ MAX-X 8 - SWAP S"         " xySTR!
-	    0 ?DO
+            10 MIN
+            DUP 1+ MAX-X 8 - SWAP S"         " xySTR!
+            0 ?DO
 		DUP @ MAX-X SWIDTH - I 1+ ROT SWIDTH #!R CELL+
 	    LOOP 2DROP
 	    BASE !

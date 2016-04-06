@@ -1,0 +1,197 @@
+hForth 0.9.2Ìe·³“¡”a. hForth“e ¢ža Ïa¡‹aœ‘(free software)·³“¡”a.
+·¡ˆõ·i ˆ·¥¸â·a¡a ¬w´ó¸â·a¡a ´á˜å ¡¢¸âµA ¬a¶wÐ•¡ ¹½¯s“¡”a. ”e,
+·¡ Ïa¡‹aœ‘·i ¤a¡ Ìi´a¬á“e ´e–A‰¡ (hForthŸi °á¬á  e—e Ïa¡‹aœ‘·i
+Ìa“e ˆõ·e ¹Aˆa ¬w‰ÅÐa»¡ ´g¯s“¡”a) hForthœa“e ·¡Ÿq·i ³aa¡e Žœá£¡·
+Ìa·©—i·¡ ¥¥œ ¬wÈ¡ ·¶´á´¡ Ðs“¡”a. ˆa“wÐe Ðe hForthŸi éŸ¡ Ìá›aa
+º¯³¯¡µ¡.
+
+hForthµA“e ´á­Q§iŸ¡ ¤aÈw¥¥·¡ 3 ˆ, ¯©Ð— Ìa·©·¡ 3 ˆ —i´á ·¶·s“¡”a.
+HF86ROM.COM·e ANSEF86.COMÀáœñ RAM‰Á ROMˆa ”aŸe º­¡µA ·¶“e
+¯¡¯aÉQµA¬á ³a·¡•¡¢  e—i´ö·s“¡”a. HF86RAM.COM·e HF86RAM·i ‰¡Áa
+RAM e·i ³a“e ¯¡¯aÉQ ¶w·a¡  e—i´ö·s“¡”a. HF86EXE.EXE“e 8086µA¬á
+Å¡—aµÁ ¸ažaŸi ”aŸe ­A‹a åËaµA ý‰¡ µaœá { i·i ‹¡‰´á¡
+¸÷·Ð–·s“¡”a. HF86EXE.EXE“e ·¡œý‰A Ð¬á HF86ROM.COM‰Á HF86RAM.COMµA
+§¡Ð – ¤· ¡A¡¡Ÿ¡Ÿi ³i ® ·¶‰¡ ­¢•¡•¡ – ¤ ·¡¬w ¨iœa¹v·s“¡”a. ˆb
+´á­Q§iŸ¡´á ¤aÈw¥¥· Àõ  áŸ¡µA ¢´õ·i ¤aŽ´ö“e»¡Ÿi ¸â´á –´ö·s“¡”a.
+Ðe–ˆ· ´á­Q§iŸ¡´á { iŸi ”áÐe ˆõ  i‰¡“e ™¢ˆ{·e ´á­Q§iŸ¡´á { i—i·i
+°á¬á HF86ROMµA¬á HF86RAM‰Á HF86EXEŸi  e—i´á ´ö·s“¡”a. ´a»¢ ”aŸe
+Ïa¡­A¬áµA hForthŸi ¯±»¡ ´g´v»¡ e hForthˆa ·¡¯¢Ða‹¡ ®ó‰A
+¬é‰–A´ö”a‰¡ ”á ¸a¯¥Ði ® ·¶‰A –A´ö·s“¡”a. Z80 hForth 0.9.2•¡ ·¡ˆõ‰Á
+ÐqA ¤iÎaÐs“¡”a. ¹¡ eˆe 8051 ¶w hForth•¡ ¤iÎaÐi µ¸÷·³“¡”a.
+
+hForth 0.9.0 ÌeµA¬á ¤éAŸi ¡y ˆ ¸s‰¡ VALUEµÁ TOŸi •¡·³Ð–·s“¡”a.
+'emit , 'key —w· ·³Â‰b ˆaŸ¡Ç±ˆt·e ·¡¹A VARIABLE·¡ ´a“¡‰¡
+VALUE·³“¡”a. ˜aœa¬á 0.9.0 ÌeµA¬á ´aœÀáœñ ¸÷·–A´ö”å
+
+    : EMIT   'emit @ EXECUTE ;
+
+EMIT· ¸÷·“e ”a·qÀáœñ ¤aŽá´ö·s“¡”a. ·¡¹A
+
+    'emit  EXECUTE
+
+µÁ
+
+    ' EMIT  EXECUTE
+
+“e ˆ{·e ·©·i Ðs“¡”a.
+
+”aº— ¸b´ó Ðe‹i ·³Â‰b Ïa¡‹aœ‘ HIOMULTI.FŸi µÅ¬÷Ð–·s“¡”a.
+HF86EXE.EXEŸi ¯¡¸bÐe ”a·q ´aœÀáœñ Ð ¥¡¯³¯¡µ¡.
+
+    << OPTIONAL.F
+    << MULTI.F
+    << ASM8086.F
+    << HIOMULTI.F
+
+HF86RAM.COMµA•¡ HIOMULTI.FŸi µ©Ÿ© ® ·¶»¡ e HF86EXE.EXEˆa
+HF86RAM.COM¥¡”a Ò©³¥ ”á ¨aŸs“¡”a. hForthˆa ·³b·i ‹¡”aŸ¡“e •·´eµA e
+‹aœÏ¢ÑÁ¡e·i ¤aŽ‹¡ ˜¢…µA ÑÁ¡e·¡ ¤aŽá“e ˆõ·¡ Ò©³¥ ¨aŸs“¡”a.
+”aº—¸b´ó‹¡Ÿi ³a»¡ ´g“e Í¡¯a ¤aÈw¥¥·e HOUT.FµÁ HIN.F¡ a’´ö·s“¡”a.
+”aº—¸b´ó‹¡Ÿi ³a»¡ ´g“e Ðe‹i ·³Â‰b ¤aÈw¥¥·i µ©Ÿ¡a¡e ´aœÀáœñ
+Ða¯³¯¡µ¡.
+
+    << OPTIONAL.F
+    << ASM8086.F
+    << HOUT.F
+    << HIN.F
+    << MULTI.F
+    << HCURSOR.F
+
+hForth“e 1990 ‘eµA Bill MuenchµÁ Dr. C. H. Ting·¡ ¤iÎaÐe eForthŸi
+¤aÈw·a¡  e—i´á¬á ¥¥œ· eForth· Ëb»·—i·i ‹a”¡ ¬iv·s“¡”a.
+´aœ“e 8086 eForth ¤aÈw¥¥µA¬á ˜a µ¥ ˆõ·³“¡”a.
+
+    > ˆbˆb·  a·¡Ça¡Ïa¡­A¬áµA  xÂ… ¡y ´e–A“e CODE { i—i‰Á ¡¡—e
+    >	 a·¡Ça¡Ïa¡­A¬áµA ‰·É··¥ ‰¡‹s (high level) { i—i¡
+    >	·¡ž´á¹a ·¶·s“¡”a.
+    > ¶¥¯¡Å¡—a“e MASM ´á­Q§iœá¶w·³“¡”a.
+    > »¢¸ó ŽÅ (direct threaded) ¤w¤ó·i ³s“¡”a.
+    > ¬a¸å· Å¡—aµÁ ·¡Ÿq·¡ ¡A¡¡Ÿ¡µA ˜a¡ ¸aŸ¡Ðs“¡”a.
+    > ·³Â‰b·e ˆaŸ¡Ç± { i·i É·Ða‰¡ º ÄñÏAÈá(host computer)Ÿi
+    >	”e i‹¡µÁ Ìa·© ·³Â‰bµA ·¡¶wÐs“¡”a.
+    > ¹A´e–E £¡Š‚ Îaº… Í¡¯a(ANS Forth)· ¤wÐ··i ˜aœv·s“¡”a.
+    > Ëb¸÷Ðe  a·¡Ça¡Ïa¡­A¬áµA  xÂ´á ÂA¸âÑÁÐa‹¡ˆa ®ó¯s“¡”a.
+
+·¡ˆõ—i·e ‹a”¡ hForth· ¬÷»©·³“¡”a. ‹aŸ¡‰¡ hForth “e ´…¯¡ Îaº…
+Í¡¯a· ¤wÐ· e·i ˜aŸa“e ˆõ·¡ ´a“¡œa ´…¯¡ Îaº… Í¡¯a· ¶aŠ ¹¡ˆå·i ¡¡–
+ e¹¢Ða“e ´…¯¡ Îaº… Í¡¯a ¯¡¯aÉQ·³“¡”a.
+
+´…¯¡ Îaº… Í¡¯a· CORE { i—i·e ¡¡– ´á­Q§iŸ¡´á ¤aÈw¥¥µA —i´á
+·¶·s“¡”a. µÅ¸åÐe TOOLS { i‰Á SEARCH ORDER { i‰Á SEARCH ORDER
+EXTENSION { i—i‰Á ”aŸe ³i¡¡·¶“e { i—i·e OPTIONAL.FµA —i´á
+·¶·s“¡”a. CORE { i—iµA“e ¤éAˆa ´ô”a‰¡ ¬—ˆbÐa»¡ e OPTIONAL.FµA —i´á
+·¶“e { i—iµA“e ¤éAˆa ®‘´á ·¶·i»¡•¡ ¡¡Ÿa‰V·s“¡”a.
+
+·¡ Žœá£¡µA“e ´aœ Ìa·©—i·¡ —i´á ·¶·s“¡”a.
+
+HF86ROM.ASM	IBM-PC ¶w hForth 8086 ROM ¡¡•I· TASM ¤aÈw¥¥.
+HF86RAM.ASM	IBM-PC ¶w hForth 8086 RAM ¡¡•I· TASM ¤aÈw¥¥.
+HF86EXE.ASM	IBM-PC ¶w hForth 8086 EXE ¡¡•I· TASM ¤aÈw¥¥.
+HF86ROM.COM	hForth 8086 ROM ¡¡•I· ¯©Ð— Ìa·©.
+HF86RAM.COM	hForth 8086 RAM ¡¡•I· ¯©Ð— Ìa·©.
+HF86EXE.EXE	hForth 8086 EXE ¡¡•I· ¯©Ð— Ìa·©.
+HFRAMHIO.COM	´á­Q§iœáµÁ Ðe‹i·³Â‰b·i ”áÐe RAM ¡¡•I· ¯©Ð— Ìa·©.
+OPTIONAL.F	”õ¦›·± { i(OPTIONAL wordset words)—i· Í¡¯a ¤aÈw¥¥.
+ASM8086.F	8086 ´á­Q§iœá Í¡¯a ¤aÈw¥¥.
+ASMTEST.F	8086 ´á­Q§iœáŸi ¯¡ÐñÐa‹¡ ¶áÐe Í¡¯a ¤aÈw¥¥.
+MULTI.F 	Bill Muench· ”aº—¸b´ó‹¡(multitasker)· Í¡¯a ¤aÈw¥¥.
+MULDEMO.F	”aº— ¸b´ó‹¡Ÿi ¯¡ÐñÐa‹¡ ¶áÐe ˆe”eÐe Í¡¯a ¤aÈw¥¥.
+HOUT.F		‹aœÏ¢ ÑÁ¡eµA Ðe‹i·i ¥¡·¡“e Í¡¯a ¤aÈw¥¥.
+HIN.F		–¤é ¸aÌeµA¬á Ðe‹i·i ·³bÐa‹¡ ¶áÐe Í¡¯a ¤aÈw¥¥.
+HCURSOR.F	Ðe‹i ·³b ¤e—¡Ÿi ¥¡·¡‹¡ ¶áÐe Í¡¯a ¤aÈw¥¥.
+HIOMULTI.F	”aº—¸b´ó‹¡Ÿi ³a“e Ðe‹i·³Â‰b Í¡¯a ¤aÈw¥¥.
+DOSEXEC.F	hForth ¯©Ð— Ìa·©µA¬á •¡¯a Ïa¡‹aœ‘·i ¦Ÿa‹¡ ¶áÐe Í¡¯a ¤aÈw¥¥.
+README.ENG	µw¢… ¬é¡w¬á.
+README.TXT	·¡ Ìa·©.
+
+ˆb ¯©Ð— Ìa·©—i·e ´aœ ¤w¤ó·a¡  e—i´ö·s“¡”a.
+
+>TASM /ml HF86ROM
+>TLINK /t HF86ROM or TLINK /t HF86RAM or TLINK HF86EXE
+
+SAVE-SYSTEM { i·i °á¬á ”a·q ¤åµA ¯¡¯aÉQ·¡ ¯¡¸bÐi ˜ SAVE-SYSTEM·i
+¯¡Ç¥ ˜· ¬wÈ¡ •©´aµ¡‰A Ði ® ·¶·s“¡”a. ·¡œý‰A Ðaa¡e §¡Òá¤i¬÷
+¡A¡¡Ÿ¡Ÿi ³aˆáa ”aŸe ¤w¤ó·a¡ ¡A¡¡Ÿ¡· ¶w·i ¸á¸wÐ –´á´¡ Ðs“¡”a.
+*.COM Ìa·©µA ”Ð¬á“e •¡¯a· DEBUG ¡ww·i °á¬á ·¡ ·©·i Ði ®
+·¶·s“¡”a. Žœá£¡ ´e· HF86ROM.COM‰Á HF86RAM.COM·e OPTIONAL.F·
+{ i—i·i ý‰¡ ¸á¸wÐe ˆõ·³“¡”a. HF86EXE.EXE“e 'HLINK HF86EXE'¡  e—e
+‹a”¡· ¯©Ð— Ìa·©·³“¡”a. Ìa·© { i—i·i ”áÐa‰¡ a¡e HF86EXE.EXE·
+¬wÈ•¡ ¸á¸wÐi ® ·¶·i ˆõ·³“¡”a.
+
+»¡‹q· hForth ¡¡•I—iµA“e Ìa·© { i—i·¡ ´ô·s“¡”a. ‹aŸ¡‰¡ ¶¥œ·
+eForthÀáœñ Ðe ¸w ÄñÏAÈáµA¬á Ñ¡¯aËa ÄñÏAÈáŸi ”e i‹¡¡ ¬a¶wÐe”a¡e Ìa·©
+{ i—i·¡ Ï©¶aÐa»¡ ´g¯s“¡”a. ‹aœáa ·¡ Žœá£¡ ´eµA —i´á ·¶“e IBM PC¶w
+hForth ¡¡•I—iµA“e Í¡¯a ¤aÈw¥¥·i µ©Ÿ© ”aŸe ¤w¤ó·¡ Ï©¶aÐs“¡”a. •¡¯a·
+·³b ¤wÐ· ¤aŽ‹¡(input redirection) ‹¡“w·i °á¬á ·¡ ·©·i Ði ®
+·¶·s“¡”a. IBM PC¶w hForth ¯©Ð— Ìa·©—iµA¬á { i '<<'·i °á¬á Í¡¯a
+¤aÈw¥¥·i µ©Ÿ© ® ·¶·s“¡”a. ·¡ˆõ‰Á •¡¯a· DEBUG ¡ww‰Á SAVE-SYSTEM·i
+°á¬á Í¡¯a { i—i·i ”áÐe ¯©Ð— Ìa·©·i  e—i ® ·¶·s“¡”a.
+HF86ROM.COMµA¬á“e RAM ¸aŸ¡· ¶w·i ˆi¢Ÿ¡Ði Ï©¶aˆa ´ô‰¡ ROM ¸aŸ¡·
+¶w·e ¡¡– ¸á¸w–A£a¡ ¢…¹Aˆa ´ô·s“¡”a. ‹aœý»¡ e HF86RAM.COMµA
+”Ð¬á“e DEBUG Ïa¡‹aœ‘· 'W' ¡ww·a¡ ˆi¢Ÿ¡Ÿi Ða‹¡ ¸åµA, { i
+HEREˆa •©aº“e ˆtµA¬á •¡¯a· PSPµwµb 256 ¤a·¡ËaŸi ¨… ˆõ eÇq e
+ˆi¢Ÿ¡Ða‰V”a‰¡ DEBUG Ïa¡‹aœ‘µA‰A  iÐ º´á´¡ Ðs“¡”a.  ´aœÀáœñ
+Ðs“¡”a.
+
+    >DEBUG HF86ROM.COM	    <-- DOS command line
+    -G			    <-- DEBUG command
+
+    hForth 8086 ROM Model v0.9.1 by Wonyong Koh, 1995
+    All noncommercial and commercial uses are granted.
+    Please send comment, bug report or suggestions to:
+      wykoh@pado.krict.re.kr or 82-42-861-4245 (FAX)
+
+    << OPTIONAL.F ok	    <-- In hForth ROM model
+    ...
+    ...
+      << CON ok
+    SAVE-SYSTEM ok	    <-- In hForth ROM model
+    BYE 		    <-- In hForth ROM model
+    Program completed processing.
+
+    -W			    <-- DEBUG command
+    Writing 07F00 bytes
+    -Q			    <-- DEBUG command
+    >			    <-- DOS command line. It's done.
+
+Here goes how you extend HF86RAM.COM .
+
+    >DEBUG HF86RAM.COM	    <-- DOS command line
+    -G			    <-- DEBUG command
+
+    hForth 8086 RAM Model v0.9.1 by Wonyong Koh, 1995
+    All noncommercial and commercial uses are granted.
+    Please send comment, bug report or suggestions to:
+      wykoh@pado.krict.re.kr or 82-42-861-4245 (FAX)
+
+    << OPTIONAL.F ok	    <-- In hForth RAM model
+    ...
+    ...
+      << CON ok
+    HEX HERE . 3610 ok	    <-- In hForth RAM model
+    DECIMAL SAVE-SYSTEM ok  <-- In hForth RAM model
+    BYE 		    <-- In hForth RAM model
+    Program completed processing.
+
+    -RCX		    <-- DEBUG command
+    CX 2CF0
+    :3510
+    -W			    <-- DEBUG command
+    Writing 03510 bytes
+    -Q			    <-- DEBUG command
+    >			    <-- DOS command line. It's done.
+
+µaœá ”i· ‘¡b {µA hForthˆa ·¡ eÇq· ¡¡¯s·i ˆxÂ‰A –A´ö·s“¡”a. ·¡¹A
+Ìa·© { i‰Á Ðe‹i Â‰b ‹aœÏ¢ ÑÁ¡eµA ¡‰¡(LOGO)· ˆá¦‚ ‹aŸ±(Turtle
+Graphics)·i ý·a¡e ‰ÒBÐ–”å ”¡ Š‚£¥ÐbŠa º—ÐbŠa· XT ÄñÏAÈá¡
+¶Ÿ¡ i·i °á¬á Ïa¡‹aœ£··i ¤¶‰ ® ·¶“e Í¡¯a ¯¡¯aÉQ·i  e—i ® ·¶·i
+ˆõ·³“¡”a. ¬a¶w ¬é¡w¬á·i ³a‰¡ ·¡ˆõ·i éŸ¡ ¥¡‹sÐaa¡e ´a»¢•¡ ˆi ‹©·¡
+ ó“¡”a. µaœá ¦…· •¡¶‘·¡ Ï©¶aÐs“¡”a. µaœá ¦…· ·‰e, ¹A´e, §¡Íw·i
+¹A‰A  i³qÐ º¯³¯¡µ¡. •¡¶‘·i º¯© ® ·¶”a¡e ”á¶‚ ¹½¯s“¡”a.
+
+1995. 8. 6.
+
+‰¡¶¥¶w
+Ða·¡ÉI: wykoh
+·¥Èá‘U: wykoh@pado.krict.re.kr
+
