@@ -1647,52 +1647,6 @@ ZBRAN1: 	MOV	SI,CS:[SI]		;IP:=(IP)
 		AND	BX,0FFFEh
 		$NEXT
 
-; pack" is dependent of cell alignment.
-;
-;   pack"       ( c-addr u a-addr -- a-addr2 )
-;		Place a string c-addr u at a-addr and gives the next
-;		cell-aligned address. Fill the rest of the last cell with
-;		null character.
-;
-;   : pack"     OVER max-char > IF -18 THROW THEN  \ parsed string overflow
-;		2DUP SWAP CHARS + CHAR+ ALIGNED DUP >R	\ ca u aa aa+u+1
-;		cell- 0 SWAP !			\ fill 0 at the end of string
-;		2DUP C! CHAR+ SWAP		\ c-addr a-addr+1 u
-;		CHARS MOVE R> ;
-;
-;		  $COLON  NamePackQuote,PackQuote
-;		  DW	  OVER,DoLIT,MaxChar,GreaterThan,ZBranch,PACKQ1
-;		  DW	  DoLIT,-18,THROW
-; PACKQ1	  DW	  TwoDUP,SWAP,CHARS,Plus,CHARPlus,ALIGNED,DUPP,ToR
-;		  DW	  CellMinus,DoLIT,0,SWAP,Store
-;		  DW	  TwoDUP,CStore,CHARPlus,SWAP
-;		  DW	  CHARS,MOVE,RFrom,EXIT
-
-		$CODE	NamePackQuote,PackQuote
-		POP	AX
-		PUSH	AX
-		CMP	AX,MaxChar
-		JG	PACKQ1
-		MOV	DI,BX
-		MOV	DX,SI
-		MOV	AX,DS
-		MOV	ES,AX
-		POP	CX
-		POP	SI
-		MOV	BYTE PTR [DI],CL
-		INC	DI
-		REP MOVSB
-		TEST	DI,1		;odd address?
-		JZ	PACKQ2
-		MOV	BYTE PTR [DI],0
-		INC	DI
-PACKQ2: 	MOV	BX,DI
-		MOV	SI,DX
-		$NEXT
-PACKQ1: 	MOV	BX,-18
-		JMP	THROW
-		$ALIGN
-
 ;   CELLS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 cells.
 ;
@@ -2545,6 +2499,40 @@ DOUBC1		DW	LITERAL,EXIT
 
 		$CODE	NameNameToXT,NameToXT
 		MOV	BX,[BX-2*CELLL]
+		$NEXT
+
+;   pack"       ( c-addr u a-addr -- a-addr2 )
+;		Place a string c-addr u at a-addr and gives the next
+;		cell-aligned address. Fill the rest of the last cell with
+;		null character.
+;
+;   : pack"     2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
+;		ALIGNED cell- 0 SWAP !		\ fill 0 at the end of string
+;		2DUP C! CHAR+ SWAP		\ c-addr a-addr+1 u
+;		CHARS MOVE R> ALIGNED ; COMPILE-ONLY
+;
+;		  $COLON  5,'pack"',PackQuote,_SLINK
+;		  DW	  TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
+;		  DW	  ALIGNED,CellMinus,Zero,SWAP,Store
+;		  DW	  TwoDUP,CStore,CHARPlus,SWAP
+;		  DW	  CHARS,MOVE,RFrom,ALIGNED,EXIT
+
+		$CODE	NamePackQuote,PackQuote
+		MOV	DI,BX
+		MOV	DX,SI
+		MOV	AX,DS
+		MOV	ES,AX
+		POP	CX
+		POP	SI
+		MOV	BYTE PTR [DI],CL
+		INC	DI
+		REP MOVSB
+		TEST	DI,1		;odd address?
+		JZ	PACKQ2
+		MOV	BYTE PTR [DI],0
+		INC	DI
+PACKQ2: 	MOV	BX,DI
+		MOV	SI,DX
 		$NEXT
 
 ;   PARSE-WORD	( "<spaces>ccc<space>" -- c-addr u )

@@ -15,12 +15,15 @@
 \
 \ 1996. 2. 9.
 \ Wonyong Koh
+\
+\ 1997. 6. 21
+\       Align 'IrptServ' according to new EXE structure.
 
 HEX
 
   3 CONSTANT IRQ	\ normally COM1 and COM3 use IRQ4,
 			\	   COM2 and COM4 use IRQ3
-2F8 CONSTANT COMBASE	\ base address, 3F8 for COM1, 2F8 for COM2
+02F8 CONSTANT COMBASE   \ base address, 3F8 for COM1, 2F8 for COM2
 			\		3E8 for COM3, 2E8 for COM4
 
 : BINARY   2 BASE ! ;
@@ -119,6 +122,7 @@ BINARY
     MCR PC@  11110111 AND  MCR PC! ;
 
 DECIMAL
+
 1 10 LSHIFT CONSTANT RxBufSize	\ receive buffer size = 2 ^ 10 (1024)
 				\ The buffer size should be power of 2.
 VARIABLE RxBuffer  RxBufSize ALLOT
@@ -127,7 +131,7 @@ VARIABLE RxHead
 VARIABLE RxTail
 VARIABLE RxOverflow
 
-1 8 LSHIFT CONSTANT TxBufSize	\ receive buffer size = 2 ^ 8 (256)
+1 8 LSHIFT CONSTANT TxBufSize   \ transmit buffer size = 2 ^ 8 (256)
 				\ The buffer size should be power of 2.
 CREATE TxBuffer  TxBufSize CHARS ALLOT
 VARIABLE #Tx
@@ -138,6 +142,7 @@ VARIABLE LSR@
 VARIABLE MSR@
 
 HEX
+
 : CLEAR-BUFFER
     DISABLE
     0 #Rx    !
@@ -203,6 +208,8 @@ END-CODE
 CREATE IrptTable
 ' ModemServ , ' TxServ , ' RxServ , ' LineServ ,
 
+HEX
+
 CODE IrptServ
     STI,			\ Enable irpt
     AX PUSH,
@@ -214,14 +221,14 @@ CODE IrptServ
     CHAR " PARSE model" ENVIRONMENT? DROP
     CHAR " PARSE RAM Model" COMPARE 0= OR
     [IF]
-       DS AX MOV,
+       CS AX MOV,
        AX DS MOV,
     [THEN]
     CHAR " PARSE model" ENVIRONMENT? DROP
     CHAR " PARSE EXE Model" COMPARE 0=
     [IF]
-      CS:
-      0 ) AX MOV,		\ CS:0 contains data segment address
+      CS AX MOV,
+      1000 # AX ADD,            \ data segment follows after 64KB code segment
       AX DS MOV,
     [THEN]
     IIR # DX MOV,		\ identify irpt
@@ -298,8 +305,9 @@ VARIABLE TIMEOUT
     THEN ;
 
 DECIMAL
-	9600 BPS  NO PARITY  8 BITS  0 STOPBIT
+
 : TERM
+    19200 BPS  NO PARITY  8 BITS  0 STOPBIT
     CLEAR-BUFFER
     ATTACH-IRPT
     ENABLE-IRQ
@@ -310,3 +318,9 @@ DECIMAL
 		       SER-OUT
 	       THEN
     AGAIN ;
+
+CHAR " PARSE FILE" ENVIRONMENT?
+[IF]
+  0= [IF] << CON [THEN]
+[ELSE] << CON
+[THEN]

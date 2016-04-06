@@ -27,6 +27,15 @@ dest와 orig에 대해서만 적용할 수 있는 CS-ROLL과 CS-PICK를 부를 수
 RESTORE-INPUT을 비롯한 몇 가지 벌레를 잡았습니다.
 
 
+Changes from 0.9.9
+
+1997. 6. 30.
+      Add TRHOW after FLUSH-FILE in SAVE-BUFFERS and BYE in MSDOS.F.
+
+1997. 6. 23.
+      Fix pack" in HF86ROM.ASM and HF86RAM.ASM.
+      Fix SIO.F according to new EXE program structure.
+
 Changes from 0.9.7
 
 1997. 5. 26.

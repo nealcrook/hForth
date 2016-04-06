@@ -7,6 +7,8 @@ PAGE 62,132	;62 lines per page, 132 characters per line
 ;	hForth 8086 RAM model v0.9.9 by Wonyong Koh, 1997
 ;
 ;
+; 1997. 6. 23.
+;       Fix pack".
 ; 1997. 2. 19.
 ;	Split environmental variable systemID into CPU and Model.
 ; 1997. 2. 6.
@@ -1177,24 +1179,6 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 		AND	BX,0FFFEh
 		$NEXT
 
-; pack" is dependent of cell alignment.
-;
-;   pack"       ( c-addr u a-addr -- a-addr2 )
-;		Place a string c-addr u at a-addr and gives the next
-;		cell-aligned address. Fill the rest of the last cell with
-;		null character.
-;
-;   : pack"     2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
-;		1 CHARS - 0 SWAP !		\ fill 0 at the end of string
-;		2DUP C! CHAR+ SWAP		\ c-addr a-addr+1 u
-;		CHARS MOVE R> ; COMPILE-ONLY
-
-		$COLON	5,'pack"',PackQuote,_SLINK
-		DW	TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
-		DW	DoLIT,CHARR,Minus,Zero,SWAP,Store
-		DW	TwoDUP,CStore,CHARPlus,SWAP
-		DW	CHARS,MOVE,RFrom,EXIT
-
 ;   CELLS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 cells.
 ;
@@ -1953,6 +1937,22 @@ AddrLastName	EQU	$-CELLL
 
 		$COLON	7,'name>xt',NameToXT,_SLINK
 		DW	COUNT,DoLIT,MASKK,ANDD,Plus,ALIGNED,CELLPlus,EXIT
+
+;   pack"       ( c-addr u a-addr -- a-addr2 )
+;		Place a string c-addr u at a-addr and gives the next
+;		cell-aligned address. Fill the rest of the last cell with
+;		null character.
+;
+;   : pack"     2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
+;		ALIGNED cell- 0 SWAP !		\ fill 0 at the end of string
+;		2DUP C! CHAR+ SWAP		\ c-addr a-addr+1 u
+;		CHARS MOVE R> ALIGNED ; COMPILE-ONLY
+
+		$COLON	5,'pack"',PackQuote,_SLINK
+		DW	TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
+		DW	ALIGNED,CellMinus,Zero,SWAP,Store
+		DW	TwoDUP,CStore,CHARPlus,SWAP
+		DW	CHARS,MOVE,RFrom,ALIGNED,EXIT
 
 ;   PARSE-WORD	( "<spaces>ccc<space>" -- c-addr u )
 ;		Skip leading spaces and parse a word. Return the name.

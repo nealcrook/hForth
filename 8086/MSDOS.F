@@ -490,7 +490,7 @@ END-CODE
     updated IF
       current-block# 1K UM* block-fid REPOSITION-FILE THROW
       block-buffer 1K  block-fid WRITE-FILE THROW
-      block-fid FLUSH-FILE
+      block-fid FLUSH-FILE THROW
       0 TO updated
     THEN ;
 
@@ -845,7 +845,7 @@ DECIMAL
       sp0 sp!
     AGAIN ;
 
-: BYE	block-fid FLUSH-FILE  BYE ;
+: BYE   block-fid FLUSH-FILE THROW  BYE ;
 
 NONSTANDARD-WORDLIST SET-CURRENT
 
