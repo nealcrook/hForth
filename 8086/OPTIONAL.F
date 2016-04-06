@@ -4,6 +4,8 @@
 \
 \ by Wonyong Koh
 \
+; 1997. 7. 11.
+;       Fix D.R . Thank Benjamin Hoyt.
 \ 1997. 2. 28.
 \	Facelift to be used with other CPUs.
 \ 1996. 12. 6.
@@ -270,7 +272,7 @@ FORTH-WORDLIST SET-CURRENT
 
 \   D.R 	( d n -- )			\ DOUBLE
 \		Display d right-justified in field of width n.
-: D.R	>R (d.) R> OVER - 0 MAX SPACES	TYPE ;
+: D.R   >R (d.) R> OVER -  SPACES  TYPE ;
 
 \   .R		( n1 n2 -- )			\ CORE EXT
 \		Display n right-justified in field of width n2.

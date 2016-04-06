@@ -7,8 +7,10 @@ PAGE 62,132	;62 lines per page, 132 characters per line
 ;	hForth 8086 RAM model v0.9.9 by Wonyong Koh, 1997
 ;
 ;
+; 1997. 7. 11.
+;	Fix SPACES. Thank Benjamin Hoyt.
 ; 1997. 6. 23.
-;       Fix pack".
+;	Fix pack".
 ; 1997. 2. 19.
 ;	Split environmental variable systemID into CPU and Model.
 ; 1997. 2. 6.
@@ -3467,13 +3469,14 @@ SMREM4		DW	DoLIT,-11,THROW
 ;   SPACES	( n -- )			\ CORE
 ;		Send n spaces to the output device if n is greater than zero.
 ;
-;   : SPACES	?DUP IF 0 DO SPACE LOOP THEN ;
+;   : SPACES	DUP 0 > IF 0 DO SPACE LOOP EXIT THEN  DROP;
 
 		$COLON	6,'SPACES',SPACES,_FLINK
-		DW	QuestionDUP,ZBranch,SPACES2
+		DW	DUPP,Zero,GreaterThan,ZBranch,SPACES1
 		DW	Zero,DoDO
-SPACES1 	DW	SPACE,DoLOOP,SPACES1
-SPACES2 	DW	EXIT
+SPACES2 	DW	SPACE,DoLOOP,SPACES2
+		DW	EXIT
+SPACES1 	DW	DROP,EXIT
 
 ;   TO		Interpretation: ( x "<spaces>name" -- ) \ CORE EXT
 ;		Compilation:	( "<spaces>name" -- )

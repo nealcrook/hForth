@@ -6,6 +6,10 @@ PAGE 62,132	;62 lines per page, 132 characters per line
 ;
 ;	hForth 8086 EXE model v0.9.9 by Wonyong Koh, 1997
 ;
+; 1997. 7. 11.
+;	Fix SPACES. Thank Benjamin Hoyt.
+; 1997. 6. 23.
+;	Fix pack".
 ; 1997	6. 4.
 ;	Fix the problem that data are corrupted at segment boundary
 ;		when .EXE file saved by SAVE-INPUT-AS is larger
@@ -638,8 +642,8 @@ AddrTHROWMsgTbl:
 		$NAME	5,'code,',CodeComma,NameCodeComma,_SLINK
 		$NAME	5,'ALIGN',ALIGNN,NameALIGNN,_FLINK
 		$NAME	7,'ALIGNED',ALIGNED,NameALIGNED,_FLINK
-                $NAME   5,'pack"',PackQuote,NamePackQuote,_SLINK
-                $NAME   5,'CELLS',CELLS,NameCELLS,_FLINK
+		$NAME	5,'pack"',PackQuote,NamePackQuote,_SLINK
+		$NAME	5,'CELLS',CELLS,NameCELLS,_FLINK
 		$NAME	5,'CHARS',CHARS,NameCHARS,_FLINK
 		$NAME	7,'1chars/',OneCharsSlash,NameOneCharsSlash,_SLINK
 		$NAME	1,'!',Store,NameStore,_FLINK
@@ -4749,17 +4753,18 @@ SMREM1: 	MOV	BX,-10		;divide by zero
 ;   SPACES	( n -- )			\ CORE
 ;		Send n spaces to the output device if n is greater than zero.
 ;
-;   : SPACES	?DUP IF 0 DO SPACE LOOP THEN ;
+;   : SPACES	DUP 0 > IF 0 DO SPACE LOOP EXIT THEN  DROP;
 ;
-;		  $COLON  NameSPACES,SPACES
-;		  DW	  QuestionDUP,ZBranch,SPACES2
-;		  DW	  DoLIT,0,DoDO
-; SPACES1	  DW	  SPACE,DoLOOP,SPACES1
-; SPACES2	  DW	  EXIT
+;		  $COLON  6,'SPACES',SPACES,_FLINK
+;		  DW	  DUPP,Zero,GreaterThan,ZBranch,SPACES1
+;		  DW	  Zero,DoDO
+; SPACES2	  DW	  SPACE,DoLOOP,SPACES2
+;		  DW	  EXIT
+; SPACES1	  DW	  DROP,EXIT
 
 		$CODE	NameSPACES,SPACES
 		OR	BX,BX
-		JZ	SPACES2
+		JLE	SPACES2
 		PUSH	SI
 		SUB	BP,CELLL
 		MOV	[BP],BX
