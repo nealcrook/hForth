@@ -1,0 +1,58 @@
+
+Z80 ¶w hForth 0.9.9 Ìe·³“¡”a. 8086 hForth v0.9.9 RAM ¡¡•I·i ¬¡
+Z80µA µ«‰a ¯±´ö¯s“¡”a. hForth“e ANS Í¡¯a Îaº…·i ˜aŸa“e ¸b·e Í¡¯a
+¯¡¯aÉQ·³“¡”a. hForth“e ¢ža Ïa¡‹aœ‘(free software)·³“¡”a. ·¡ˆõ·i 
+ˆ·¥¸â·a¡a ¬w´ó¸â·a¡a ´á˜å ¡¢¸âµA ¬a¶wÐ•¡ ¹½¯s“¡”a. ”e, ·¡ 
+Ïa¡‹aœ‘·i ¤a¡ Ìi´a¬á“e ´e–A‰¡ (hForthŸi °á¬á  e—e Ïa¡‹aœ‘·i Ìa“e 
+ˆõ·e ¹Aˆa ¬w‰ÅÐa»¡ ´g¯s“¡”a) hForthœa“e ·¡Ÿq·i ³aa¡e Žœá£¡· 
+Ìa·©—i·¡ ¥¥œ ¬wÈ¡ ·¶´á´¡ Ðs“¡”a. ˆa“wÐe Ðe hForthŸi éŸ¡ Ìá›aa 
+º¯³¯¡µ¡.
+
+Z80 ¶w hForth 0.9.9 Ìe Žœá£¡µA“e ”a·q Ìa·©—i·¡ —i´á ·¶¯s“¡”a.
+
+HFZ80RAM.ASM  Z80 CP/M¶w hForth RAM ¡¡•I· MASM ¤aÈw¥¥.
+HFZ80RAM.CPM  HFZ80RAM.ASM· ¯©Ð— Ìa·©.
+HFZ80RAM.COM  HFZ80RAM.CPM·i •¡¯a· 22NICE CP/M µA£IA·¡Èá¡
+              ¯©Ð—¯¡Ç¡‹¡ ¶áÐe ¯¡¸b Ìa·©. (22NICE.COM·¡ ·¶“e
+              —¡BÉ¡Ÿ¡µA¬á ¯©Ð—Ða¯³¯¡µ¡.)
+OPTIONAL.F    ¬åÈ‚ { i(OPTIONAL wordset words)—i· Í¡¯a ¤aÈw¥¥.
+COREEXT.F     ANS Îaº… Í¡¯a Ïa¡‹aœ‘µA ³a»¡  i´a´¡ Ði j·e { i·i ¨…
+              (OPTIONAL.FµA ¨a»¥) ”aŸe ¡¡—e CORE EXT { i· Í¡¯a ¤aÈw¥¥.
+MULTI.F       Bill Muench· ”aº—¸b´ó‹¡(multitasker)· Í¡¯a ¤aÈw¥¥.
+MULDEMO.F     ”aº— ¸b´ó‹¡Ÿi ¯¡ÐñÐa‹¡ ¶áÐe ˆe”eÐe Í¡¯a ¤aÈw¥¥.
+DOUBLE.F      µÅ¸åÐe DOUBLE‰Á DOUBLE EXT { i· ¸÷·.
+DISCP.F       M. Edward Borasky· Dijkstra guarded command control
+              structures.
+HFORTH.HTM    Forth DimensionsµA ¯©v”å hForth ­¡ˆ‹i
+README.KOR    ·¡ Ìa·© (¹¡ÐsÑw Ðe‹i).
+README.KS     ·¡ Ìa·© (µÅ¬÷Ñw Ðe‹i).
+README86.KOR  8086 ¶w hForth Žœá£¡· README Ìa·© (¹¡ÐsÑw Ðe‹i).
+README86.KS   8086 ¶w hForth Žœá£¡· README Ìa·© (µÅ¬÷Ñw Ðe‹i).
+22NCE142.ZIP  Sydex· MS-DOS¶w CP/M µA£IA·¡Èá.
+
+hForth Z80 RAM ¡¡•I·e hForth 8086 RAM ¡¡•I·i ”a·qÀáœñ ‰¡Áa¬á
+ e—i´ö¯s“¡”a.
+
+1. ¦Ëa Å¡—aµÁ ¡¡—e ‹¡‰´á ¸÷·Ÿi Z80 ‹¡‰´á¡ ”a¯¡ ¸÷·Ð–¯s“¡”a.
+
+2. ·³Â‰b { i·¥ RX?µÁ RX@µÁ TX!Ÿi CP/M· BDOS Ðq®Ÿi °á¬á ”a¯¡
+   ¸÷·Ð–¯s“¡”a. µa‹¡µA Ï©¶aÐe { i bdosµÁ keysaveµÁ ?keyŸi
+   ”áÐ–¯s“¡”a. BYE•¡ CP/MµA  x‰A ”a¯¡ ¸÷·Ð–¯s“¡”a. MS-DOSµA¬á e ³i
+   ® ·¶“e { i·¥ stdin‰Á << —w·i ¨–¯s“¡”a.
+
+3. ¬w” º­¡Ÿi ³a“e 8086‰Á“e ”iŸ¡ Z80·e ¸é” º­¡Ÿi ³a‹¡ ”¢…µA
+   ?call‰Á pipeµÁ xt,Ÿi ”a¯¡ ¸÷·Ð–¯s“¡”a.
+
+4. ¯©Ð—­¢•¡Ÿi ¨aŸa‰A Ða‹¡ ¶áÐ 8086 ¡¡•IµA¬áÀáœñ same?‰Á
+   (search-wordlist)Ÿi ‹¡‰´á¡ ¸÷·Ða‰¡ Z80 ¡¡•IµA¬á“e UM/MOD•¡
+   ‹¡‰´á¡ ¸÷·Ð–¯s“¡”a.
+
+hForthµA ”Ðe ”á ¸a­AÐe ­¡ˆ“e README86.*‰Á HFORTH.HTM·i
+Àq¹¡Ða¯³¯¡µ¡.
+
+1997. 6. 5.
+
+‰¡¶¥¶w
+·¥Èá‘U: wykoh@pado.krict.re.kr
+Ða·¡ÉI: wykoh
+
