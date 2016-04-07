@@ -50,7 +50,7 @@
 \ TODO: could do the whole thing as a parser/state-machine in which the
 \ TODO: action of each token is to check a current state and move to a
 \ TODO: next state whilst building part of the op-code.
-\ TODO: pseudo-ops to emit words, bytes, strings 
+\ TODO: pseudo-ops to emit words, bytes, strings
 \ TODO: user documentation
 \ TODO: error-handling stance that allows stop or continue on error.
 \ TODO: should all IF xx huh ELSE really be THEN to neaten everything
@@ -68,22 +68,22 @@ DEPTH
 
 \ Vectors to routines for code generation on the target
 \ .. emit the 32-bit value at tos at the current PC
-VARIABLE 'ASM,32	: ASM,32 'ASM,32 @ EXECUTE ;
+VARIABLE 'ASM,32        : ASM,32 'ASM,32 @ EXECUTE ;
 
 \ .. return the current value of "dot" - the point at which code is emitted
-VARIABLE 'ASM.		: ASM. 'ASM. @ EXECUTE ;
+VARIABLE 'ASM.          : ASM. 'ASM. @ EXECUTE ;
 
 \ .. do a 32-bit store to an address in the target image code space
-VARIABLE 'ASM!		: ASM! 'ASM! @ EXECUTE ;
+VARIABLE 'ASM!          : ASM! 'ASM! @ EXECUTE ;
 
 \ .. do a 32-bit fetch from an address in the target image code space
-VARIABLE 'ASM@		: ASM@ 'ASM@ @ EXECUTE ;
+VARIABLE 'ASM@          : ASM@ 'ASM@ @ EXECUTE ;
 
 \ Initialise all these vectors
 : AsmBadVector ." ASMARM Error: Uninitialised code-generation vector."
   ABORT ;
 ' AsmBadVector 2DUP DUP
-'ASM,32 !	'ASM. !		'ASM! !		'ASM@ !
+'ASM,32 !       'ASM. !         'ASM! !         'ASM@ !
 
 
 \ TODO ram/rom@ if appropriate model
@@ -106,7 +106,7 @@ ALSO ASSEMBLER DEFINITIONS
 \ ******************* Redefine standard words
 \ the strings used for some standard words are required in the assembler
 \ so provide aliases to make them accessible from within the assembler
-: [[ POSTPONE [ ; IMMEDIATE 
+: [[ POSTPONE [ ; IMMEDIATE
 CHAR " PARSE hforth" ENVIRONMENT? [IF] COMPILE-ONLY [THEN]
 : ]] ] ;
 : ## # ;
@@ -122,26 +122,26 @@ VARIABLE reg_fifo \ register FIFO - see register-handling description
 VARIABLE adr_mod \ current addressing mode
 VARIABLE this-op \ flags and register map
 VARIABLE LTORG-HEAD \ literal pool control
-0 LTORG-HEAD !	\ once only - when the assembler is loaded.
+0 LTORG-HEAD !  \ once only - when the assembler is loaded.
 
 : newop
-	E0000000 oip ! \ default condition => always
-	80000 this-op ! \ guard bit protects against register underflow
-	0 adr_mod ! ; \ TODO -- not currently used
-	\ no need to init register FIFO
+        E0000000 oip ! \ default condition => always
+        80000 this-op ! \ guard bit protects against register underflow
+        0 adr_mod ! ; \ TODO -- not currently used
+        \ no need to init register FIFO
 
 \ Format of the bits in this-op:
-\ b31	- 1 => that an immediate is available. If b28 is set, the immediate
-\	  has already been consumed. Otherwise it is still on the stack.
-\ b30	- 1 => that [ has been encountered for a LDR/STR
-\ b29	- 1 => that the [ is a ![ (b30 will also be set)
-\ b28.	- 1 => that a shifter has been encountered and that bits 11:4 of oip
-\	  hold a valid shifter
+\ b31   - 1 => that an immediate is available. If b28 is set, the immediate
+\         has already been consumed. Otherwise it is still on the stack.
+\ b30   - 1 => that [ has been encountered for a LDR/STR
+\ b29   - 1 => that the [ is a ![ (b30 will also be set)
+\ b28.  - 1 => that a shifter has been encountered and that bits 11:4 of oip
+\         hold a valid shifter
 \ b27   - 1 => that a register list is being/has been defined
-\ b26	- 1 => that ] has been encountered for a LDR/STR
+\ b26   - 1 => that ] has been encountered for a LDR/STR
 \ b25   - 1 => that a -Rn (subtract register) was encountered
 \ TODO have -Rn set b25 in iop directly.. keep the flag for error checking.
-\ b24.	- when [ is encountered, set this bit if an immediate or a shifter
+\ b24.  - when [ is encountered, set this bit if an immediate or a shifter
 \         or a register are already available => post indexed addressing
 \ b23   - set when an unresolved label is encountered.
 \ b22
@@ -157,12 +157,12 @@ VARIABLE LTORG-HEAD \ literal pool control
 \ in turn). This is fine in this application, since they are only used for
 \ error messages.
 : msg"
-	HERE [CHAR] " PARSE
+        HERE [CHAR] " PARSE
         DUP CHAR+ ALLOT \ leave space for string plus byte count
-	ROT \ from length HERE
-	OVER OVER C! \ store length
-	1+ SWAP \ from HERE+1 length
-	MOVE ;
+        ROT \ from length HERE
+        OVER OVER C! \ store length
+        1+ SWAP \ from HERE+1 length
+        MOVE ;
 
 
 CREATE AsmMsg$
@@ -204,25 +204,25 @@ ALIGN
 
 \ print the nth message from the array of error strings
 : .AsmMsg$
-	AsmMsg$ SWAP
-	BEGIN
-		DUP
-	WHILE
-		1- SWAP DUP C@ 1+ CHARS + SWAP
-	REPEAT
-	DROP DUP CHAR+ SWAP C@ TYPE ;
+        AsmMsg$ SWAP
+        BEGIN
+                DUP
+        WHILE
+                1- SWAP DUP C@ 1+ CHARS + SWAP
+        REPEAT
+        DROP DUP CHAR+ SWAP C@ TYPE ;
 
 : huh
-	CR SOURCE TYPE CR 0 .AsmMsg$ .AsmMsg$ newop ABORT ;
+        CR SOURCE TYPE CR 0 .AsmMsg$ .AsmMsg$ newop ABORT ;
 
 \ ******************* misc. factoring
 : asm-imm
-	this-op @ 80000000 AND IF 5 huh THEN \ immediate already exists?
-	this-op DUP @ 80000000 OR SWAP ! ; \ an immediate is now available
+        this-op @ 80000000 AND IF 5 huh THEN \ immediate already exists?
+        this-op DUP @ 80000000 OR SWAP ! ; \ an immediate is now available
 
 : asm-shft
-	this-op @ 10000000 AND IF 6 huh THEN \ shifter already exists?
-	this-op DUP @ 10000000 OR SWAP ! ; \ a shifter is now available
+        this-op @ 10000000 AND IF 6 huh THEN \ shifter already exists?
+        this-op DUP @ 10000000 OR SWAP ! ; \ a shifter is now available
 
 \ ******************* words for creating and handling registers
 \ The act of quoting a register r0 - r15 is twofold:
@@ -259,23 +259,23 @@ ALIGN
 \ for a given register, push that register onto the FIFO and set the
 \ associated bit in the register bitmap.
 : reg ( u -- )
-	1 OVER LSHIFT	\ reg-value reg-bit
-	this-op @ 10000 + FFEFFFFF AND \ blindly increment but prevent carry
-	OR this-op ! \ and set reg bit in map.. then store
-	reg_fifo DUP @ 4 LSHIFT ROT OR SWAP ! ; \ push into register FIFO
+        1 OVER LSHIFT   \ reg-value reg-bit
+        this-op @ 10000 + FFEFFFFF AND \ blindly increment but prevent carry
+        OR this-op ! \ and set reg bit in map.. then store
+        reg_fifo DUP @ 4 LSHIFT ROT OR SWAP ! ; \ push into register FIFO
 
 \ A builder for registers.
 : makereg ( u -- )
-	CREATE , DOES> @ reg ;
+        CREATE , DOES> @ reg ;
 
 \ A builder for registers with write-back. These are only available for
 \ LDM/STM instructions. They have all the functionality of makereg with the
 \ addition that they check this-op to see that a LDM/STM is in progress and
 \ then set the W bit (bit 21) in oip
 : makereg! ( u -- )
-	CREATE , DOES> @ reg
-	this-op @ 08000000 AND 0=
-	IF 2 huh THEN oip DUP @ 200000 OR SWAP ! ;
+        CREATE , DOES> @ reg
+        this-op @ 08000000 AND 0=
+        IF 2 huh THEN oip DUP @ 200000 OR SWAP ! ;
 \ TODO should this check that no other register had write-back specified?
 \ ie that the bit in oip wasn't already set
 
@@ -285,28 +285,28 @@ ALIGN
 \ specified and that nothing else conflicting has gone before.
 \ When we generate code we assume that the - was on the *correct* register
 : makereg- ( u -- )
-	CREATE , DOES> @ reg
-	this-op @ 0E000000 AND
-	IF 3 huh THEN this-op DUP @ 02000000 OR SWAP ! ;
+        CREATE , DOES> @ reg
+        this-op @ 0E000000 AND
+        IF 3 huh THEN this-op DUP @ 02000000 OR SWAP ! ;
 
-0 makereg R0		0 makereg! R0!   	0 makereg- -R0  
-1 makereg R1		1 makereg! R1!   	1 makereg- -R1  
-2 makereg R2		2 makereg! R2!   	2 makereg- -R2  
-3 makereg R3		3 makereg! R3!   	3 makereg- -R3  
-4 makereg R4		4 makereg! R4!   	4 makereg- -R4  
-5 makereg R5		5 makereg! R5!   	5 makereg- -R5  
-6 makereg R6		6 makereg! R6!   	6 makereg- -R6  
-7 makereg R7		7 makereg! R7!   	7 makereg- -R7  
-8 makereg R8		8 makereg! R8!   	8 makereg- -R8  
-9 makereg R9		9 makereg! R9!   	9 makereg- -R9  
-A makereg R10		A makereg! R10!  	A makereg- -R10 
-B makereg R11		B makereg! R11!  	B makereg- -R11 
-C makereg R12		C makereg! R12!  	C makereg- -R12 
-D makereg R13		D makereg! R13!  	D makereg- -R13 
-E makereg R14		E makereg! R14!  	E makereg- -R14 
-E makereg LR		E makereg! LR!   	E makereg- -LR  
-F makereg R15					F makereg- -R15 
-F makereg PC					F makereg- -PC  
+0 makereg R0            0 makereg! R0!          0 makereg- -R0
+1 makereg R1            1 makereg! R1!          1 makereg- -R1
+2 makereg R2            2 makereg! R2!          2 makereg- -R2
+3 makereg R3            3 makereg! R3!          3 makereg- -R3
+4 makereg R4            4 makereg! R4!          4 makereg- -R4
+5 makereg R5            5 makereg! R5!          5 makereg- -R5
+6 makereg R6            6 makereg! R6!          6 makereg- -R6
+7 makereg R7            7 makereg! R7!          7 makereg- -R7
+8 makereg R8            8 makereg! R8!          8 makereg- -R8
+9 makereg R9            9 makereg! R9!          9 makereg- -R9
+A makereg R10           A makereg! R10!         A makereg- -R10
+B makereg R11           B makereg! R11!         B makereg- -R11
+C makereg R12           C makereg! R12!         C makereg- -R12
+D makereg R13           D makereg! R13!         D makereg- -R13
+E makereg R14           E makereg! R14!         E makereg- -R14
+E makereg LR            E makereg! LR!          E makereg- -LR
+F makereg R15                                   F makereg- -R15
+F makereg PC                                    F makereg- -PC
 
 \ use of r15 is UNPREDICTABLE for makereg! and therefore not defined
 
@@ -315,33 +315,33 @@ F makereg PC					F makereg- -PC
 \ correct position to OR into the op-code). We can safely underflow as long as
 \ we check, eventually.
 : oldreg ( n1 -- n2 )
-	this-op @ 10000 - DUP this-op !	\ decrement register count
-	70000 AND E RSHIFT		\ where to grab the register from
-	reg_fifo @ SWAP RSHIFT F AND SWAP LSHIFT ;
+        this-op @ 10000 - DUP this-op ! \ decrement register count
+        70000 AND E RSHIFT              \ where to grab the register from
+        reg_fifo @ SWAP RSHIFT F AND SWAP LSHIFT ;
 
 \ check that all registers were consumed by the op-code generation. LDM/STM
 \ instructions use a trick to make sure the register count will be correct
 \ here ( } clears down the register count at the end of a register list)
 : noreg ( -- )
-	this-op @ 1F0000 AND 80000 <> IF 1 huh THEN ;
+        this-op @ 1F0000 AND 80000 <> IF 1 huh THEN ;
 
 \ ******************* create conditionals
 \ quoting the conditional sets the correct bits in oip. By default oip
 \ contains AL, so we clear that out first.
 : makecc ( u -- )
-	1C LSHIFT CREATE , DOES> @
-	oip @ 0FFFFFFF AND 	\ clear out any existing condition
-	OR oip ! ;
+        1C LSHIFT CREATE , DOES> @
+        oip @ 0FFFFFFF AND      \ clear out any existing condition
+        OR oip ! ;
 
-0 	makecc EQ	1 	makecc NE
-2	makecc CS	2	makecc HS \ synonyms
-3	makecc CC	3	makecc LO \ synonyms
-4 	makecc MI	5 	makecc PL
-6 	makecc VS	7 	makecc VC
-8 	makecc HI	9 	makecc LS
-A 	makecc GE	B 	makecc LT
-C 	makecc GT	D 	makecc LE
-E 	makecc AL	F 	makecc NV
+0       makecc EQ       1       makecc NE
+2       makecc CS       2       makecc HS \ synonyms
+3       makecc CC       3       makecc LO \ synonyms
+4       makecc MI       5       makecc PL
+6       makecc VS       7       makecc VC
+8       makecc HI       9       makecc LS
+A       makecc GE       B       makecc LT
+C       makecc GT       D       makecc LE
+E       makecc AL       F       makecc NV
 
 \ ******************* track the addressing mode.
 \ the addressing modes are:
@@ -360,44 +360,44 @@ E 	makecc AL	F 	makecc NV
 \ thing. Check that all the registers have been used and clear down all the
 \ flags for the opcode. Finally, emit the Dword for this instruction
 : code-emit ( n -- )
-	oip @ OR noreg newop ASM,32 ;
+        oip @ OR noreg newop ASM,32 ;
 
 \ ******************* set condition codes
 \ Multiply and some dp opcodes have variants that can set the condition
 \ codes. Those variants call this word to set b20 in oip
 : set-ccs
-	oip DUP @ 100000 OR SWAP ! ;
+        oip DUP @ 100000 OR SWAP ! ;
 
 \ ******************* initialisation
 : init-asm
-	newop ;
+        newop ;
 
 \ ******************* multiply instructions
 \ TODO: want warning on illegal or unpredictable results
 : mul3
-	CREATE , DOES> @
-		8 oldreg OR 0 oldreg OR 10 oldreg OR code-emit ;
+        CREATE , DOES> @
+                8 oldreg OR 0 oldreg OR 10 oldreg OR code-emit ;
 
 : mul4a
-	CREATE , DOES> @
-		c oldreg OR 8 oldreg OR	0 oldreg OR 10 oldreg OR code-emit ;
+        CREATE , DOES> @
+                c oldreg OR 8 oldreg OR 0 oldreg OR 10 oldreg OR code-emit ;
 
 : mul4b
-	CREATE , DOES> @
-		8 oldreg OR 0 oldreg OR	10 oldreg OR c oldreg OR code-emit ;
+        CREATE , DOES> @
+                8 oldreg OR 0 oldreg OR 10 oldreg OR c oldreg OR code-emit ;
 
-000090 mul3 MUL,		: MULS, set-ccs MUL, ;
-200090 mul4a MLA,		: MLAS, set-ccs MLA, ;
-800090 mul4b UMULL,		: UMULLS, set-ccs UMULL, ;
-A00090 mul4b UMLAL,		: UMLALS, set-ccs UMLAL, ;
-C00090 mul4b SMULL,		: SMULLS, set-ccs SMULL, ;
-E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
+000090 mul3 MUL,                : MULS, set-ccs MUL, ;
+200090 mul4a MLA,               : MLAS, set-ccs MLA, ;
+800090 mul4b UMULL,             : UMULLS, set-ccs UMULL, ;
+A00090 mul4b UMLAL,             : UMLALS, set-ccs UMLAL, ;
+C00090 mul4b SMULL,             : SMULLS, set-ccs SMULL, ;
+E00090 mul4b SMLAL,             : SMLALS, set-ccs SMLAL, ;
 
 \ ******************* Software interrupt instruction
 : SWI,  ( n -- )
-	DUP FF000000 AND IF 4 huh ELSE
-		F000000 OR code-emit
-	THEN ;
+        DUP FF000000 AND IF 4 huh ELSE
+                F000000 OR code-emit
+        THEN ;
 
 \ ******************* Immediates
 \ Immediates are used in operands for DP and Load/Store instructions. The
@@ -405,7 +405,7 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ and sets flags. The consumer of the operand is responsible for range
 \ checking and coping with negative offsets.
 : #
-	this-op @ 800000 AND IF 20 huh THEN asm-imm ;
+        this-op @ 800000 AND IF 20 huh THEN asm-imm ;
 
 \ ******************* Shifter operands
 \ The shifter operands LSL, LSR, ASR, ROR, RRX can be used in DP instructions
@@ -424,120 +424,120 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ and merged in build-shft.
 
 : sh11-4
-	CREATE , , , DOES> DUP >R @
-	\ expect no shifter currently defined, and *either* an immediate
-	\ available *or* exactly one register available. 
-	asm-shft
-	\ stack just holds shift op-code bits
-	this-op @ 800F0000 AND \ look at immediate bit and reg count
-	DUP 90000 = IF
-		\ register shifter, exactly one register
-		R> 2DROP
-		\ set b4=> register shifter, get the register and
-		\ merge in the op-code bits for LSL or whatever
-		10 OR 8 oldreg OR oip @ OR oip !
-	ELSE
-		80080000 = IF
-			\ immediate, no registers .. stack has
-			\ <immediate> <shifter code>
-			SWAP DUP R> CELL+ 2@
-			WITHIN INVERT IF 7 huh THEN
-			\ <shifter code> <immediate>
-			1F AND \ shift of 32 (if legal) is represented as a value of 0
-			7 LSHIFT OR oip @ OR oip !
-		ELSE 8 huh THEN
-\ TODO or the error might be 	S" Shifter but neither immediate nor register" huh
-	THEN ;
+        CREATE , , , DOES> DUP >R @
+        \ expect no shifter currently defined, and *either* an immediate
+        \ available *or* exactly one register available.
+        asm-shft
+        \ stack just holds shift op-code bits
+        this-op @ 800F0000 AND \ look at immediate bit and reg count
+        DUP 90000 = IF
+                \ register shifter, exactly one register
+                R> 2DROP
+                \ set b4=> register shifter, get the register and
+                \ merge in the op-code bits for LSL or whatever
+                10 OR 8 oldreg OR oip @ OR oip !
+        ELSE
+                80080000 = IF
+                        \ immediate, no registers .. stack has
+                        \ <immediate> <shifter code>
+                        SWAP DUP R> CELL+ 2@
+                        WITHIN INVERT IF 7 huh THEN
+                        \ <shifter code> <immediate>
+                        1F AND \ shift of 32 (if legal) is represented as a value of 0
+                        7 LSHIFT OR oip @ OR oip !
+                ELSE 8 huh THEN
+\ TODO or the error might be    S" Shifter but neither immediate nor register" huh
+        THEN ;
 
-00 20 00 sh11-4 LSL	01 21 20 sh11-4 LSR
-01 21 40 sh11-4 ASR	01 20 60 sh11-4 ROR
+00 20 00 sh11-4 LSL     01 21 20 sh11-4 LSR
+01 21 40 sh11-4 ASR     01 20 60 sh11-4 ROR
 
 \ Build bits 11-4 for RRX shift.
 : RRX ( -- )
-	\ expect no shifter currently defined, no registers and no immediate
-	asm-shft
-	this-op @ DUP 80070000 AND \ TODO -- more rigorous check of #regs
-	IF 9 huh THEN
-	oip @ 60 OR oip ! ; \ make bits 11:4 of the oip indicate RRX
+        \ expect no shifter currently defined, no registers and no immediate
+        asm-shft
+        this-op @ DUP 80070000 AND \ TODO -- more rigorous check of #regs
+        IF 9 huh THEN
+        oip @ 60 OR oip ! ; \ make bits 11:4 of the oip indicate RRX
 
 \ ******************* Data-processing instructions
 \ Attempt to convert a 32-bit immediate into an 8-bit immediate and 4-bit
 \ shifter such that the number can be represented as imm >> 2*shft
 \ this mode is available for dp operands, msr and some LDR/STR.
 : 32to12 ( n -- n' -1 | 0)
-	0 FFFFFF00	\ literal, index, initial shifter
-	BEGIN
-		DUP 3 PICK AND IF
-			\ some bits still set so no match. Get ready for next
-			DUP 2 RSHIFT 3FFFFFFF AND SWAP 1E LSHIFT OR
-			SWAP 1+ SWAP
-			OVER 10 =	\ true => failed to find 
-		ELSE
-			\ found a match. Stack holds num, index, shifter
-			DROP
-			SWAP OVER 10 SWAP - 2* RSHIFT SWAP 8 LSHIFT OR -1 EXIT
-		THEN
-	UNTIL
-	\ number index shifter
-	DROP DROP DROP 0 ;
+        0 FFFFFF00      \ literal, index, initial shifter
+        BEGIN
+                DUP 3 PICK AND IF
+                        \ some bits still set so no match. Get ready for next
+                        DUP 2 RSHIFT 3FFFFFFF AND SWAP 1E LSHIFT OR
+                        SWAP 1+ SWAP
+                        OVER 10 =       \ true => failed to find
+                ELSE
+                        \ found a match. Stack holds num, index, shifter
+                        DROP
+                        SWAP OVER 10 SWAP - 2* RSHIFT SWAP 8 LSHIFT OR -1 EXIT
+                THEN
+        UNTIL
+        \ number index shifter
+        DROP DROP DROP 0 ;
 
 \ Build a shifter-operand in bits 11:0 of oip or die in the attempt
 \ legal combinations are (highest priority first)
 \ -- b28 of this-op set (oip already has bits 11:4 built)
 \ -- 24-bit immediate
-\ -- register (a special case of shifter; LSL with a shift of 0) 
+\ -- register (a special case of shifter; LSL with a shift of 0)
 
 : build-shft ( n1 n2 | n2 -- ) \ n1 is immediate, n2 is op-code template
-	this-op @ DUP 10000000 AND IF
-		\ prebuilt shifter in 11:4 just need the register added in
-		DROP oip DUP @ 0 oldreg OR SWAP !
-	ELSE
-		\ expect immediate or register
-		80000000 AND IF
-			\ immediate.. on the stack under the op-code template
-			SWAP 32to12 \ convert it to offset:value format
-			INVERT IF 0A huh THEN
-			oip DUP @
-			ROT OR \ merge the immediate into the opcode
-			2000000 OR SWAP ! \ set I-bit to indicate immediate
-		ELSE
-			\ not immediate.. register?
-			\ this is just a LSL with a shift of 0
-			oip DUP @ 0 oldreg OR SWAP !
-		THEN
-	THEN ;
+        this-op @ DUP 10000000 AND IF
+                \ prebuilt shifter in 11:4 just need the register added in
+                DROP oip DUP @ 0 oldreg OR SWAP !
+        ELSE
+                \ expect immediate or register
+                80000000 AND IF
+                        \ immediate.. on the stack under the op-code template
+                        SWAP 32to12 \ convert it to offset:value format
+                        INVERT IF 0A huh THEN
+                        oip DUP @
+                        ROT OR \ merge the immediate into the opcode
+                        2000000 OR SWAP ! \ set I-bit to indicate immediate
+                ELSE
+                        \ not immediate.. register?
+                        \ this is just a LSL with a shift of 0
+                        oip DUP @ 0 oldreg OR SWAP !
+                THEN
+        THEN ;
 
 \ <shifter operand> <reg> {cond} <opcode>{s}
 : dp1
-	CREATE , DOES> @
-	build-shft C oldreg OR code-emit ;
+        CREATE , DOES> @
+        build-shft C oldreg OR code-emit ;
 
 \ <shifter operand> <reg> {cond} <opcode>
 : dp2
-	CREATE , DOES> @
-	build-shft 10 oldreg OR code-emit ;
+        CREATE , DOES> @
+        build-shft 10 oldreg OR code-emit ;
 
 \ <shifter operand> <reg> <reg> {cond} <opcode>{s}
 : dp3
-	CREATE , DOES> @
-	build-shft 10 oldreg OR C oldreg OR code-emit ;
+        CREATE , DOES> @
+        build-shft 10 oldreg OR C oldreg OR code-emit ;
 
-01A00000 dp1 MOV, 	: MOVS, set-ccs MOV, ;
-01E00000 dp1 MVN,	: MVNS, set-ccs MVN, ;
+01A00000 dp1 MOV,       : MOVS, set-ccs MOV, ;
+01E00000 dp1 MVN,       : MVNS, set-ccs MVN, ;
 01500000 dp2 CMP,
 01700000 dp2 CMN,
 01100000 dp2 TST,
 01300000 dp2 TEQ,
-00800000 dp3 ADD,	: ADDS, set-ccs ADD, ;
-00A00000 dp3 ADC,	: ADCS, set-ccs ADC, ;
-00400000 dp3 SUB,	: SUBS, set-ccs SUB, ;
-00C00000 dp3 SBC,	: SBCS, set-ccs SBC, ;
-00600000 dp3 RSB,	: RSBS, set-ccs RSB, ;
-00E00000 dp3 RSC,	: RSCS, set-ccs RSC, ;
-00000000 dp3 AND,	: ANDS, set-ccs AND, ;
-00200000 dp3 EOR,	: EORS, set-ccs EOR, ;
-01800000 dp3 ORR,	: ORRS, set-ccs ORR, ;
-01C00000 dp3 BIC,	: BICS, set-ccs BIC, ;
+00800000 dp3 ADD,       : ADDS, set-ccs ADD, ;
+00A00000 dp3 ADC,       : ADCS, set-ccs ADC, ;
+00400000 dp3 SUB,       : SUBS, set-ccs SUB, ;
+00C00000 dp3 SBC,       : SBCS, set-ccs SBC, ;
+00600000 dp3 RSB,       : RSBS, set-ccs RSB, ;
+00E00000 dp3 RSC,       : RSCS, set-ccs RSC, ;
+00000000 dp3 AND,       : ANDS, set-ccs AND, ;
+00200000 dp3 EOR,       : EORS, set-ccs EOR, ;
+01800000 dp3 ORR,       : ORRS, set-ccs ORR, ;
+01C00000 dp3 BIC,       : BICS, set-ccs BIC, ;
 
 \ ******************* Load/Store multiple
 \ indicate start of register list. Check no other stuff in progress
@@ -545,27 +545,27 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ TODO: other instructions should test that register-list-in-progress is
 \ clear.
 : {
-	this-op @ F8000000 AND IF
-		\ bits set => error because all those flags are mutually
-		\ exclusive to our goal of defining a register list
-		0B huh
-	THEN
-	this-op DUP @ 08000000 OR SWAP ! ;
+        this-op @ F8000000 AND IF
+                \ bits set => error because all those flags are mutually
+                \ exclusive to our goal of defining a register list
+                0B huh
+        THEN
+        this-op DUP @ 08000000 OR SWAP ! ;
 
 \ start of register list; user-mode registers will be stored - set bit 22 in
 \ the op-code to indicate this
-: ^{ 
-	oip DUP @ 400000 OR SWAP ! { ;
+: ^{
+        oip DUP @ 400000 OR SWAP ! { ;
 
 \ end of register list; check that a register list was in progress, build
 \ part of the op-code from the information available and clear the register
 \ count. This last action is a trick to make the next register quoted
 \ (which should be the index for the LDM/STM) get stored properly in the FIFO.
 : }
-	this-op @ DUP 08000000 AND 0= IF 0C huh THEN
-	F0000000 AND IF 0D huh THEN
-	this-op @ FFE0FFFF AND 80000 OR DUP this-op ! \ re-init register count
-	FFFF AND oip @ OR oip ! ; \ put register list into oip
+        this-op @ DUP 08000000 AND 0= IF 0C huh THEN
+        F0000000 AND IF 0D huh THEN
+        this-op @ FFE0FFFF AND 80000 OR DUP this-op ! \ re-init register count
+        FFFF AND oip @ OR oip ! ; \ put register list into oip
 
 \ The register write-back form (eg R5!) is only available in LDM/STM
 \ instructions but is defined in the register-handling words section
@@ -573,10 +573,10 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ All the op-codes have a similar form:
 \ <register list> <reg> {cond} <opcode>
 : ldmstm1
-	CREATE , DOES> @ 10 oldreg OR \ add register to op template
-	this-op @ 08000000 AND 0= IF 0E huh THEN
-	\ syntax of register list itself is checked by }
-	code-emit ;
+        CREATE , DOES> @ 10 oldreg OR \ add register to op template
+        this-op @ 08000000 AND 0= IF 0E huh THEN
+        \ syntax of register list itself is checked by }
+        code-emit ;
 
 \ these instructions have alternative names. The suffices of the fourth
 \ column refer to increment/decrement before/after. Those of the last column
@@ -598,36 +598,36 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ TODO: other instructions should test that LDR/STR-in-progress flags are
 \ clear.
 : [
-	this-op @ 4C000000 AND IF
-		0F huh \ [ or { or ] already encountered -> error
-	THEN
-	this-op @ 90000000 AND IF
-		\ immediate or shifter are present so this is post indexing
-		41000000
-	ELSE
-		this-op @ 000F0000 AND 90000 = IF
-			\ 1 register already present so this is post indexing
-			41000000
-		ELSE
-			40000000
-		THEN
-	THEN 
-	this-op DUP @ ROT OR SWAP ! ;
+        this-op @ 4C000000 AND IF
+                0F huh \ [ or { or ] already encountered -> error
+        THEN
+        this-op @ 90000000 AND IF
+                \ immediate or shifter are present so this is post indexing
+                41000000
+        ELSE
+                this-op @ 000F0000 AND 90000 = IF
+                        \ 1 register already present so this is post indexing
+                        41000000
+                ELSE
+                        40000000
+                THEN
+        THEN
+        this-op DUP @ ROT OR SWAP ! ;
 
 : ![
 \ TODO if shifter or immediate are already available it's a WARNING
 \ - post-indexing *implies* write-back
-	this-op DUP @ 20000000 OR SWAP ! [ ;
+        this-op DUP @ 20000000 OR SWAP ! [ ;
 
 \ ] marks the end of stuff for LDR/STR addressing mode. The only legal things
 \ after ] are the destination register and the op-code with conditional.
 \ Several instruction formats use ] so the only thing
 \ we can do here is check syntax
 : ]
-	this-op @ 4C000000 AND 40000000 <>
-	\ check that [ has been encountered
-	IF 10 huh THEN
-	this-op DUP @ 04000000 OR SWAP ! ;
+        this-op @ 4C000000 AND 40000000 <>
+        \ check that [ has been encountered
+        IF 10 huh THEN
+        this-op DUP @ 04000000 OR SWAP ! ;
 
 \ The negative register form (eg -R5) is only available in LDM/STM instructions
 \ but is defined in the register-handling words section
@@ -637,185 +637,185 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ <register list> <reg> {cond} <opcode> TODO
 \ op-code form for 32-bit and unsigned byte loads and stores
 : ldrstr
-	CREATE , DOES> @
-	this-op @ DUP 08000000 AND IF 11 huh ELSE
-		900F0000 AND 000A0000 = IF
-			\ no immediate or shifter and 2 registers => encode
-			\ like an immediate of 0 with pre-indexing (could be
-			\ post-indexing, but ARM assembler uses pre
-			0 SWAP \ pretend the user set an immediate of 0
-			this-op DUP @ 80000000 OR SWAP ! \ immediate pre-adr
-		THEN
-		\ use flags to generate P and W bits
-		this-op @ 21000000 AND DUP 21000000 = IF 12 huh ELSE
-			DUP 01000000 = IF
-				DROP
-				\ post-indexed, implicit write-back - opcode
-				\ needs no modification
-				ELSE 20000000 = IF
-					01200000 OR \ pre-indexed writeback
-				ELSE
-					01000000 OR \ pre-indexed, no writeback
-				THEN
-			THEN
-		THEN
-		\ work out encoding type and build encoding-specific parts
-		this-op @ 90000000 AND 90000000 = IF
-			\ encoding 3 (scaled register offset/index)
-			\ bits 11:4 are already formed in oip
-			\ work out U bit and merge it in.. also set I bit
-			this-op @ 02000000 AND
-			IF 02000000 ELSE 02800000 THEN OR
-			0 oldreg OR \ Rm
-		ELSE
-			this-op @ 80000000 AND IF
-				\ encoding 1 (immediate, +/- 12-bit offset)
-				SWAP DUP \ put op-code mask out of the way
-				0< IF 0 ELSE 00800000 THEN SWAP \ U bit
-				ABS DUP FFFFF000 AND IF 13 huh THEN
-				\ mask U-bit immediate <- TOS
-				OR OR \ add U bit and mask
-			ELSE
-				\ encoding 2 (register offset/index)
-				\ work out U bit and merge it in.. also set I
-				this-op @ 02000000 AND
-				IF 02000000 ELSE 02800000 THEN OR
-				0 oldreg OR \ Rm
-			THEN
-		THEN
-		\ build common parts
-		10 oldreg OR C oldreg OR this-op @ 20000000 AND
-		IF 00200000 OR THEN \ ![ so set write-back bit
+        CREATE , DOES> @
+        this-op @ DUP 08000000 AND IF 11 huh ELSE
+                900F0000 AND 000A0000 = IF
+                        \ no immediate or shifter and 2 registers => encode
+                        \ like an immediate of 0 with pre-indexing (could be
+                        \ post-indexing, but ARM assembler uses pre
+                        0 SWAP \ pretend the user set an immediate of 0
+                        this-op DUP @ 80000000 OR SWAP ! \ immediate pre-adr
+                THEN
+                \ use flags to generate P and W bits
+                this-op @ 21000000 AND DUP 21000000 = IF 12 huh ELSE
+                        DUP 01000000 = IF
+                                DROP
+                                \ post-indexed, implicit write-back - opcode
+                                \ needs no modification
+                                ELSE 20000000 = IF
+                                        01200000 OR \ pre-indexed writeback
+                                ELSE
+                                        01000000 OR \ pre-indexed, no writeback
+                                THEN
+                        THEN
+                THEN
+                \ work out encoding type and build encoding-specific parts
+                this-op @ 90000000 AND 90000000 = IF
+                        \ encoding 3 (scaled register offset/index)
+                        \ bits 11:4 are already formed in oip
+                        \ work out U bit and merge it in.. also set I bit
+                        this-op @ 02000000 AND
+                        IF 02000000 ELSE 02800000 THEN OR
+                        0 oldreg OR \ Rm
+                ELSE
+                        this-op @ 80000000 AND IF
+                                \ encoding 1 (immediate, +/- 12-bit offset)
+                                SWAP DUP \ put op-code mask out of the way
+                                0< IF 0 ELSE 00800000 THEN SWAP \ U bit
+                                ABS DUP FFFFF000 AND IF 13 huh THEN
+                                \ mask U-bit immediate <- TOS
+                                OR OR \ add U bit and mask
+                        ELSE
+                                \ encoding 2 (register offset/index)
+                                \ work out U bit and merge it in.. also set I
+                                this-op @ 02000000 AND
+                                IF 02000000 ELSE 02800000 THEN OR
+                                0 oldreg OR \ Rm
+                        THEN
+                THEN
+                \ build common parts
+                10 oldreg OR C oldreg OR this-op @ 20000000 AND
+                IF 00200000 OR THEN \ ![ so set write-back bit
 \ TODO check for illegal W, P combinations in op-code ?
 \ TODO check for illegal register combinations?
-		code-emit
-	THEN
+                code-emit
+        THEN
 ;
 
 \ <register list> <reg> {cond} <opcode> TODO
 \ op-code form for halfword and signed byte loads and stores.
 : ldrstrhsb
-	CREATE , DOES> @
-	this-op @ DUP 18000000 AND IF 14 huh ELSE
-		800F0000 AND 000A0000 = IF
-			\ no immediate and 2 registers => encode like an
-			\ immediate of 0 with pre-indexing (could be
-			\ post-indexing, but ARM assembler uses pre
-			0 SWAP \ pretend the user set an immediate of 0
-			this-op DUP @ 80000000 OR SWAP ! \ immediate pre-adr
-		THEN
-		\ use flags to generate P bit
-		this-op @ 01000000 AND IF 0 ELSE 01000000 THEN OR
-		\ work out encoding type and build encoding-specific parts
-		this-op @ 80000000 AND IF
-			00400000 OR \ encoding 1 (immediate)
-			SWAP DUP \ put op-code mask out of the way
-			0< IF 0 ELSE 00800000 THEN SWAP \ U bit
-			ABS DUP FFFFFF00 AND IF 15 huh THEN
-			\ mask U-bit immediate <- TOS
-			\ need to split the immediate into 2 nibbles
-			\ 0F0 works-around pfe bug - pfe has a variable f0
-			DUP F AND SWAP 0F0 AND 4 LSHIFT OR
-			OR OR \ add U bit and mask
-		ELSE
-			\ encoding 2 (register)
-			\ work out U bit and merge it in
-			this-op @ 02000000 AND IF 0 ELSE 00800000 THEN OR
-			0 oldreg OR \ Rm
-		THEN
-		\ build common parts
-		10 oldreg OR C oldreg OR
-		this-op @ 20000000 AND
-		IF 00200000 OR THEN \ ![ so set write-back bit
+        CREATE , DOES> @
+        this-op @ DUP 18000000 AND IF 14 huh ELSE
+                800F0000 AND 000A0000 = IF
+                        \ no immediate and 2 registers => encode like an
+                        \ immediate of 0 with pre-indexing (could be
+                        \ post-indexing, but ARM assembler uses pre
+                        0 SWAP \ pretend the user set an immediate of 0
+                        this-op DUP @ 80000000 OR SWAP ! \ immediate pre-adr
+                THEN
+                \ use flags to generate P bit
+                this-op @ 01000000 AND IF 0 ELSE 01000000 THEN OR
+                \ work out encoding type and build encoding-specific parts
+                this-op @ 80000000 AND IF
+                        00400000 OR \ encoding 1 (immediate)
+                        SWAP DUP \ put op-code mask out of the way
+                        0< IF 0 ELSE 00800000 THEN SWAP \ U bit
+                        ABS DUP FFFFFF00 AND IF 15 huh THEN
+                        \ mask U-bit immediate <- TOS
+                        \ need to split the immediate into 2 nibbles
+                        \ 0F0 works-around pfe bug - pfe has a variable f0
+                        DUP F AND SWAP 0F0 AND 4 LSHIFT OR
+                        OR OR \ add U bit and mask
+                ELSE
+                        \ encoding 2 (register)
+                        \ work out U bit and merge it in
+                        this-op @ 02000000 AND IF 0 ELSE 00800000 THEN OR
+                        0 oldreg OR \ Rm
+                THEN
+                \ build common parts
+                10 oldreg OR C oldreg OR
+                this-op @ 20000000 AND
+                IF 00200000 OR THEN \ ![ so set write-back bit
 \ TODO check for illegal W, P combinations in op-code
 \ TODO check for illegal register combinations?
-		code-emit
-	THEN ;
+                code-emit
+        THEN ;
 
-04100000 ldrstr LDR,		04500000 ldrstr LDRB,
-04300000 ldrstr LDRT,		04700000 ldrstr LDRBT,
-04000000 ldrstr STR,		04400000 ldrstr STRB,
-04200000 ldrstr STRT,		04600000 ldrstr STRBT,
-001000B0 ldrstrhsb LDRH,	001000F0 ldrstrhsb LDRSH,
-001000D0 ldrstrhsb LDRSB,	000000B0 ldrstrhsb STRH,
-000000F0 ldrstrhsb STRSH,	000000D0 ldrstrhsb STRSB,
+04100000 ldrstr LDR,            04500000 ldrstr LDRB,
+04300000 ldrstr LDRT,           04700000 ldrstr LDRBT,
+04000000 ldrstr STR,            04400000 ldrstr STRB,
+04200000 ldrstr STRT,           04600000 ldrstr STRBT,
+001000B0 ldrstrhsb LDRH,        001000F0 ldrstrhsb LDRSH,
+001000D0 ldrstrhsb LDRSB,       000000B0 ldrstrhsb STRH,
+000000F0 ldrstrhsb STRSH,       000000D0 ldrstrhsb STRSB,
 
 \ ******************* Semaphore instructions
 : sem
-	CREATE , DOES> @
-	this-op @ DUP B9000000 AND
-	IF 16 huh ELSE \ immediate, ![, shifter, reg list, -Rn are all bad 
-		44000000 AND 44000000 = IF
-			\ all looks OK so build it
-			10 oldreg OR 0 oldreg OR C oldreg OR code-emit
-		ELSE 17 huh THEN
-	THEN ;
+        CREATE , DOES> @
+        this-op @ DUP B9000000 AND
+        IF 16 huh ELSE \ immediate, ![, shifter, reg list, -Rn are all bad
+                44000000 AND 44000000 = IF
+                        \ all looks OK so build it
+                        10 oldreg OR 0 oldreg OR C oldreg OR code-emit
+                ELSE 17 huh THEN
+        THEN ;
 
-01000090 sem SWP,		01400090 sem SWPB,
+01000090 sem SWP,               01400090 sem SWPB,
 
 \ ******************* Branch and Branch with Link
 : bran
-	CREATE , DOES> @
-	\ either expect the destination address at tos or else the unresolved
-	\ label bit to be set
-	this-op @ 800000 AND IF
-		0 \ unresolved label; set the offset to 0 for now
-		\ - it will get back-patched when the label is resolved
-	ELSE
-		\ convert absolute destination address to 24-bit signed
-		\ DWORD offset from . + 8
-		SWAP ASM. - 8 - 2 RSHIFT DUP FF000000 AND
-		DUP 3F000000 = SWAP 0= OR INVERT IF
-			4 huh
-		THEN
-		FFFFFF AND
-	THEN
-	OR code-emit ;
+        CREATE , DOES> @
+        \ either expect the destination address at tos or else the unresolved
+        \ label bit to be set
+        this-op @ 800000 AND IF
+                0 \ unresolved label; set the offset to 0 for now
+                \ - it will get back-patched when the label is resolved
+        ELSE
+                \ convert absolute destination address to 24-bit signed
+                \ DWORD offset from . + 8
+                SWAP ASM. - 8 - 2 RSHIFT DUP FF000000 AND
+                DUP 3F000000 = SWAP 0= OR INVERT IF
+                        4 huh
+                THEN
+                FFFFFF AND
+        THEN
+        OR code-emit ;
 
-0A000000 bran B,		0B000000 bran BL,
+0A000000 bran B,                0B000000 bran BL,
 
 \ ******************* Branch and exchange instruction  set
 : BX,
-	0 oldreg 012FFF10 OR code-emit ;
+        0 oldreg 012FFF10 OR code-emit ;
 
 \ ******************* Move immediate or register to status register
 : sr-fields
-	CREATE , DOES> @
-	oip DUP @ OR SWAP ! ;
+        CREATE , DOES> @
+        oip DUP @ OR SWAP ! ;
 
-00480000 sr-fields SPSR_F		00080000 sr-fields CPSR_F
-00410000 sr-fields SPSR_C		00010000 sr-fields CPSR_C
-00450000 sr-fields SPSR_CF		00050000 sr-fields CPSR_CF
-004F0000 sr-fields SPSR_CSXF		000F0000 sr-fields CPSR_CSXF
+00480000 sr-fields SPSR_F               00080000 sr-fields CPSR_F
+00410000 sr-fields SPSR_C               00010000 sr-fields CPSR_C
+00450000 sr-fields SPSR_CF              00050000 sr-fields CPSR_CF
+004F0000 sr-fields SPSR_CSXF            000F0000 sr-fields CPSR_CSXF
 \ the last two are used for MRS,
-00400000 sr-fields SPSR			00000000 sr-fields CPSR
+00400000 sr-fields SPSR                 00000000 sr-fields CPSR
 
 \ TODO should really set a flag to show that a xPSR_xxxx occurred and
 \ TODO then check for it and nothing else in MSR, and MRS, below.
 \ TODO and other words need to check for it, too
 
 : MSR,
-	this-op @ 10000000 AND IF \ Encoding 1 (immediate)
-		32to12 INVERT IF 0A huh THEN 0320F000 OR
-	ELSE \ Encoding 2 (register)
-		0 oldreg 0120F000 OR
-	THEN code-emit ;
+        this-op @ 10000000 AND IF \ Encoding 1 (immediate)
+                32to12 INVERT IF 0A huh THEN 0320F000 OR
+        ELSE \ Encoding 2 (register)
+                0 oldreg 0120F000 OR
+        THEN code-emit ;
 
 \ ******************* Move from status register
 : MRS,
-	C oldreg 010F0000 OR code-emit ;
+        C oldreg 010F0000 OR code-emit ;
 
 \ ******************* Coprocessor instructions
 \ TODO the real thing for these two builders
 : cop-dp
-	CREATE , DOES> @ code-emit ;
+        CREATE , DOES> @ code-emit ;
 
 : cop-ldrstr
-	CREATE , DOES> @ code-emit ;
+        CREATE , DOES> @ code-emit ;
 
 0E000000 cop-dp CDP,
-0E100010 cop-dp MRC,		0E000010 cop-dp MCR,
-0C100000 cop-ldrstr LDC,	0C000000 cop-ldrstr STC,
+0E100010 cop-dp MRC,            0E000010 cop-dp MCR,
+0C100000 cop-ldrstr LDC,        0C000000 cop-ldrstr STC,
 
 \ ******************* Labels
 \ Labels are stored in a symbol table, created by MK-SYM-TABLE. There are
@@ -843,15 +843,15 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ impact will be that the label with that value can never be resolved and
 \ this will lead to an error
 : clr-labels ( n -- )
-	DUP CELL+ @ SWAP @ \ address-of-1st #labels
-	CELLS OVER + SWAP DO DEADFEED I ! 1 CELLS +LOOP ;
+        DUP CELL+ @ SWAP @ \ address-of-1st #labels
+        CELLS OVER + SWAP DO DEADFEED I ! 1 CELLS +LOOP ;
 
 \ clear forward ref table; each entry is 2 CELLs. The first holds the label
 \ number and the second holds the address to be patched. The first is cleared
 \ to FFFFFFFF when the entry is unused
 : clr-unres ( n -- )
-	DUP CELL+ @ SWAP @ \ address-of-1st #entries
-	2 CELLS * OVER + SWAP DO FFFFFFFF I ! 2 CELLS +LOOP ;
+        DUP CELL+ @ SWAP @ \ address-of-1st #entries
+        2 CELLS * OVER + SWAP DO FFFFFFFF I ! 2 CELLS +LOOP ;
 
 \ create space for and initialise a symbol table. The symbol table is stored
 \ in data space (created HERE using ALLOT) and supports n-g global labels,
@@ -859,72 +859,72 @@ E00090 mul4b SMLAL,		: SMLALS, set-ccs SMLAL, ;
 \ of the table in order to make the local/global handling code the same.
 VARIABLE SYM-TABLE
 : MK-SYM-TABLE ( n-g n-l n-f -- )
-	HERE SYM-TABLE !
-	DUP , HERE 5 CELLS + , 2 CELLS * >R \ forward references
-	DUP , HERE 3 CELLS + R@ + , CELLS R> + >R \ local labels
-	DUP , HERE CELL+ R@ + , CELLS R> + ALLOT  \ global labels
-	SYM-TABLE @ DUP DUP clr-unres 2 CELLS + clr-labels 4 CELLS + clr-labels
+        HERE SYM-TABLE !
+        DUP , HERE 5 CELLS + , 2 CELLS * >R \ forward references
+        DUP , HERE 3 CELLS + R@ + , CELLS R> + >R \ local labels
+        DUP , HERE CELL+ R@ + , CELLS R> + ALLOT  \ global labels
+        SYM-TABLE @ DUP DUP clr-unres 2 CELLS + clr-labels 4 CELLS + clr-labels
 ;
 
 \ print 32-bit value in hex in the format " 0xVVVV.VVVV"
 : .hex4.4 ( n -- )
-	BASE @ SWAP HEX ." 0x" S>D <# ## ## ## ## [CHAR] . HOLD ## ## ## ## #>
-	TYPE BASE ! ;
+        BASE @ SWAP HEX ." 0x" S>D <# ## ## ## ## [CHAR] . HOLD ## ## ## ## #>
+        TYPE BASE ! ;
 
 \ print symbol table at address n; the addressed cell points to the list of
 \ label values and the next cell holds the number of labels in the list. In
 \ printout, label prefix is ASCII code c. Only print valid labels; those whose
 \ value is not DEADFEED
 : dump-labels ( n c -- )
-	SWAP DUP CELL+ @ SWAP @ \ char address-of-1st #labels
-	0 DO
-		DUP I CELLS + @ DEADFEED <> IF
-			CR ." .." 1 PICK EMIT I S>D <# ## ## #> TYPE ." : "
-			DUP I CELLS + @ .hex4.4
-		THEN
-	LOOP 2DROP ;
+        SWAP DUP CELL+ @ SWAP @ \ char address-of-1st #labels
+        0 DO
+                DUP I CELLS + @ DEADFEED <> IF
+                        CR ." .." 1 PICK EMIT I S>D <# ## ## #> TYPE ." : "
+                        DUP I CELLS + @ .hex4.4
+                THEN
+        LOOP 2DROP ;
 
 \ print list of unresolved labels. n addresses a cell that holds the address
 \ of the start of the table. The next cell holds the number of unresolved
 \ entries. Each entry in the table occupies 2 cells.
 : dump-unresolved ( n -- )
-	DUP CELL+ @ SWAP @ \ address-of-1st #unresolved
-	0 DO
-		DUP I 1 LSHIFT CELLS + @ DUP FFFFFFFF <> IF
-			CR ." ..Forward reference to "
-			DUP 80000000 AND IF ." G" ELSE ." L" THEN
-			7FFFFFFF AND S>D <# ## ## #> TYPE ."  at address "
-			DUP I 1 LSHIFT CELLS + CELL+ @ .hex4.4
-		ELSE DROP THEN
-	LOOP DROP ;
+        DUP CELL+ @ SWAP @ \ address-of-1st #unresolved
+        0 DO
+                DUP I 1 LSHIFT CELLS + @ DUP FFFFFFFF <> IF
+                        CR ." ..Forward reference to "
+                        DUP 80000000 AND IF ." G" ELSE ." L" THEN
+                        7FFFFFFF AND S>D <# ## ## #> TYPE ."  at address "
+                        DUP I 1 LSHIFT CELLS + CELL+ @ .hex4.4
+                ELSE DROP THEN
+        LOOP DROP ;
 
 \ TODO: show high-water mark information for the symbol table ?
 : SYM-STATS
-	CR ." Unresolved forward references (room for "
-	SYM-TABLE @ DUP @ U. ." ) :" dump-unresolved
-	CR ." Local labels (room for "
-	SYM-TABLE @ 2 CELLS + DUP @ U. ." ) :" [CHAR] L dump-labels
-	CR ." Global labels (room for "
-	SYM-TABLE @ 4 CELLS + DUP @ U. ." ) :" [CHAR] G dump-labels ;
+        CR ." Unresolved forward references (room for "
+        SYM-TABLE @ DUP @ U. ." ) :" dump-unresolved
+        CR ." Local labels (room for "
+        SYM-TABLE @ 2 CELLS + DUP @ U. ." ) :" [CHAR] L dump-labels
+        CR ." Global labels (room for "
+        SYM-TABLE @ 4 CELLS + DUP @ U. ." ) :" [CHAR] G dump-labels ;
 
 \ create a word whose run-time action is to scan the forward ref area and
 \ generate an error if any unresolved labels exist. Clear out the labels and
 \ any unresolved labels.
 : label-resolved
-	CREATE , CELLS , DOES> DUP @ SWAP CELL+ @
-	SYM-TABLE @ DUP ROT + clr-labels
-	\ mask a-of-#forward-ref
-	DUP CELL+ @ SWAP @ \ address-of-1st #entries
-	2 CELLS * OVER + SWAP DO
-		\ for each entry in the forward ref table.
-		\ entry is label_number or FFFFFFFF (unused). tos holds a
-		\ flag telling us what to look for. Search the whole table and
-		\ abort if unexpected forward references exist
-		I @ FFFFFFFF <> IF
-			\ unresolved label
-			I @ 80000000 AND OVER = IF 1F huh THEN
-		THEN
-	2 CELLS +LOOP DROP ;
+        CREATE , CELLS , DOES> DUP @ SWAP CELL+ @
+        SYM-TABLE @ DUP ROT + clr-labels
+        \ mask a-of-#forward-ref
+        DUP CELL+ @ SWAP @ \ address-of-1st #entries
+        2 CELLS * OVER + SWAP DO
+                \ for each entry in the forward ref table.
+                \ entry is label_number or FFFFFFFF (unused). tos holds a
+                \ flag telling us what to look for. Search the whole table and
+                \ abort if unexpected forward references exist
+                I @ FFFFFFFF <> IF
+                        \ unresolved label
+                        I @ 80000000 AND OVER = IF 1F huh THEN
+                THEN
+        2 CELLS +LOOP DROP ;
 
 \ This must be used manually at the end of a program
 4 80000000 label-resolved GLOBAL-RESOLVED
@@ -935,86 +935,86 @@ VARIABLE SYM-TABLE
 \ is the label legal - n is label number, n' is address that holds the
 \ number of labels. Legal label number is from 0 to number-1
 : leglab ( n n' -- n n' )
-	OVER 7FFFFFFF AND \ mask out msb that indicates global label
-	0 ROT DUP >R @ \ n n 0 @n'
-	WITHIN R> SWAP INVERT IF 1C huh THEN ;
+        OVER 7FFFFFFF AND \ mask out msb that indicates global label
+        0 ROT DUP >R @ \ n n 0 @n'
+        WITHIN R> SWAP INVERT IF 1C huh THEN ;
 
 \ create an entry in the unresolved table for label n. The patch address
 \ for the label is the . (dot) address in target space.
 : newunres ( n -- )
-	SYM-TABLE @ DUP CELL+ @ SWAP @ \ n address-of-1st #entries 
-	2 CELLS * OVER + SWAP DO \ n .. search unresolved labels table
-		\ check this entry..
-		I @ FFFFFFFF = IF
-			\ empty entry so assign n to it
-			I ! ASM. I CELL+ ( ." newunres:" .S) ! UNLOOP EXIT
-		THEN
-	2 CELLS +LOOP 1D huh ;
+        SYM-TABLE @ DUP CELL+ @ SWAP @ \ n address-of-1st #entries
+        2 CELLS * OVER + SWAP DO \ n .. search unresolved labels table
+                \ check this entry..
+                I @ FFFFFFFF = IF
+                        \ empty entry so assign n to it
+                        I ! ASM. I CELL+ ( ." newunres:" .S) ! UNLOOP EXIT
+                THEN
+        2 CELLS +LOOP 1D huh ;
 
 \ create a word whose function is to attempt to resolve the value of label n.
 \ If resolvable, n' is the resolved value. Otherwise, the unresolved bit is
 \ set in this-op and an unresolved entry is created pointing to . (dot)
 : label# \ runtime of created word: ( n -- n' |  )
-	CREATE , CELLS , DOES> DUP @ ROT OR SWAP CELL+ @
-	SYM-TABLE @ + leglab \ label a-of-number-of-labels
-	CELL+ @ OVER 7FFFFFFF AND CELLS + @ \ label label-value
-	DUP DEADFEED = IF 
-		DROP newunres this-op @ 800000 OR this-op ! \ unresolved
-	ELSE
-		SWAP DROP \ resolved
-	THEN ;
+        CREATE , CELLS , DOES> DUP @ ROT OR SWAP CELL+ @
+        SYM-TABLE @ + leglab \ label a-of-number-of-labels
+        CELL+ @ OVER 7FFFFFFF AND CELLS + @ \ label label-value
+        DUP DEADFEED = IF
+                DROP newunres this-op @ 800000 OR this-op ! \ unresolved
+        ELSE
+                SWAP DROP \ resolved
+        THEN ;
 
-2 00000000 label# L#		4 80000000 label# G#
+2 00000000 label# L#            4 80000000 label# G#
 
 \ resolve any references to label n
 : resolve ( n -- )
-	SYM-TABLE @ \ label a-of-#forward-ref
-	DUP CELL+ @ SWAP @ \ label address-of-1st #entries
-	2 CELLS * OVER + SWAP DO
-		\ for each entry in the forward references table...
-		\ entry is label_number or FFFFFFFF (unused). tos holds the
-		\ label number to look for. Resolve all the matches. To resolve
-		\ look at the value stored at the target address. Expect the
-		\ value to be a branch or an LDR pointing backwards to a
-		\ literal pool entry. For a branch, work out the offset and
-		\ OR it in. For an LDR, use the offset to calculate the
-		\ address of the literal pool entry and patch that.
-		I @ OVER = IF
-			\ resolve this label
-			DUP 80000000 AND IF I @ G# ELSE I @ L# THEN \ get value
-			I CELL+ @ DUP ASM@
-			\ label value patch-address cur-value
-			0A000000 AND 0A000000 = IF
-				\ it's a branch
-				OVER OVER - 8 - 2 RSHIFT DUP FF000000 AND
-				DUP 3F000000 = SWAP 0= OR INVERT IF
-					4 huh
-				THEN
-				\ label value patch-address offset
-				FFFFFF AND OVER ASM@ OR SWAP ASM! DROP
-			ELSE
-				\ change patch address to address of literal
-				DUP ASM@ 0FFF AND - 8 +
-				ASM! \ and patch it
-			THEN
-			FFFFFFFF I ! \ it's resolved so clear the entry
-		THEN
-	2 CELLS +LOOP DROP ;
+        SYM-TABLE @ \ label a-of-#forward-ref
+        DUP CELL+ @ SWAP @ \ label address-of-1st #entries
+        2 CELLS * OVER + SWAP DO
+                \ for each entry in the forward references table...
+                \ entry is label_number or FFFFFFFF (unused). tos holds the
+                \ label number to look for. Resolve all the matches. To resolve
+                \ look at the value stored at the target address. Expect the
+                \ value to be a branch or an LDR pointing backwards to a
+                \ literal pool entry. For a branch, work out the offset and
+                \ OR it in. For an LDR, use the offset to calculate the
+                \ address of the literal pool entry and patch that.
+                I @ OVER = IF
+                        \ resolve this label
+                        DUP 80000000 AND IF I @ G# ELSE I @ L# THEN \ get value
+                        I CELL+ @ DUP ASM@
+                        \ label value patch-address cur-value
+                        0A000000 AND 0A000000 = IF
+                                \ it's a branch
+                                OVER OVER - 8 - 2 RSHIFT DUP FF000000 AND
+                                DUP 3F000000 = SWAP 0= OR INVERT IF
+                                        4 huh
+                                THEN
+                                \ label value patch-address offset
+                                FFFFFF AND OVER ASM@ OR SWAP ASM! DROP
+                        ELSE
+                                \ change patch address to address of literal
+                                DUP ASM@ 0FFF AND - 8 +
+                                ASM! \ and patch it
+                        THEN
+                        FFFFFFFF I ! \ it's resolved so clear the entry
+                THEN
+        2 CELLS +LOOP DROP ;
 
 \ create word whose function is to create a label with name n' (range from 0
 \ to maximum local/global label) with a value given by n. Look for unresolved
 \ labels of this name (in the unresolved list) and resolve them
 : label= \ runtime of created word: ( n n' -- )
-	CREATE , CELLS , DOES> DUP @ ROT OR SWAP CELL+ @
-	SYM-TABLE @ + leglab \ value label a-of-number-of-labels
-	CELL+ @ OVER 7FFFFFFF AND CELLS + \ address where value will be stored
-	DUP @ DEADFEED = IF
-		ROT SWAP ! \ define value for label
-		resolve
-	ELSE 1E huh
-	THEN ;
+        CREATE , CELLS , DOES> DUP @ ROT OR SWAP CELL+ @
+        SYM-TABLE @ + leglab \ value label a-of-number-of-labels
+        CELL+ @ OVER 7FFFFFFF AND CELLS + \ address where value will be stored
+        DUP @ DEADFEED = IF
+                ROT SWAP ! \ define value for label
+                resolve
+        ELSE 1E huh
+        THEN ;
 
-2 00000000 label= L=			4 80000000 label= G=
+2 00000000 label= L=                    4 80000000 label= G=
 
 \ create local label with name n (range from 0 to maximum local label) with
 \ a value given by the current value of . (dot) Look for unresolved labels of
@@ -1050,75 +1050,75 @@ VARIABLE SYM-TABLE
 \ of end-of-pool. Should really check that pools are defined on aligned
 \ boundaries.
 : LTORG ( n -- )
-	DUP IF
-		ASM.
-		\ At start of puddle, emit a link to next (older) puddle
-		\ (or 0 if this is the first puddle) and update the head
-		\ pointer to point to this new puddle
-		LTORG-HEAD @ ASM,32 LTORG-HEAD !
-		0 ASM,32 \ number of literals used in this puddle
-		DUP ASM,32 \ number of literals in this puddle
-		1 DO 0 ASM,32 LOOP \ init each literal to 0
-	ELSE 18 huh THEN ;
+        DUP IF
+                ASM.
+                \ At start of puddle, emit a link to next (older) puddle
+                \ (or 0 if this is the first puddle) and update the head
+                \ pointer to point to this new puddle
+                LTORG-HEAD @ ASM,32 LTORG-HEAD !
+                0 ASM,32 \ number of literals used in this puddle
+                DUP ASM,32 \ number of literals in this puddle
+                1 DO 0 ASM,32 LOOP \ init each literal to 0
+        ELSE 18 huh THEN ;
 
 : LTORG-STATS
-	CR ." Literal pool statistics:"
-	LTORG-HEAD @
-	BEGIN
-		DUP 0<>
-	WHILE
-		>R BASE @ 10 BASE ! CR ." Puddle at 0x" R@ U.
-		0A BASE !
-		R@ CELL+ DUP ASM@ ." : " U.
-		." of " CELL+ ASM@ U. ." entries used."
-		BASE ! R> ASM@ \ restore base and look at next puddle
-	REPEAT
-	DROP CR ." (End of literal pool)" CR ;
+        CR ." Literal pool statistics:"
+        LTORG-HEAD @
+        BEGIN
+                DUP 0<>
+        WHILE
+                >R BASE @ 10 BASE ! CR ." Puddle at 0x" R@ U.
+                0A BASE !
+                R@ CELL+ DUP ASM@ ." : " U.
+                ." of " CELL+ ASM@ U. ." entries used."
+                BASE ! R> ASM@ \ restore base and look at next puddle
+        REPEAT
+        DROP CR ." (End of literal pool)" CR ;
 
 \ Reserve an entry in the most recently created puddle of the literal pool;
 \ return the address (an address in target space) of the entry. The value of
 \ the entry will have been set to 0 when the puddle was created. No attempt
 \ is made to determine whether the entry is reachable by a 12-bit offset.
 : RESLIT ( -- n )
-	LTORG-HEAD @ DUP 0= IF 19 huh THEN
-	CELL+ >R R@ ASM@ R@ CELL+ ASM@ = IF 1A huh THEN
-	\ increment the literal count for this pool
-	1 R@ ( +! ) SWAP OVER ASM@ + SWAP ASM!
-	\ and return the address of the allocated entry
-	R> DUP ASM@ 1+ CELLS + ;
+        LTORG-HEAD @ DUP 0= IF 19 huh THEN
+        CELL+ >R R@ ASM@ R@ CELL+ ASM@ = IF 1A huh THEN
+        \ increment the literal count for this pool
+        1 R@ ( +! ) SWAP OVER ASM@ + SWAP ASM!
+        \ and return the address of the allocated entry
+        R> DUP ASM@ 1+ CELLS + ;
 
 \ Put a value n-v into the literal pool and return its address n-a. The literal
 \ may be new or shared. Error if literal pool is full
 : NEWLIT ( n-v -- n-a )
-	LTORG-HEAD @
-	BEGIN
-		DUP >R 0<> \ real puddle? 
-		\ assume that the puddle is reachable if the first entry
-		\ is reachable (a conservative approximation)
-		ASM. R@ - 1004 <
-		AND
-	WHILE	\ reachable puddle.. search all used entries in it to see if
-		\ we can share an existing entry .. need ?DO here as there may
-		\ be *no* used entries in the puddle
-		R@ SWAP R@ CELL+ ASM@ 3 + CELLS R@ + R> 3 CELLS + ?DO
-			DUP I ASM@ = IF
-				( ." [Shared literal]" )
-				\ nxt-puddle-ptr literal 
-				DROP DROP I UNLOOP EXIT
-			THEN
-		4 +LOOP	SWAP ASM@ \ n address-of-next-puddle
-	REPEAT
-	\ no match found in any reachable puddle so create new entry .. value
-	\ is still at tos. Three situations may arise:
-	\ 1. Start of the puddle is reachable. In this case, the new entry
-	\    is guaranteed reachable so all is well.
-	\ 2. Start of the puddle is unreachable, but the actual entry we
-	\    just created *is* reachable (since the reachability test above
-	\    is conservative). In this case, all is well, but we may have
-	\    missed a chance to share an entry.
-	\ 3. The new entry is unreachable.
-	\ Reachability is tested by ABS2OS.
-	R> DROP RESLIT SWAP OVER ASM! ;
+        LTORG-HEAD @
+        BEGIN
+                DUP >R 0<> \ real puddle?
+                \ assume that the puddle is reachable if the first entry
+                \ is reachable (a conservative approximation)
+                ASM. R@ - 1004 <
+                AND
+        WHILE   \ reachable puddle.. search all used entries in it to see if
+                \ we can share an existing entry .. need ?DO here as there may
+                \ be *no* used entries in the puddle
+                R@ SWAP R@ CELL+ ASM@ 3 + CELLS R@ + R> 3 CELLS + ?DO
+                        DUP I ASM@ = IF
+                                ( ." [Shared literal]" )
+                                \ nxt-puddle-ptr literal
+                                DROP DROP I UNLOOP EXIT
+                        THEN
+                4 +LOOP SWAP ASM@ \ n address-of-next-puddle
+        REPEAT
+        \ no match found in any reachable puddle so create new entry .. value
+        \ is still at tos. Three situations may arise:
+        \ 1. Start of the puddle is reachable. In this case, the new entry
+        \    is guaranteed reachable so all is well.
+        \ 2. Start of the puddle is unreachable, but the actual entry we
+        \    just created *is* reachable (since the reachability test above
+        \    is conservative). In this case, all is well, but we may have
+        \    missed a chance to share an entry.
+        \ 3. The new entry is unreachable.
+        \ Reachability is tested by ABS2OS.
+        R> DROP RESLIT SWAP OVER ASM! ;
 
 \ Create an offset for an LDR instruction for loading from a literal pool
 \ earlier in memory; the offset is -ve, and the appropriate flag is
@@ -1126,8 +1126,8 @@ VARIABLE SYM-TABLE
 \ the value at tos is the location to be referenced. Error if the offset is
 \ out of range.
 : ABS2OS ( a -- o/s )
-	ASM. - 8 -
-	DUP ABS FFFFF000 AND 0 <> IF 1B huh THEN ;
+        ASM. - 8 -
+        DUP ABS FFFFF000 AND 0 <> IF 1B huh THEN ;
 
 \ Attempt to translate a line of the format: immediate Rn =,
 \ this will map into one of:
@@ -1139,33 +1139,33 @@ VARIABLE SYM-TABLE
 : =, ( n -- )
   this-op @ FF000000 AND IF 21 huh THEN
   this-op @ 800000 AND IF
-	\ unresolved forward reference. This will have created an entry in the
-	\ forward reference table, with a value that points to . (dot) Need
-	\ to allocate a literal pool entry and emit an LDR here that points to
-	\ the entry. When the forward reference is resolved it will  use the
-	\ offset in the LDR to locate and fix-up the literal pool value
-	0 NEWLIT ABS2OS \ allocate a literal pool entry (0 for now)
-	asm-imm	0 oldreg R15 reg LDR, \ see comments below..
+        \ unresolved forward reference. This will have created an entry in the
+        \ forward reference table, with a value that points to . (dot) Need
+        \ to allocate a literal pool entry and emit an LDR here that points to
+        \ the entry. When the forward reference is resolved it will  use the
+        \ offset in the LDR to locate and fix-up the literal pool value
+        0 NEWLIT ABS2OS \ allocate a literal pool entry (0 for now)
+        asm-imm 0 oldreg R15 reg LDR, \ see comments below..
   ELSE
-	\ immediate or resolved value at tos
-	DUP 32to12 IF \ can express using MOV
-		\ ." =, is resolved & expressed with MOV" 
-		DROP # MOV, \ fix up as tho MOV, with immediate
-	ELSE DUP INVERT 32to12 IF \ can express using MVN,
-			\ ." =, is resolved and expressed with MVN" 
-			DROP INVERT # MVN, \ fix up as tho MVN, with immediate
-		ELSE
-			\ ." =, is resolved - requires literal pool entry"
-			\ cannot express.. need to generate literal and use LDR
-			NEWLIT ABS2OS \ leave immediate offset on stack
-			asm-imm
-			\ want to do an LDR with PC-relative addressing
-			\ need to put an R15 on reg_fifo underneath the
-			\ existing register (there should be exactly 1)
-			0 oldreg R15 reg
-			LDR, \ by luck, the immediate is -VE by default
-		THEN
-	THEN
+        \ immediate or resolved value at tos
+        DUP 32to12 IF \ can express using MOV
+                \ ." =, is resolved & expressed with MOV"
+                DROP # MOV, \ fix up as tho MOV, with immediate
+        ELSE DUP INVERT 32to12 IF \ can express using MVN,
+                        \ ." =, is resolved and expressed with MVN"
+                        DROP INVERT # MVN, \ fix up as tho MVN, with immediate
+                ELSE
+                        \ ." =, is resolved - requires literal pool entry"
+                        \ cannot express.. need to generate literal and use LDR
+                        NEWLIT ABS2OS \ leave immediate offset on stack
+                        asm-imm
+                        \ want to do an LDR with PC-relative addressing
+                        \ need to put an R15 on reg_fifo underneath the
+                        \ existing register (there should be exactly 1)
+                        0 oldreg R15 reg
+                        LDR, \ by luck, the immediate is -VE by default
+                THEN
+        THEN
   THEN ;
 
 
@@ -1188,27 +1188,27 @@ VARIABLE SYM-TABLE
 
 \ ******************* misc - debugging and testing words
 : .this-op ( -- )
-	this-op @ U. oip @ U. reg_fifo @ U. CR ;
+        this-op @ U. oip @ U. reg_fifo @ U. CR ;
 
 \ compare last value emitted with value on stack
 : zz ( n -- )
-	ASM. 1 CELLS - @ 2DUP <> IF
-		CR ." Generated " U. ." but expected " U.
-		." . Final stack depth=" DEPTH .
-		-1 ABORT" Failed"
-	THEN 2DROP ;
+        ASM. 1 CELLS - @ 2DUP <> IF
+                CR ." Generated " U. ." but expected " U.
+                ." . Final stack depth=" DEPTH .
+                -1 ABORT" Failed"
+        THEN 2DROP ;
 
 \ print last op-code generated
 : wot ( -- )
-	ASM. 1 CELLS - @ U. CR ;
+        ASM. 1 CELLS - @ U. CR ;
 
 \ extract offset from op-code and check that the referenced literal
 \ matches the value at tos
 : chklit ( n -- )
-	ASM. 1 CELLS - @
-	DUP 800000 AND IF CR ." Error: expected a -ve offset" THEN
-	FFF AND ASM. 1 CELLS - 8 + SWAP - @
-	<> IF ." Error: literal mismatch" CR THEN ;
+        ASM. 1 CELLS - @
+        DUP 800000 AND IF CR ." Error: expected a -ve offset" THEN
+        FFF AND ASM. 1 CELLS - 8 + SWAP - @
+        <> IF ." Error: literal mismatch" CR THEN ;
 
 \ ******************* To Use..
 \
