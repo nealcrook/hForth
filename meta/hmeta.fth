@@ -44,30 +44,40 @@
 \ hForth meta-compiler project
 \
 \ meta-compiler for compiling an hForth image for a target ARM processor
-\ on a host system running pfe under Linux.
+\ on a host system running gforth under Linux.
 \
-\ Project files:
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ using Gforth, invoke thus:
+\ gforth hmeta.fth -e bye
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\
+\ Files hierarchy:
+\ hmeta.fth
+\    ../asmarm/asmarm.fth      -- arm assembler
+\    hforth.fth                -- hfsarom.asm re-expressed wholly in Forth
+\                                 and meta-compiler structures
+\       hmeta_colon.fth
+\          forward.fth
+\       hmeta_imm.fth
+\    mkfor.fth
+\
+\
+\ Other files of interest:
 \ hfsarom.asm - original source file
 \ hf.lst - original listing file
 \ prebuild/blah.aif - binary produced at the same time as the listing file
-\ hf.lst
-\ asmarm.fth - arm assembler
-\ hforth.fth - hfsarom.asm re-expressed wholly in Forth and meta-compiler
-\              structures
-\ ?? - target-specific files to be included?
+\ .. best place to see them is in ../arm/release/*.gz
 \
+\       ANS Forth Standard divide Forth dictionary into code, name, and
+\       data space. When hForth ROM model starts, the code space resides
+\       at bottom of ROM, name space at top of ROM, and data space in
+\       RAM address space. Code and name parts of new definitions will
+\       split into proper spaces if "ROM" is writable. If "ROM" is not
+\       writable, code and data part of new definitions goes into bottom
+\       of RAM and name part of new definitions goes into top of RAM.
 \
-\  
-\	ANS Forth Standard divide Forth dictionary into code, name, and
-\	data space. When hForth ROM model starts, the code space resides
-\	at bottom of ROM, name space at top of ROM, and data space in
-\	RAM address space. Code and name parts of new definitions will
-\	split into proper spaces if "ROM" is writable. If "ROM" is not
-\	writable, code and data part of new definitions goes into bottom
-\	of RAM and name part of new definitions goes into top of RAM.
-\
-\	You can use the words 'RAM' and 'ROM' to switch data space
-\	between RAM and ROM address space.
+\       You can use the words 'RAM' and 'ROM' to switch data space
+\       between RAM and ROM address space.
 \
 \ code is emitted at xhere
 \ data is emitted at HERE
@@ -102,9 +112,9 @@ FF  hCONSTANT IO_DEFIO
 \ 5    - 19K2
 \ 6    - 38K4
 \ 7    - 56K
-4     hCONSTANT IO_DEFBAUD 
+4     hCONSTANT IO_DEFBAUD
 
-TRUE  hCONSTANT MM_DEMON \ MEMMAP 
+TRUE  hCONSTANT MM_DEMON \ MEMMAP
 FALSE hCONSTANT MM_BOOT
 FALSE hCONSTANT MM_PBLOADED
 
@@ -118,56 +128,56 @@ FALSE hCONSTANT MM_PBLOADED
 \ (for example, if you define a VARIABLE its value gets stored there)
 
 TAR_EBSA110 [IF]
-	\ load into SSRAM, 128Kbytes maximum (faster than DRAM)
-40010000 hCONSTANT MMU0		\ start of page tables in RAM
-40014000 hCONSTANT RAM0		\ first usable RAM location
-40020000 hCONSTANT RAMEnd	\ first unusable RAM location => 48Kbytes RAM
-40010000 hCONSTANT ROMEnd	\ first unusable ROM location => 64Kbytes ROM
+        \ load into SSRAM, 128Kbytes maximum (faster than DRAM)
+40010000 hCONSTANT MMU0         \ start of page tables in RAM
+40014000 hCONSTANT RAM0         \ first usable RAM location
+40020000 hCONSTANT RAMEnd       \ first unusable RAM location => 48Kbytes RAM
+40010000 hCONSTANT ROMEnd       \ first unusable ROM location => 64Kbytes ROM
 
 MM_BOOT MM_DEMON OR [IF]
-	\ code in EPROM or for DEMON is linked to run at the start of
-	\ SSRAM. For EPROM, the initial piece of code will copy the
-	\ image to SSRAM.
-40000000 hCONSTANT ROM0		\ first usable ROM location
+        \ code in EPROM or for DEMON is linked to run at the start of
+        \ SSRAM. For EPROM, the initial piece of code will copy the
+        \ image to SSRAM.
+40000000 hCONSTANT ROM0         \ first usable ROM location
 [ELSE] \ MM_PBLOADED
-	\ code in Flash is linked to run at start of SSRAM plus c0. The
-	\ PBL copies the image to SSRAM. The gap of c0 leaves room to
-	\ form a formated AIF/Flash header for programming an updated
-	\ image back to Flash.
-400000C0 hCONSTANT ROM0		\ first usable ROM location
+        \ code in Flash is linked to run at start of SSRAM plus c0. The
+        \ PBL copies the image to SSRAM. The gap of c0 leaves room to
+        \ form a formated AIF/Flash header for programming an updated
+        \ image back to Flash.
+400000C0 hCONSTANT ROM0         \ first usable ROM location
 [THEN] \ MM
 [THEN] \ TAR_EBSA110
 
 TAR_COGENT [IF]
-00008000 hCONSTANT ROM0		\ first usable ROM location
+00008000 hCONSTANT ROM0         \ first usable ROM location
 00018000 hCONSTANT ROMEnd       \ first unusable ROM location => 64Kbytes ROM
-00018000 hCONSTANT MMU0		\ start of page tables in RAM
-0001C000 hCONSTANT RAM0		\ first usable RAM location
+00018000 hCONSTANT MMU0         \ start of page tables in RAM
+0001C000 hCONSTANT RAM0         \ first usable RAM location
 0002C000 hCONSTANT RAMEnd       \ first unusable ROM location => 64Kbytes RAM
 [THEN] \ TAR_COGENT
 
 TAR_EBSA285 [IF]
 
 MM_PBLOADED [IF]
-	\ code in Flash is linked to run at start of SSRAM plus c0. The gap of
-	\ c0 leaves room to form a formated AIF/Flash header for programming
-	\ an updated image back to Flash. The PBL will switch the memory map,
-	\ init the X-Bus and SDRAM and copy the image from Flash to SDRAM,
-	\ then branch to it. Thereby, the image is magically invoked at the
-	\ right place.
-000100c0 hCONSTANT ROM0		\ first usable ROM location
+        \ code in Flash is linked to run at start of SSRAM plus c0. The gap of
+        \ c0 leaves room to form a formated AIF/Flash header for programming
+        \ an updated image back to Flash. The PBL will switch the memory map,
+        \ init the X-Bus and SDRAM and copy the image from Flash to SDRAM,
+        \ then branch to it. Thereby, the image is magically invoked at the
+        \ right place.
+000100c0 hCONSTANT ROM0         \ first usable ROM location
 00020000 hCONSTANT ROMEnd       \ first unusable ROM location => 64Kbytes ROM
-	\ load into SDRAM. Ignore the first 64Kbytes of memory
-	\ for now. Eventually want a version that will run
-	\ at 0 but then will need to leave room for the vectors there.
-00020000 hCONSTANT MMU0		\ start of page tables in RAM
-00024000 hCONSTANT RAM0		\ first usable RAM location
+        \ load into SDRAM. Ignore the first 64Kbytes of memory
+        \ for now. Eventually want a version that will run
+        \ at 0 but then will need to leave room for the vectors there.
+00020000 hCONSTANT MMU0         \ start of page tables in RAM
+00024000 hCONSTANT RAM0         \ first usable RAM location
 00030000 hCONSTANT RAMEnd       \ first unusable ROM location => 48Kbytes RAM
 [ELSE] \ must be MM_DEMON
-00008000 hCONSTANT ROM0		\ first usable ROM location
+00008000 hCONSTANT ROM0         \ first usable ROM location
 00018000 hCONSTANT ROMEnd       \ first unusable ROM location => 64Kbytes ROM
-00018000 hCONSTANT MMU0		\ start of page tables in RAM
-0001C000 hCONSTANT RAM0		\ first usable RAM location
+00018000 hCONSTANT MMU0         \ start of page tables in RAM
+0001C000 hCONSTANT RAM0         \ first usable RAM location
 0002C000 hCONSTANT RAMEnd       \ first unusable ROM location => 64Kbytes RAM
 [THEN] \ MM
 [THEN] \ TAR_EBSA285
@@ -187,16 +197,16 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 \ Take an address in target space and convert it to an address in host space
 \ - check it for legality.
 : t2h ( n -- n )
-	DUP ROM0 ROMEnd WITHIN IF
-		TARGET-IMAGE + ROM0 -
-	ELSE
-		CR SOURCE TYPE CR
-		." Error: t2h target address " . ." is out of range" ABORT
-	THEN ;
+        DUP ROM0 ROMEnd WITHIN IF
+                TARGET-IMAGE + ROM0 -
+        ELSE
+                CR SOURCE TYPE CR
+                ." Error: t2h target address " . ." is out of range" ABORT
+        THEN ;
 
 \ Access locations within the target space. The address that is supplied
 \ is an absolute address within target space. It is expected to map to
-\ an address within the host's image of the target memory. 
+\ an address within the host's image of the target memory.
 : ?ALIGNED ( -- )
   DUP 3 AND IF .S ABORT" Unaligned address for 32-bit access!" THEN ;
 : t@ ( n -- n ) ?ALIGNED t2h @ ;
@@ -210,8 +220,8 @@ TARGET-IMAGE ROMEnd ROM0 - 00 FILL
 
 \ The assembler needs an additional concept; that of a "PC" at which to
 \ emit code. In hForth this is the same as the code space pointer.
-4		hCONSTANT CELLL \ byte size of a cell
-ROM0	VALUE	 _CODE  \ initial code space pointer
+4               hCONSTANT CELLL \ byte size of a cell
+ROM0    VALUE    _CODE  \ initial code space pointer
 
 S" ../asmarm/asmarm.fth" INCLUDED \ Load the assembler
 
@@ -248,7 +258,7 @@ FALSE hCONSTANT MICRO-DEBUG
 \ - cpVar is the address at which to emit new code
 \ - npVar is the address at which to emit new dictionary data.
 \ ** these names are exposed in the target Forth source, so they get
-\    redefined eventually to be within the target address space. 
+\    redefined eventually to be within the target address space.
 \ -- may not actually need them..
 
 \ data is emitted at the current value of the VALUE hereVar
@@ -264,16 +274,16 @@ VARIABLE myfile \ stores the file handle
 \ Check to see if a file operation completed successfully. If it didn't, fail
 \ ungracefully..
 : file-ok
-	DUP 0= IF DROP ELSE CR ." File operation failed with error code " .
-	ABORT THEN ;
+        DUP 0= IF DROP ELSE CR ." File operation failed with error code " .
+        ABORT THEN ;
 
 \ Save the meta-compiled image to disk
 : IMAGE-WR
-	meta-built R/W BIN CREATE-FILE
-	file-ok myfile !
-	\ store 64K in the file
-	TARGET-IMAGE 10000 myfile @ WRITE-FILE file-ok
-	myfile @ CLOSE-FILE file-ok ;
+        meta-built R/W BIN CREATE-FILE
+        file-ok myfile !
+        \ store 64K in the file
+        TARGET-IMAGE 10000 myfile @ WRITE-FILE file-ok
+        myfile @ CLOSE-FILE file-ok ;
 
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -291,7 +301,7 @@ GLOBAL-RESOLVED \ check that global forward references are resolved.
 SYM-STATS LTORG-STATS
 PREVIOUS
 
-.( Code pointer = 0x) _CODE U. 
+.( Code pointer = 0x) _CODE U.
 .( , Name pointer = 0x) _NAME U.
 .( , Space = 0x) _NAME _CODE - U.
 ALSO its-words FUNRESOLVED @ TUNRESOLVED @ PREVIOUS
@@ -323,4 +333,3 @@ PREVIOUS CR
 S" mkfor.fth" INCLUDED
 
 \ End.
-
