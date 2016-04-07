@@ -7,6 +7,31 @@ PAGE 62,132	;62 lines per page, 132 characters per line
 ;	hForth 8086 ROM model v0.9.9 by Wonyong Koh, 1997
 ;
 ;
+; 1999. 3. 5.
+;	Fix bugs reported by Mr. Neal Crook. Thank Neal Crook.
+;	Fix Forth definition of ACCEPT. 
+;	Add high-level definition of 2DROP and 2DUP.
+;	Remove superfluous THEN in optiCOMPILE,ACCEPT, and UM/MOD.
+;	LITERAL in the high-level definitions of doubleAlso, singleOnly,
+;		and SLITERAL should have been 'POSTPONE LITERAL'.
+;	S" in the high-level definitions of ABORT" should have been 
+;		'POSTPONE S"'.
+;       The hith-level definition of REPEAT should have been 
+;		'POSTPONE AGAIN POSTPONE THEN'.
+;	Add COMSTANT word 'sysVar00'.
+; 1998. 1. 5.
+;	Mr. Kwon Hyuk Kun reported several bugs. Thank Mr. Kwon.
+;	Fix REFILL . 'Fetch' was missing in DW statement. Thank Kwon Hyuk Kun.
+;	Fix PARSE . It should have been 'CHARS OVER +' to calculate
+;		c_addr+u*chars from 'c_addr u'.
+;	Add CHARS in the definition of 'head,'.
+; 	It is more convenient to use up-growing stack for some 
+;		microprocessors such as 8051 family. I, J, and DEPTH
+;		are now processor-dependent words.
+; 1997. 8. 26.
+;	Introduce MaxCountedString.
+; 1997. 8. 16.
+;	Replace 'EKEY max-char AND' with KEY in ACCEPT.
 ; 1997. 7. 11.
 ;	Fix SPACES. Thank Benjamin Hoyt.
 ; 1997. 6. 23.
@@ -258,6 +283,7 @@ FALSEE		EQU	0
 
 CHARR		EQU	1		;byte size of a character
 CELLL		EQU	2		;byte size of a cell
+MaxCountedString EQU	0FFh		;max char length of counted string
 MaxChar 	EQU	0FFh		;Extended character set
 					;  Use 07Fh for ASCII only
 MaxSigned	EQU	07FFFh		;max value of signed integer
@@ -302,7 +328,7 @@ RAMEnd		EQU	0FFFEh			;top of RAM memory ******
 ROM0		EQU	0			;bottom of ROM memory ******
 ROMEnd		EQU	08000h			;end of ROM memory ******
 						;ROM size = 32KB
-COLDD		EQU	ROM0+00100h		;cold start vector ******
+COLDD		EQU	00100h			;cold start vector ******
 
 Trapfpc 	EQU	RAMEnd			;reserve a cell for microdebugger
 RPP		EQU	RAMEnd-CELLL		;start of return stack (RP0)
@@ -519,7 +545,7 @@ UZERO		DW	RXQ			;'ekey?
 		DW	0			;bal
 		DW	0			;notNONAME?
 		DW	0			;rakeVar
-NOrder0 	DW	2			;#order
+		DW	2			;#order
 		DW	FORTH_WORDLISTAddr	;search order stack
 		DW	NONSTANDARD_WORDLISTAddr
 		DW	(OrderDepth-2) DUP (0)
@@ -613,7 +639,7 @@ ORG	_CODE
 	$THROWMSG	'[IF], [ELSE], or [THEN] exception'             ;-58
 
 ;;;;;;;;;;;;;;;;
-; System dependent words -- Must be re-definded for each system.
+; System dependent words -- Must be re-defined for each system.
 ;;;;;;;;;;;;;;;;
 ; I/O words must be redefined if serial communication is used instead of
 ; keyboard. Following words are for MS-DOS system.
@@ -662,7 +688,7 @@ RXFET1: 	$NEXT
 ;   CR		( -- )				\ CORE
 ;		Carriage return and linefeed.
 ;
-;   : CR	carriage-return-char EMIT  linefeed-char EMIT ;
+;   : CR	[ carriage-return-char ] LITERAL EMIT  [ linefeed-char ] LITERAL EMIT ;
 
 		$COLON	2,'CR',CR,_FLINK
 		DW	DoLIT,CRR,EMIT,DoLIT,LFF,EMIT,EXIT
@@ -684,7 +710,7 @@ RXFET1: 	$NEXT
 ;		."  by Wonyong Koh, 1997" CR
 ;		." ALL noncommercial and commercial uses are granted." CR
 ;		." Please send comment, bug report and suggestions to:" CR
-;		."   wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr" CR ;
+;		."   wykoh@pado.krict.re.kr or wykoh@free.xtel.com" CR ;
 
 		$COLON	2,'hi',HI,_SLINK
 		DW	CR
@@ -702,7 +728,7 @@ RXFET1: 	$NEXT
 		DW	TYPEE,CR
 		$INSTR	'Please send comment, bug report and suggestions to:'
 		DW	TYPEE,CR
-		$INSTR	'  wykoh@pado.krict.re.kr or wykoh@hitel.kol.co.kr'
+		$INSTR	'  wykoh@pado.krict.re.kr or wykoh@free.xtel.com'
 		DW	TYPEE,CR,EXIT
 
 ;   COLD	( -- )
@@ -939,7 +965,7 @@ SAMEQ1: 	MOV	SI,DX
 ;		>R		\ wid  R: ca1 u
 ;		BEGIN @ 	\ ca2  R: ca1 u
 ;		   DUP 0= IF R> R> 2DROP EXIT THEN	\ not found
-;		   DUP COUNT [ =MASK ] LITERAL AND R@ = \ ca2 ca2+char f
+;		   DUP COUNT [ =mask ] LITERAL AND R@ = \ ca2 ca2+char f
 ;		      IF   R> R@ SWAP DUP >R		\ ca2 ca2+char ca1 u
 ;			   same?			\ ca2 flag
 ;		    \ ELSE DROP -1	\ unnecessary since ca2+char is not 0.
@@ -947,8 +973,8 @@ SAMEQ1: 	MOV	SI,DX
 ;		WHILE cell-		\ pointer to next word in wordlist
 ;		REPEAT
 ;		R> R> 2DROP DUP name>xt SWAP		\ xt ca2
-;		C@ DUP [ =COMP ] LITERAL AND 0= SWAP
-;		[ =IMED ] LITERAL AND 0= 2* 1+ ;
+;		C@ DUP [ =comp ] LITERAL AND 0= SWAP
+;		[ =immed ] LITERAL AND 0= 2* 1+ ;
 ;
 ;		  $COLON  17,'(search-wordlist)',ParenSearch_Wordlist,_SLINK
 ;		  DW	  ROT,ToR,SWAP,DUPP,ZBranch,PSRCH6
@@ -1011,7 +1037,7 @@ PSRCH4: 	POP	SI
 ;		CALL instruction and leaves the next cell address after the
 ;		CALL instruction. Otherwise leaves the original xt1 and zero.
 ;
-;   : ?call	DUP @ call-code =
+;   : ?call	DUP @ [ call-code ] LITERAL =
 ;		IF   CELL+ DUP @ SWAP CELL+ DUP ROT + EXIT THEN
 ;			\ Direct Threaded Code 8086 relative call
 ;		0 ;
@@ -1026,8 +1052,8 @@ QCALL1		DW	Zero,EXIT
 ;		CREATE . Return xt2 of current definition.
 ;
 ;   : xt,	xhere ALIGNED DUP TOxhere SWAP
-;		call-code code, 	\ Direct Threaded Code
-;		xhere CELL+ - code, ;	\ 8086 relative call
+;		[ call-code ] LITERAL code, 	\ Direct Threaded Code
+;		xhere CELL+ - code, ;		\ 8086 relative call
 
 		$COLON	3,'xt,',xtComma,_SLINK
 		DW	XHere,ALIGNED,DUPP,TOXHere,SWAP
@@ -1275,8 +1301,8 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 ;   ALIGNED	( addr -- a-addr )		\ CORE
 ;		Align address to the cell boundary.
 ;
-;   : ALIGNED	DUP 0 cell-size UM/MOD DROP DUP
-;		IF cell-size SWAP - THEN + ;	\ slow, very portable
+;   : ALIGNED	DUP 0 [ cell-size ] LITERAL UM/MOD DROP DUP
+;		IF [ cell-size ] LITERAL SWAP - THEN + ; \ slow, very portable
 ;
 ;		  $COLON  7,'ALIGNED',ALIGNED,_FLINK
 ;		  DW	  DUPP,Zero,DoLIT,CELLL
@@ -1293,8 +1319,8 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 ;   CELLS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 cells.
 ;
-;   : CELLS	cell-size * ;	\ slow, very portable
-;   : CELLS	2* ;		\ fast, must be redefined for each system
+;   : CELLS	[ cell-size ] LITERAL * ;	\ slow, very portable
+;   : CELLS	2* ;				\ fast, must be redefined for each system
 
 		$COLON	5,'CELLS',CELLS,_FLINK
 		DW	TwoStar,EXIT
@@ -1302,11 +1328,43 @@ ZBRAN1: 	MOV	SI,[SI] 		;IP:=(IP)
 ;   CHARS	( n1 -- n2 )			\ CORE
 ;		Calculate number of address units for n1 characters.
 ;
-;   : CHARS	char-size * ;	\ slow, very portable
-;   : CHARS	;		\ fast, must be redefined for each system
+;   : CHARS	[ char-size ] LITERAL * ;	\ slow, very portable
+;   : CHARS	;				\ fast, must be redefined for each system
 
 		$COLON	5,'CHARS',CHARS,_FLINK
 		DW	EXIT
+
+; It is more convenient to use up-growing stack for some microprocessors such as 8051 family.
+; In those cases I, J, and DEPTH should be redefined.
+
+;   I		( -- n|u ) ( R: loop-sys -- loop-sys )	\ CORE
+;		Push the innermost loop index.
+;
+;   : I 	rp@ [ 1 CELLS ] LITERAL + @
+;		rp@ [ 2 CELLS ] LITERAL + @  +	; COMPILE-ONLY
+
+		$COLON	COMPO+1,'I',I,_FLINK
+		DW	RPFetch,DoLIT,CELLL,Plus,Fetch
+		DW	RPFetch,DoLIT,2*CELLL,Plus,Fetch,Plus,EXIT
+
+;   J		( -- n|u ) ( R: loop-sys -- loop-sys )	\ CORE
+;		Push the index of next outer loop.
+;
+;   : J 	rp@ [ 3 CELLS ] LITERAL + @
+;		rp@ [ 4 CELLS ] LITERAL + @  +	; COMPILE-ONLY
+
+		$COLON	COMPO+1,'J',J,_FLINK
+		DW	RPFetch,DoLIT,3*CELLL,Plus,Fetch
+		DW	RPFetch,DoLIT,4*CELLL,Plus,Fetch,Plus,EXIT
+
+;   DEPTH	( -- +n )			\ CORE
+;		Return the depth of the data stack.
+;
+;   : DEPTH	sp@ sp0 SWAP - [ cell-size ] LITERAL / ;
+
+		$COLON	5,'DEPTH',DEPTH,_FLINK
+		DW	SPFetch,SPZero,SWAP,Minus
+		DW	DoLIT,CELLL,Slash,EXIT
 
 ;   !		( x a-addr -- ) 		\ CORE
 ;		Store x at a aligned address.
@@ -1516,6 +1574,11 @@ MOVE1:		STD
 ;		Start of initial value table of system variables.
 
 		$CONST	7,'sysVar0',SysVar0,UZERO,_SLINK
+
+;   sysVar00	( -- a-addr )
+;		Start of backup copy of original value table of system variables.
+
+		$CONST	8,'sysVar00',SysVar00,UZERO0,_SLINK
 
 ;   sysVar0End	( -- a-addr )
 ;		End of initial value table of system variables.
@@ -1754,7 +1817,7 @@ SystemTaskName	EQU	_NAME-0
 		DW	DoLIT,VersionStr,COUNT,EXIT
 
 		$ENVIR	15,'/COUNTED-STRING'
-		DW	DoLIT,MaxChar,EXIT
+		DW	DoLIT,MaxCountedString,EXIT
 
 		$ENVIR	5,'/HOLD'
 		DW	DoLIT,PADSize,EXIT
@@ -1840,7 +1903,7 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 		DW	TYPEE,EXIT
 
 ;   .prompt	    ( -- )
-;		Disply Forth prompt. This word is vectored.
+;		Display Forth prompt. This word is vectored.
 ;
 ;   : .prompt	'prompt EXECUTE ;
 
@@ -1887,7 +1950,7 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 ;   cell-	( a-addr1 -- a-addr2 )
 ;		Return previous aligned cell address.
 ;
-;   : cell-	-(cell-size) + ;
+;   : cell-	[ cell-size NEGATE ] LITERAL + ;
 
 		$COLON	5,'cell-',CellMinus,_SLINK
 		DW	DoLIT,0-CELLL,Plus,EXIT
@@ -1911,7 +1974,7 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 ;   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
 ;		Run-time funtion of DO.
 ;
-;   : doDO	>R max-negative + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
+;   : doDO	>R [ max-negative ] LITERAL + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
 
 		$COLON	COMPO+4,'doDO',DoDO,_SLINK
 		DW	ToR,DoLIT,MaxNegative,Plus,RFrom
@@ -1929,10 +1992,12 @@ PARDD1		DW	LessNumberSign,NumberSignS,ROT
 ;   : head,	PARSE-WORD DUP 0=
 ;		IF errWord 2! -16 THROW THEN
 ;				\ attempt to use zero-length string as a name
-;		DUP =mask > IF -19 THROW THEN	\ definition name too long
+;		DUP [ =mask ] LITERAL > IF -19 THROW THEN
+;				\ definition name too long
 ;		2DUP GET-CURRENT SEARCH-WORDLIST  \ name exist?
 ;		IF DROP ." redefine " 2DUP TYPE SPACE THEN \ warn if redefined
-;		npVar @ OVER CELL+ - ALIGNED
+;		npVar @ OVER CHARS CHAR+ - 
+;		DUP ALIGNED SWAP OVER XOR IF CELL- THEN	\ aligned to lower addr
 ;		DUP >R pack" DROP R>            \ pack the name in dictionary
 ;		cell- GET-CURRENT @ OVER !	\ build wordlist link
 ;		cell- DUP npVar !  ! ;		\ adjust name space pointer
@@ -1946,8 +2011,10 @@ HEADC3		DW	TwoDUP,GET_CURRENT,SEARCH_WORDLIST,ZBranch,HEADC2
 		DW	DROP
 		$INSTR	'redefine '
 		DW	TYPEE,TwoDUP,TYPEE,SPACE
-HEADC2		DW	NPVar,Fetch,OVER,CELLPlus,Minus,ALIGNED
-		DW	DUPP,ToR,PackQuote,DROP,RFrom
+HEADC2		DW	NPVar,Fetch,OVER,CHARS,CHARPlus,Minus
+		DW	DUPP,ALIGNED,SWAP,OVER,XORR,ZBranch,HEADC4
+		DW	CellMinus
+HEADC4		DW	DUPP,ToR,PackQuote,DROP,RFrom
 		DW	CellMinus,GET_CURRENT,Fetch,OVER,Store
 		DW	CellMinus,DUPP,NPVar,Store,Store,EXIT
 HEADC1		DW	ErrWord,TwoStore,DoLIT,-16,THROW
@@ -1994,8 +2061,8 @@ INTERP4 	DW	DoLIT,-14,THROW
 ;		      2DROP EXIT THEN
 ;		    DUP CELL+ @ ['] EXIT = IF   \ if second word is EXIT
 ;		      @ DUP ['] doLIT XOR  \ make sure it is not literal value
-;		      IF SWAP THEN THEN
-;		THEN THEN DROP COMPILE, ;
+;		      IF SWAP THEN  THEN
+;		THEN DROP COMPILE, ;
 
 		$COLON	12,'optiCOMPILE,',OptiCOMPILEComma,_SLINK
 		DW	DUPP,QCall,DoLIT,DoLIST,Equals,ZBranch,OPTC2
@@ -2031,7 +2098,7 @@ SINGLEO2	DW	EXIT
 ;		single cell number in compilation state.
 ;
 ;   : singleOnly,
-;		singleOnly LITERAL ;
+;		singleOnly POSTPONE LITERAL ;
 
 		$COLON	11,'singleOnly,',SingleOnlyComma,_SLINK
 		DW	SingleOnly,LITERAL,EXIT
@@ -2084,7 +2151,7 @@ DOUBLEA6	DW	One,EXIT
 ;		compilation state.
 ;
 ;   : doubleAlso,
-;		(doubleAlso) 1- IF SWAP LITERAL THEN LITERAL ;
+;		(doubleAlso) 1- IF SWAP POSTPONE LITERAL THEN POSTPONE LITERAL ;
 
 		$COLON	11,'doubleAlso,',DoubleAlsoComma,_SLINK
 		DW	ParenDoubleAlso,OneMinus,ZBranch,DOUBC1
@@ -2131,13 +2198,17 @@ DOUBC1		DW	LITERAL,EXIT
 ;		cell-aligned address. Fill the rest of the last cell with
 ;		null character.
 ;
-;   : pack"     2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
+;   : pack"     OVER max-counted-string SWAP U< 
+;		IF -18 THROW THEN	\ parsed string overflow
+;		2DUP SWAP CHARS + CHAR+ DUP >R  \ ca u aa aa+u+1
 ;		ALIGNED cell- 0 SWAP !		\ fill 0 at the end of string
 ;		2DUP C! CHAR+ SWAP		\ c-addr a-addr+1 u
 ;		CHARS MOVE R> ALIGNED ; COMPILE-ONLY
 
-		$COLON	5,'pack"',PackQuote,_SLINK
-		DW	TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
+		$COLON	COMPO+5,'pack"',PackQuote,_SLINK
+		DW	OVER,DoLIT,MaxCountedString,SWAP,ULess,ZBranch,PACKQ1
+		DW	DoLIT,-18,THROW
+PACKQ1		DW	TwoDUP,SWAP,CHARS,Plus,CHARPlus,DUPP,ToR
 		DW	ALIGNED,CellMinus,Zero,SWAP,Store
 		DW	TwoDUP,CStore,CHARPlus,SWAP
 		DW	CHARS,MOVE,RFrom,ALIGNED,EXIT
@@ -2332,7 +2403,7 @@ SEARCH1 	DW	EXIT
 ;		Prepare the output string to be TYPE'd.
 ;		||xhere>WORD/#-work-area|
 ;
-;   : #>	2DROP hld @ xhere size-of-PAD + OVER - 1chars/ ;
+;   : #>	2DROP hld @ xhere [ size-of-PAD ] LITERAL + OVER - 1chars/ ;
 
 		$COLON	2,'#>',NumberSignGreater,_FLINK
 		DW	TwoDROP,HLD,Fetch,XHere,DoLIT,PADSize*CHARR,Plus
@@ -2376,7 +2447,7 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 ;   ,		( x -- )			\ CORE
 ;		Reserve one cell in RAM or ROM data space and store x in it.
 ;
-;   : , 	HERE ! cell-size hereVar +! ;
+;   : , 	HERE ! [ cell-size ] LITERAL hereVar +! ;
 
 		$COLON	1,',',Comma,_FLINK
 		DW	HERE,Store
@@ -2459,12 +2530,16 @@ NUMSS1		DW	NumberSign,TwoDUP,ORR
 
 ;   2DROP	( x1 x2 -- )			\ CORE
 ;		Drop cell pair x1 x2 from the stack.
+;
+;   : 2DROP	DROP DROP ;
 
 		$COLON	5,'2DROP',TwoDROP,_FLINK
 		DW	DROP,DROP,EXIT
 
 ;   2DUP	( x1 x2 -- x1 x2 x1 x2 )	\ CORE
 ;		Duplicate cell pair x1 x2.
+;
+;   : 2DUP	DUP DUP ;
 
 		$COLON	4,'2DUP',TwoDUP,_FLINK
 		DW	OVER,OVER,EXIT
@@ -2537,7 +2612,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 ;		Initiate the numeric output conversion process.
 ;		||xhere>WORD/#-work-area|
 ;
-;   : <#	xhere size-of-PAD + hld ! ;
+;   : <#	xhere [ size-of-PAD ] LITERAL + hld ! ;
 
 		$COLON	2,'<#',LessNumberSign,_FLINK
 		DW	XHere,DoLIT,PADSize*CHARR,Plus,HLD,Store,EXIT
@@ -2545,7 +2620,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 ;   =		( x1 x2 -- flag )		\ CORE
 ;		Return true if top two are equal.
 ;
-;   : = 	XORR 0= ;
+;   : = 	XOR 0= ;
 
 		$COLON	1,'=',Equals,_FLINK
 		DW	XORR,ZeroEquals,EXIT
@@ -2558,7 +2633,7 @@ LESS1		DW	Minus,ZeroLess,EXIT
 		$COLON	1,'>',GreaterThan,_FLINK
 		DW	SWAP,LessThan,EXIT
 
-;   >IN 	( -- a-addr )
+;   >IN 	( -- a-addr )			\ CORE
 ;		Hold the character pointer while parsing input stream.
 
 		$VAR	3,'>IN',ToIN,_FLINK
@@ -2616,26 +2691,25 @@ QDUP1		DW	EXIT
 ;
 ;   : ACCEPT	>R 0
 ;		BEGIN  DUP R@ < 		\ ca n2 f  R: n1
-;		WHILE  EKEY max-char AND
-;		       DUP BL <
-;		       IF   DUP  cr# = IF ROT 2DROP R> DROP EXIT THEN
-;			    DUP  tab# =
+;		WHILE  KEY DUP BL <
+;		       IF   DUP  [ cr# ] LITERAL = IF ROT 2DROP R> DROP EXIT THEN
+;			    DUP  [ tab# ] LITERAL =
 ;			    IF	 DROP 2DUP + BL DUP EMIT SWAP C! 1+
-;			    ELSE DUP  bsp# =
-;				 SWAP del# = OR
-;				 IF DROP DUP
-;					\ discard the last char if not 1st char
-;				 IF 1- bsp# EMIT BL EMIT bsp# EMIT THEN THEN
+;			    ELSE DUP  [ bsp# ] LITERAL =
+;				 SWAP [ del# ] LITERAL = OR
+;				 IF DUP	\ discard the last char if not 1st char
+;				   IF 1- [ bsp# ] LITERAL EMIT 
+;                                     BL EMIT [ bsp# ] LITERAL EMIT THEN 
+;                                THEN
 ;			    THEN
-;		       ELSE >R 2DUP CHARS + R> DUP EMIT SWAP C! 1+  THEN
+;		       ELSE >R 2DUP CHARS + R> DUP EMIT SWAP C! 1+
 ;		       THEN
 ;		REPEAT SWAP  R> 2DROP ;
 
 		$COLON	6,'ACCEPT',ACCEPT,_FLINK
 		DW	ToR,Zero
 ACCPT1		DW	DUPP,RFetch,LessThan,ZBranch,ACCPT5
-		DW	EKEY,DoLIT,MaxChar,ANDD
-		DW	DUPP,BLank,LessThan,ZBranch,ACCPT3
+		DW	KEY,DUPP,BLank,LessThan,ZBranch,ACCPT3
 		DW	DUPP,DoLIT,CRR,Equals,ZBranch,ACCPT4
 		DW	ROT,TwoDROP,RFrom,DROP,EXIT
 ACCPT4		DW	DUPP,DoLIT,TABB,Equals,ZBranch,ACCPT6
@@ -2702,7 +2776,7 @@ AGAIN1		DW	DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 ;   CELL+	( a-addr1 -- a-addr2 )		\ CORE
 ;		Return next aligned cell address.
 ;
-;   : CELL+	cell-size + ;
+;   : CELL+	[ cell-size ] LITERAL + ;
 
 		$COLON	5,'CELL+',CELLPlus,_FLINK
 		DW	DoLIT,CELLL,Plus,EXIT
@@ -2710,7 +2784,7 @@ AGAIN1		DW	DoLIT,Branch,COMPILEComma,CodeComma,BalMinus,EXIT
 ;   CHAR+	( c-addr1 -- c-addr2 )		\ CORE
 ;		Returns next character-aligned address.
 ;
-;   : CHAR+	char-size + ;
+;   : CHAR+	[ char-size ] LITERAL + ;
 
 		$COLON	5,'CHAR+',CHARPlus,_FLINK
 		DW	DoLIT,CHARR,Plus,EXIT
@@ -2792,15 +2866,6 @@ CREAT1		DW	DoLIT,DoCREATE,xtComma,HeadComma
 
 		$COLON	7,'DECIMAL',DECIMAL,_FLINK
 		DW	DoLIT,10,BASE,Store,EXIT
-
-;   DEPTH	( -- +n )			\ CORE
-;		Return the depth of the data stack.
-;
-;   : DEPTH	sp@ sp0 SWAP - cell-size / ;
-
-		$COLON	5,'DEPTH',DEPTH,_FLINK
-		DW	SPFetch,SPZero,SWAP,Minus
-		DW	DoLIT,CELLL,Slash,EXIT
 
 ;   DNEGATE	( d1 -- d2 )			\ DOUBLE
 ;		Two's complement of double-cell number.
@@ -2885,16 +2950,6 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		DW	HLD,Fetch,DoLIT,0-CHARR,Plus
 		DW	DUPP,HLD,Store,CStore,EXIT
 
-;   I		( -- n|u ) ( R: loop-sys -- loop-sys )	\ CORE
-;		Push the innermost loop index.
-;
-;   : I 	rp@ [ 1 CELLS ] LITERAL + @
-;		rp@ [ 2 CELLS ] LITERAL + @  +	; COMPILE-ONLY
-
-		$COLON	COMPO+1,'I',I,_FLINK
-		DW	RPFetch,DoLIT,CELLL,Plus,Fetch
-		DW	RPFetch,DoLIT,2*CELLL,Plus,Fetch,Plus,EXIT
-
 ;   IF		Compilation: ( C: -- orig )		\ CORE
 ;		Run-time: ( x -- )
 ;		Put the location of a new unresolved forward reference orig
@@ -2920,7 +2975,7 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 ;   KEY 	( -- char )			\ CORE
 ;		Receive a character. Do not display char.
 ;
-;   : KEY	EKEY max-char AND ;
+;   : KEY	EKEY [ max-char ] LITERAL AND ;
 
 		$COLON	3,'KEY',KEY,_FLINK
 		DW	EKEY,DoLIT,MaxChar,ANDD,EXIT
@@ -2956,7 +3011,7 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 ;
 ;   : PARSE	>R  SOURCE >IN @ /STRING	\ c-addr u  R: char
 ;		DUP IF
-;		   OVER CHARS + OVER	   \ c-addr c-addr+u c-addr  R: char
+;		   CHARS OVER + OVER	   \ c-addr c-addr+u c-addr  R: char
 ;		   BEGIN  DUP C@ R@ XOR
 ;		   WHILE  CHAR+ 2DUP =
 ;		   UNTIL  DROP OVER - 1chars/ DUP
@@ -2967,7 +3022,7 @@ FMMOD3		DW	RFrom,DROP,DUPP,ZeroLess,ZBranch,FMMOD6
 		$COLON	5,'PARSE',PARSE,_FLINK
 		DW	ToR,SOURCE,ToIN,Fetch,SlashSTRING
 		DW	DUPP,ZBranch,PARSE4
-		DW	OVER,CHARS,Plus,OVER
+		DW	CHARS,OVER,Plus,OVER
 PARSE1		DW	DUPP,CFetch,RFetch,XORR,ZBranch,PARSE3
 		DW	CHARPlus,TwoDUP,Equals,ZBranch,PARSE1
 PARSE2		DW	DROP,OVER,Minus,DUPP,OneCharsSlash,Branch,PARSE5
@@ -3021,13 +3076,13 @@ QUIT5		DW	SPZero,SPStore,Branch,QUIT1
 ;
 ;   : REFILL	SOURCE-ID IF 0 EXIT THEN
 ;		npVar @ [ size-of-PAD CHARS 2* ] LITERAL - DUP
-;		size-of-PAD ACCEPT sourceVar 2!
+;		[ size-of-PAD ] LITERAL ACCEPT sourceVar 2!
 ;		0 >IN ! -1 ;
 
 		$COLON	6,'REFILL',REFILL,_FLINK
 		DW	SOURCE_ID,ZBranch,REFIL1
 		DW	Zero,EXIT
-REFIL1		DW	NPVar,DoLIT,0-PADSize*CHARR*2,Plus,DUPP
+REFIL1		DW	NPVar,Fetch,DoLIT,PADSize*CHARR*2,Minus,DUPP
 		DW	DoLIT,PADSize*CHARR,ACCEPT,SourceVar,TwoStore
 		DW	Zero,ToIN,Store,MinusOne,EXIT
 
@@ -3152,7 +3207,7 @@ ULES1		DW	Minus,ZeroLess,EXIT
 ;   UM* 	( u1 u2 -- ud ) 		\ CORE
 ;		Unsigned multiply. Return double-cell product.
 ;
-;   : UM*	0 SWAP cell-size-in-bits 0 DO
+;   : UM*	0 SWAP [ cell-size-in-bits ] LITERAL 0 DO
 ;		   DUP um+ >R >R DUP um+ R> +
 ;		   R> IF >R OVER um+ R> + THEN	   \ if carry
 ;		LOOP ROT DROP ;
@@ -3172,12 +3227,10 @@ UMST2		DW	DoLOOP,UMST1
 ;
 ;   : UM/MOD	DUP 0= IF -10 THROW THEN	\ divide by zero
 ;		2DUP U< IF
-;		   NEGATE cell-size-in-bits 0
+;		   NEGATE [ cell-size-in-bits ] LITERAL 0
 ;		   DO	>R DUP um+ >R >R DUP um+ R> + DUP
 ;			R> R@ SWAP >R um+ R> OR
-;			IF >R DROP 1+ R> THEN
-;			ELSE DROP THEN
-;			R>
+;			IF  >R DROP 1+ R>  ELSE  DROP  THEN
 ;		   LOOP DROP SWAP EXIT
 ;		ELSE -11 THROW		\ result out of range
 ;		THEN ;
@@ -3200,7 +3253,7 @@ UMM4		DW	DoLIT,-11,THROW
 ;		An UNLOOP is required for each nesting level before the
 ;		definition may be EXITed.
 ;
-;   : UNLOOP	R> R> R> 2DROP >R ;
+;   : UNLOOP	R> R> R> 2DROP >R ; COMPILE-ONLY
 
 		$COLON	COMPO+6,'UNLOOP',UNLOOP,_FLINK
 		DW	RFrom,RFrom,RFrom,TwoDROP,ToR,EXIT
@@ -3240,7 +3293,7 @@ UMM4		DW	DoLIT,-11,THROW
 ;   (		( "ccc<)>" -- )                 \ CORE
 ;		Ignore following string up to next ) . A comment.
 ;
-;   : ( 	[CHAR] ) PARSE 2DROP ;
+;   : ( 	[CHAR] ) PARSE 2DROP ; IMMEDIATE
 
 		$COLON	IMMED+1,'(',Paren,_FLINK
 		DW	DoLIT,')',PARSE,TwoDROP,EXIT
@@ -3324,7 +3377,7 @@ TBODY1		DW	DoLIT,-31,THROW
 ;		Run-time ( i*x x1 -- | i*x ) ( R: j*x -- | j*x )
 ;		Conditional abort with an error message.
 ;
-;   : ABORT"    S" POSTPONE ROT
+;   : ABORT"    POSTPONE S" POSTPONE ROT
 ;		POSTPONE IF POSTPONE abort"msg POSTPONE 2!
 ;		-2 POSTPONE LITERAL POSTPONE THROW
 ;		POSTPONE ELSE POSTPONE 2DROP POSTPONE THEN
@@ -3363,7 +3416,7 @@ ABS1		DW	EXIT
 ;		control stack.
 ;
 ;   : BEGIN	xhere 0 bal+		\ dest type is 0
-;		; COMPILE-ONLY IMMDEDIATE
+;		; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+5,'BEGIN',BEGIN,_FLINK
 		DW	XHere,Zero,BalPlus,EXIT
@@ -3371,7 +3424,7 @@ ABS1		DW	EXIT
 ;   C,		( char -- )			\ CORE
 ;		Compile a character into data space.
 ;
-;   : C,	HERE C! char-size hereVar +! ;
+;   : C,	HERE C! [ char-size ] LITERAL hereVar +! ;
 
 		$COLON	2,'C,',CComma,_FLINK
 		DW	HERE,CStore,DoLIT,CHARR,HereVar,PlusStore,EXIT
@@ -3418,7 +3471,7 @@ DOES2		DW	DoLIT,Pipe,COMPILEComma
 ;		Put the location of new unresolved forward reference orig2
 ;		onto control-flow stack.
 ;
-;   : ELSE	POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMDEDIATE
+;   : ELSE	POSTPONE AHEAD 2SWAP POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+4,'ELSE',ELSEE,_FLINK
 		DW	AHEAD,TwoSWAP,THENN,EXIT
@@ -3481,20 +3534,10 @@ FIND1		DW	TwoDROP,Zero,EXIT
 ;   IMMEDIATE	( -- )				\ CORE
 ;		Make the most recent definition an immediate word.
 ;
-;   : IMMEDIATE   lastName [ =imed ] LITERAL OVER @ OR SWAP ! ;
+;   : IMMEDIATE   lastName [ =immed ] LITERAL OVER @ OR SWAP ! ;
 
 		$COLON	9,'IMMEDIATE',IMMEDIATE,_FLINK
 		DW	LastName,DoLIT,IMMED,OVER,Fetch,ORR,SWAP,Store,EXIT
-
-;   J		( -- n|u ) ( R: loop-sys -- loop-sys )	\ CORE
-;		Push the index of next outer loop.
-;
-;   : J 	rp@ [ 3 CELLS ] LITERAL + @
-;		rp@ [ 4 CELLS ] LITERAL + @  +	; COMPILE-ONLY
-
-		$COLON	COMPO+1,'J',J,_FLINK
-		DW	RPFetch,DoLIT,3*CELLL,Plus,Fetch
-		DW	RPFetch,DoLIT,4*CELLL,Plus,Fetch,Plus,EXIT
 
 ;   LEAVE	( -- ) ( R: loop-sys -- )	\ CORE
 ;		Terminate definite loop, DO|?DO  ... LOOP|+LOOP, immediately.
@@ -3616,7 +3659,7 @@ RECUR1		DW	Bal,OneMinus,TwoStar,OnePlus,PICK
 ;		Terminate a BEGIN-WHILE-REPEAT indefinite loop. Resolve
 ;		backward reference dest and forward reference orig.
 ;
-;   : REPEAT	AGAIN THEN ; COMPILE-ONLY IMMEDIATE
+;   : REPEAT	POSTPONE AGAIN  POSTPONE THEN ; COMPILE-ONLY IMMEDIATE
 
 		$COLON	IMMED+COMPO+6,'REPEAT',REPEATT,_FLINK
 		DW	AGAIN,THENN,EXIT
@@ -3626,7 +3669,7 @@ RECUR1		DW	Bal,OneMinus,TwoStar,OnePlus,PICK
 ;		Put 0 into the most significant bits vacated by the shift.
 ;
 ;   : RSHIFT	?DUP IF
-;			0 SWAP	cell-size-in-bits SWAP -
+;			0 SWAP	[ cell-size-in-bits ] LITERAL SWAP -
 ;			0 DO  2DUP D+  LOOP
 ;			NIP
 ;		     THEN ;
@@ -3642,7 +3685,7 @@ RSHIFT2 	DW	EXIT
 ;		Run-time ( -- c-addr2 u )
 ;		Compile a string literal. Return the string on execution.
 ;
-;   : SLITERAL	DUP LITERAL POSTPONE doS"
+;   : SLITERAL	DUP POSTPONE LITERAL POSTPONE doS"
 ;		CHARS xhere 2DUP + ALIGNED TOxhere
 ;		SWAP MOVE ; COMPILE-ONLY IMMEDIATE
 
